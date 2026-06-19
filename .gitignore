@@ -58,6 +58,10 @@ data/backups/
 *.swp
 *.swo
 
+# Colab geliştirme artefaktları — platforma migrate edildi, silinebilir
+lib/
+lib-*.zip
+
 # macOS
 .DS_Store
 

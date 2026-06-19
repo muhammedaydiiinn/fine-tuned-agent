@@ -10,6 +10,25 @@ from sqlalchemy.orm import Session as DBSession
 
 logger = logging.getLogger(__name__)
 
+# Tam akış için tüm slot'lar (sıralı)
+ALL_FLOW_SLOTS: tuple[str, ...] = (
+    "identity_confirmed",
+    "problem_awareness_created",
+    "product_value_explained",
+    "safe_link_explained",
+    "offer_terms_explained",
+    "commitment_requested",
+    "final_decision",
+)
+
+# Kapanış öncesi dolu olması gereken zorunlu slot'lar
+CLOSE_REQUIRED_SLOTS: tuple[str, ...] = (
+    "identity_confirmed",
+    "safe_link_explained",
+    "offer_terms_explained",
+    "commitment_requested",
+)
+
 # Varsayılan başlangıç state
 DEFAULT_STATE: dict[str, Any] = {
     "stage": "initial",
@@ -86,3 +105,34 @@ def persist(db: DBSession, session_model, new_state: dict[str, Any]) -> None:
     db.add(session_model)
     db.commit()
     db.refresh(session_model)
+
+
+def slots_ready_for_close(filled_slots: dict) -> bool:
+    """Tüm CLOSE_REQUIRED_SLOTS dolu mu kontrol eder."""
+    return all(s in (filled_slots or {}) for s in CLOSE_REQUIRED_SLOTS)
+
+
+def flow_completion_score(filled_slots: dict) -> float:
+    """0.0–1.0 arası akış tamamlanma oranı."""
+    filled = filled_slots or {}
+    return sum(1 for s in ALL_FLOW_SLOTS if s in filled) / len(ALL_FLOW_SLOTS)
+
+
+def customer_signals_app_progress(text: str) -> bool:
+    """Müşterinin uygulama kurulum adımlarını tamamladığını söylüyor mu?"""
+    msg = (text or "").lower()
+    return any(p in msg for p in [
+        "app ist offen", "app geöffnet", "heruntergeladen", "installiert",
+        "link geöffnet", "store geöffnet", "sms-code", "code ist da",
+        "telefonnummer bestätigen", "schutz aktivieren", "schutz aktiv",
+        "bildschirm steht", "auf dem bildschirm",
+    ])
+
+
+def customer_signals_flow_complete(text: str) -> bool:
+    """Müşteri akışın tamamlandığını belirtiyor mu?"""
+    msg = (text or "").lower()
+    return any(p in msg for p in [
+        "schutz ist aktiv", "alles klar", "danke, alles", "fertig",
+        "aktiv, danke", "funktioniert", "habe aktiviert",
+    ])
