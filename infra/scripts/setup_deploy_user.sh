@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# GPU sunucusunda deploy kullanıcısı oluşturur ve SSH güvenliğini sağlar.
-# Root olarak çalıştır: sudo bash infra/scripts/setup_deploy_user.sh
+# İSTEĞE BAĞLI: Ayrı bir deploy kullanıcısı oluşturur.
+# Root olarak çalışıyorsan bu scripti çalıştırmana gerek yok.
+# bash infra/scripts/setup_deploy_user.sh
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
