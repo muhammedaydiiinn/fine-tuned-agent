@@ -118,9 +118,17 @@ async def save_correction(
             existing.correct_response = corrected_response
             existing.correct_next_action = corrected_next_action or None
             existing.source_correction_id = correction.id
+            existing.context_json = {
+                "intent": turn.intent,
+                "customer_text": turn.customer_text,
+            }
         else:
             db.add(CorrectionMemory(
                 trigger_key=trigger_key,
+                context_json={
+                    "intent": turn.intent,
+                    "customer_text": turn.customer_text,
+                },
                 correct_response=corrected_response,
                 correct_next_action=corrected_next_action or None,
                 source_correction_id=correction.id,

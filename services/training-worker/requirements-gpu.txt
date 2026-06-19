@@ -1,0 +1,13 @@
+-r requirements.txt
+
+# Imported only when TRAINING_MODE=real.
+torch
+transformers
+datasets
+trl
+peft
+accelerate
+bitsandbytes
+
+# Install Unsloth separately for the exact host CUDA/Torch versions. The
+# training code falls back to Transformers + PEFT when Unsloth is unavailable.

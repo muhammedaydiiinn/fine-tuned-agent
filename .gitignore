@@ -21,6 +21,7 @@ env/
 
 # Model dosyaları — klasör yapısı git'te durur, içerik ignore'lanır
 models/base/**
+models/adapters/**
 models/lora/**
 models/merged/**
 models/candidates/**
@@ -28,6 +29,7 @@ models/approved/**
 models/whisper/**
 # .gitkeep dosyaları hariç tut (klasörlerin git'te görünmesi için)
 !models/base/.gitkeep
+!models/adapters/.gitkeep
 !models/lora/.gitkeep
 !models/merged/.gitkeep
 !models/candidates/.gitkeep

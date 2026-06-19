@@ -2,7 +2,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        protected_namespaces=("settings_",),
+    )
 
     # Project
     project_name: str = "anrufblocker-platform"

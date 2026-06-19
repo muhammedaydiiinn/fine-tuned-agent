@@ -18,6 +18,10 @@ templates = Jinja2Templates(directory="app/templates")
 logger = logging.getLogger(__name__)
 
 
+def _backend_headers() -> dict[str, str]:
+    return {"X-API-Key": settings.api_key} if settings.api_key else {}
+
+
 # ── Training candidates ───────────────────────────────────────────────────────
 
 @router.get("/training-candidates", response_class=HTMLResponse)
@@ -204,6 +208,7 @@ def start_training(request: Request, db: DBSession = Depends(get_db)):
         resp = httpx.post(
             f"{settings.agent_backend_url}/training-jobs",
             json={},
+            headers=_backend_headers(),
             timeout=10.0,
         )
         resp.raise_for_status()
@@ -247,6 +252,7 @@ def job_logs_proxy(job_id: int, tail: int = 200):
         resp = httpx.get(
             f"{settings.agent_backend_url}/training-jobs/{job_id}/logs",
             params={"tail": tail},
+            headers=_backend_headers(),
             timeout=5.0,
         )
         resp.raise_for_status()

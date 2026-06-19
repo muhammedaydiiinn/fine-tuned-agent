@@ -216,7 +216,14 @@ def create_training_job(
     db.refresh(job)
 
     payload = {"job_id": job.id, "dataset_version": body.dataset_version or f"ds-job{job.id}"}
-    enqueue_training_job("train_pipeline", payload)
+    try:
+        enqueue_training_job("train_pipeline", payload)
+    except Exception as exc:
+        job.status = "failed"
+        job.error_message = f"Failed to enqueue training job: {exc}"[:1000]
+        db.commit()
+        logger.exception("Failed to enqueue training job id=%d", job.id)
+        raise HTTPException(status_code=503, detail="Training queue is unavailable") from exc
 
     logger.info("training_job created and enqueued: id=%d", job.id)
     return job

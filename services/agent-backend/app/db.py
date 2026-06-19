@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.config import settings
@@ -27,8 +27,16 @@ def get_db():
 
 
 def create_tables() -> None:
-    """Uygulama başlarken tabloları oluşturur.
-    Alembic migration'ları Milestone 2'de eklenecek.
-    """
-    from app import models  # noqa: F401 — tabloların kayıtlı olması için import gerekli
+    """Create tables and apply the small idempotent schema upgrades."""
+    from app import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    eval_run_columns = (
+        "ADD COLUMN IF NOT EXISTS logs_path VARCHAR(256)",
+        "ADD COLUMN IF NOT EXISTS progress_current INTEGER DEFAULT 0 NOT NULL",
+        "ADD COLUMN IF NOT EXISTS progress_total INTEGER DEFAULT 0 NOT NULL",
+        "ADD COLUMN IF NOT EXISTS error_message TEXT",
+        "ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE",
+    )
+    with engine.begin() as connection:
+        for clause in eval_run_columns:
+            connection.execute(text(f"ALTER TABLE eval_runs {clause}"))

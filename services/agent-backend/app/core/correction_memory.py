@@ -37,6 +37,32 @@ def get_hints(db: DBSession, customer_text: str, state: dict[str, Any]) -> list[
     return hints
 
 
+def get_policy_hints(db: DBSession, policy: dict[str, Any]) -> list[dict]:
+    """Return active corrections keyed to the repaired policy intent."""
+    from app.models import CorrectionMemory
+
+    intent = (policy.get("intent") or "").strip().lower()
+    if not intent:
+        return []
+    entries = (
+        db.query(CorrectionMemory)
+        .filter(
+            CorrectionMemory.active == True,  # noqa: E712
+            CorrectionMemory.trigger_key == intent,
+        )
+        .order_by(CorrectionMemory.priority.desc())
+        .all()
+    )
+    return [
+        {
+            "trigger_key": entry.trigger_key,
+            "correct_response": entry.correct_response,
+            "correct_next_action": entry.correct_next_action,
+        }
+        for entry in entries
+    ]
+
+
 def apply_override(
     policy: dict[str, Any],
     hints: list[dict],
@@ -64,14 +90,18 @@ def apply_override(
 
 
 def _matches(entry, customer_text: str, state: dict[str, Any]) -> bool:
-    """Check if the trigger key appears in customer text or state intent."""
+    """Check explicit text context first, then legacy trigger/state matches."""
     trigger = (entry.trigger_key or "").lower()
-    text_lower = customer_text.lower()
+    text_lower = " ".join((customer_text or "").lower().split())
+
+    context: dict = entry.context_json or {}
+    context_text = " ".join((context.get("customer_text") or "").lower().split())
+    if context_text and context_text == text_lower:
+        return True
 
     if trigger and trigger in text_lower:
         return True
 
-    context: dict = entry.context_json or {}
     if context.get("intent") and context["intent"] == state.get("last_intent"):
         return True
 

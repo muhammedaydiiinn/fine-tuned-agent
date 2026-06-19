@@ -31,15 +31,27 @@ def enqueue_training_job(job_type: str, payload: dict) -> str:
     return job_id
 
 
-def enqueue_eval_job(model_version_id: int) -> str:
-    """Eval job'ı kuyruğa ekler, job_id döndürür."""
+def enqueue_eval_job(eval_run_id: int, model_version_id: int) -> str:
+    """Enqueue an eval run and return the queue message ID."""
     import uuid
     job_id = str(uuid.uuid4())
-    message = json.dumps({"job_id": job_id, "model_version_id": model_version_id})
+    message = json.dumps({
+        "job_id": job_id,
+        "job_type": "run_eval",
+        "payload": {
+            "eval_run_id": eval_run_id,
+            "model_version_id": model_version_id,
+        },
+    })
     try:
         r = _get_client()
         r.rpush(EVAL_QUEUE, message)
-        logger.info("Eval job kuyruğa eklendi: %s (model=%d)", job_id, model_version_id)
+        logger.info(
+            "Eval job enqueued: %s (run=%d model=%d)",
+            job_id,
+            eval_run_id,
+            model_version_id,
+        )
     except redis_lib.RedisError as exc:
         logger.error("Redis enqueue hatası: %s", exc)
         raise

@@ -168,6 +168,29 @@ class TrainingJobResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Eval Run ─────────────────────────────────────────────────────────────────
+
+class CreateEvalRunRequest(BaseModel):
+    model_version_id: int = Field(..., gt=0)
+
+
+class EvalRunResponse(BaseModel):
+    id: int
+    model_version_id: int
+    status: str
+    metrics_json: dict[str, Any] | None
+    results_path: str | None
+    logs_path: str | None
+    progress_current: int
+    progress_total: int
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):
