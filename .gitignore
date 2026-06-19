@@ -46,13 +46,9 @@ models/whisper/**
 *.metadata
 *.lock
 
-# Veri
-data/datasets/
-data/feedback/
-data/training_candidates/
-data/eval_results/
-data/logs/
-data/backups/
+# Veri — klasör yapısı git'te durur (.gitkeep), içerik ignore'lanır
+data/**
+!data/**/.gitkeep
 
 # IDE
 .idea/
