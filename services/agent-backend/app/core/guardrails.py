@@ -10,8 +10,29 @@ from app.core.product_facts import PRICE_TEMPLATE, SECURITY_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
-# Kaç kez aynı next_action tekrar ederse yön değiştirilir
 MAX_REPEATED_ACTION = 3
+
+# Closing aşamasında fiyat sorusu tanıma — premature close guard için
+PRICE_QUESTION_TOKENS = [
+    "was kostet", "wie teuer", "preis danach", "und der preis",
+    "was zahle ich", "kosten danach", "monatlich", "gratisfase",
+    "noch einmal die", "den preis noch",
+]
+
+
+def is_closing_price_question(customer_message: str) -> bool:
+    """Closing stage'de müşteri fiyat sorusu soruyor mu? (close_call → explain_offer_terms koruması)"""
+    msg = (customer_message or "").lower()
+    return any(t in msg for t in PRICE_QUESTION_TOKENS)
+
+
+def customer_asked_price_or_trial(text: str) -> bool:
+    msg = (text or "").lower()
+    return any(p in msg for p in [
+        "was kostet", "kostet", "preis", "monatlich", "euro",
+        "nach 14 tagen", "nach 7 tagen", "testphase", "probezeit",
+        "14 tagen", "7 tagen",
+    ])
 
 
 def apply(policy: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
