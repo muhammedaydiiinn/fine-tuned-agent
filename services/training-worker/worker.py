@@ -197,9 +197,11 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             eval_run_id = eval_run.id
             try:
                 queue = redis.from_url(settings.redis_url, decode_responses=True)
+                import uuid as _uuid
                 queue.rpush(
                     "anruf:eval_jobs",
                     json.dumps({
+                        "job_id": str(_uuid.uuid4()),
                         "job_type": "run_eval",
                         "payload": {
                             "eval_run_id": eval_run.id,
