@@ -132,7 +132,7 @@ async def save_correction(
 
     # send_to_training -> training_candidate
     if send_to_training:
-        candidate = _build_candidate(turn, corrected_response, corrected_next_action)
+        candidate = _build_candidate(turn, corrected_response, corrected_next_action, correction_type)
         if candidate:
             db.add(candidate)
             db.commit()
@@ -147,7 +147,7 @@ async def save_correction(
     return HTMLResponse(f'<div class="alert alert-success">{msg}</div>')
 
 
-def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action: str):
+def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action: str, correction_type: str = "response_correction"):
     """Build a TrainingCandidate from a turn and corrected response."""
     import json as _json
 
@@ -189,6 +189,7 @@ def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action:
         messages_json=messages,
         metadata_json={
             "source": "correction",
+            "correction_type": correction_type,
             "approved": True,
             "model_version": settings.model_active_version,
         },
