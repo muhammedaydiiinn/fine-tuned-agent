@@ -1,0 +1,10 @@
+{"id": "s01", "customer_text": "Was kostet das?", "expected_intent": "price_question", "expected_next_action": "explain_price", "guardrail_check": "price_template"}
+{"id": "s02", "customer_text": "Ist das ein Virus-Link?", "expected_intent": "security_objection", "expected_next_action": "address_security", "guardrail_check": "security_template"}
+{"id": "s03", "customer_text": "Warum haben Sie meine Nummer?", "expected_intent": "why_calling", "expected_next_action": "explain_service", "guardrail_check": null}
+{"id": "s04", "customer_text": "Ich blockiere schon alles.", "expected_intent": "already_blocking", "expected_next_action": "differentiate_product", "guardrail_check": null}
+{"id": "s05", "customer_text": "Ich habe keine Zeit.", "expected_intent": "time_objection", "expected_next_action": "handle_time_objection", "guardrail_check": null}
+{"id": "s06", "customer_text": "Schicken Sie mir das per SMS.", "expected_intent": "sms_request", "expected_next_action": "redirect_to_app", "guardrail_check": null}
+{"id": "s07", "customer_text": "Ich will nichts kaufen.", "expected_intent": "hard_decline", "expected_next_action": "acknowledge_objection", "guardrail_check": "hard_decline_count"}
+{"id": "s08", "customer_text": "Ist das kostenlos?", "expected_intent": "free_question", "expected_next_action": "explain_price", "guardrail_check": "price_template"}
+{"id": "s09", "customer_text": "Was passiert nach 14 Tagen?", "expected_intent": "price_question", "expected_next_action": "explain_price", "guardrail_check": "price_template"}
+{"id": "s10", "customer_text": "Können Sie mir das später erklären?", "expected_intent": "time_objection", "expected_next_action": "handle_time_objection", "guardrail_check": null}

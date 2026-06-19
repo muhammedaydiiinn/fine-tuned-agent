@@ -1,0 +1,156 @@
+services:
+
+  # ── Reverse proxy ──────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - agent-backend
+      - supervisor-panel
+    networks:
+      - anruf-net
+    restart: unless-stopped
+
+  # ── Veritabanı ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - anruf-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Job kuyruğu + RedisStack (JSON, Search, TimeSeries, RedisInsight UI) ────
+  redis:
+    image: redis/redis-stack:latest
+    networks:
+      - anruf-net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # RedisInsight yönetim paneli — sadece lokal erişim
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  # ── Agent backend (ana API) ─────────────────────────────────────────────────
+  agent-backend:
+    build:
+      context: ./services/agent-backend
+    env_file: .env
+    volumes:
+      - ./models:/models:ro
+      - ./data:/data
+    networks:
+      - anruf-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Lokal geliştirmede port açık; prod'da sadece nginx üzerinden erişilir
+    ports:
+      - "8010:8010"
+
+  # ── Supervisor panel ────────────────────────────────────────────────────────
+  supervisor-panel:
+    build:
+      context: ./services/supervisor-panel
+    env_file: .env
+    networks:
+      - anruf-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+
+  # ── vLLM model server (sadece VLLM_MODE=real + GPU sunucuda) ───────────────
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - ${MODEL_MERGED_PATH:-./models/merged/anrufblocker-v14}:/model:ro
+    command: >
+      --model /model
+      --served-model-name ${VLLM_MODEL_NAME:-anrufblocker-v14}
+      --max-model-len 4096
+      --gpu-memory-utilization 0.85
+      --port 8000
+    networks:
+      - anruf-net
+    restart: unless-stopped
+
+  # ── Training worker (Milestone 4'te aktif edilecek) ─────────────────────────
+  training-worker:
+    build:
+      context: ./services/training-worker
+    profiles:
+      - workers
+    env_file: .env
+    volumes:
+      - ./models:/models
+      - ./data:/data
+    networks:
+      - anruf-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Eval worker (Milestone 5'te aktif edilecek) ─────────────────────────────
+  eval-worker:
+    build:
+      context: ./services/eval-worker
+    profiles:
+      - workers
+    env_file: .env
+    volumes:
+      - ./models:/models:ro
+      - ./data:/data
+    networks:
+      - anruf-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  anruf-net:
+    driver: bridge

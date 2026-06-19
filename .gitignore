@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Ortam değişkenleri — asla commit etme
+.env
+.env.local
+.env.*.local
+
+# Docker
+.docker/
+
+# Model dosyaları — büyük binary'ler
+models/base/
+models/lora/
+models/merged/
+models/candidates/
+models/approved/
+*.safetensors
+*.bin
+*.pt
+*.gguf
+
+# Veri
+data/datasets/
+data/feedback/
+data/training_candidates/
+data/eval_results/
+data/logs/
+data/backups/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Loglar
+*.log
+logs/
+
+# Postgres yedekleri
+*.sql.gz
+*.dump
+
+# Node (supervisor-panel ileride)
+node_modules/
+.next/
