@@ -37,9 +37,19 @@ def create_tables() -> None:
         "ADD COLUMN IF NOT EXISTS error_message TEXT",
         "ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE",
     )
+    training_job_columns = (
+        "ADD COLUMN IF NOT EXISTS logs_path VARCHAR(256)",
+        "ADD COLUMN IF NOT EXISTS progress_current INTEGER DEFAULT 0 NOT NULL",
+        "ADD COLUMN IF NOT EXISTS progress_total INTEGER DEFAULT 0 NOT NULL",
+        "ADD COLUMN IF NOT EXISTS error_message TEXT",
+        "ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE",
+        "ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP WITH TIME ZONE",
+    )
     with engine.begin() as connection:
         for clause in eval_run_columns:
             connection.execute(text(f"ALTER TABLE eval_runs {clause}"))
+        for clause in training_job_columns:
+            connection.execute(text(f"ALTER TABLE training_jobs {clause}"))
         for clause in (
             "ADD COLUMN IF NOT EXISTS metadata_json JSONB DEFAULT '{}'::jsonb NOT NULL",
             "ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",
