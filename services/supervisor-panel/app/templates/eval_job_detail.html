@@ -28,6 +28,14 @@
   <div class="alert alert-error" style="margin-bottom:20px;">{{ run.error_message }}</div>
 {% endif %}
 
+{% set gate = metrics.get('deployment_gate', {}) %}
+{% if gate %}
+<div class="alert {% if gate.get('passed') %}alert-success{% else %}alert-error{% endif %}" style="margin-bottom:20px;">
+  Deployment gate <strong>{{ gate.get('policy_version') }}</strong>:
+  {{ 'PASSED' if gate.get('passed') else 'FAILED' }}
+</div>
+{% endif %}
+
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar"><span class="table-toolbar-title">Metric Breakdown</span></div>
   <table>

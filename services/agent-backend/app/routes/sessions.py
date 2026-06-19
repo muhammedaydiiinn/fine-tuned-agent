@@ -51,6 +51,15 @@ def list_turns(session_id: str, db: DBSession = Depends(get_db)):
     return turns
 
 
+@router.post("/sessions/{session_id}/close", response_model=SessionResponse)
+def close_session(session_id: str, db: DBSession = Depends(get_db)):
+    session = _get_or_404(db, session_id)
+    session.status = "closed"
+    db.commit()
+    db.refresh(session)
+    return session
+
+
 def _get_or_404(db: DBSession, session_id: str) -> SessionModel:
     session = db.query(SessionModel).filter(
         SessionModel.external_session_id == session_id

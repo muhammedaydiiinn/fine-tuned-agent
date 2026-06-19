@@ -1,0 +1,42 @@
+{% if turns %}
+<div class="conversation-feed">
+  {% for t in turns %}
+  <article class="conversation-turn">
+    <div class="turn-meta">
+      <span>Turn {{ t.turn_index }}</span>
+      {% if t.intent %}<span class="badge badge-intent">{{ t.intent }}</span>{% endif %}
+      {% if t.next_action %}<span class="badge badge-action">{{ t.next_action }}</span>{% endif %}
+      {% if t.latency_json %}<span class="text-muted">{{ t.latency_json.get('total_ms', 0)|round|int }} ms</span>{% endif %}
+    </div>
+    <div class="chat-bubble chat-customer">
+      <div class="bubble-label">Customer</div>
+      {{ t.customer_text }}
+    </div>
+    <div class="chat-bubble chat-agent">
+      <div class="bubble-label">Agent</div>
+      {{ t.agent_response or '—' }}
+    </div>
+    <div class="turn-actions">
+      <form hx-post="/sessions/{{ session.id }}/turns/{{ t.id }}/correct"
+            hx-target="#turn-feedback-{{ t.id }}"
+            hx-swap="innerHTML">
+        <button class="btn btn-sm btn-success" type="submit" name="mark_good" value="1">
+          <i class="fa-solid fa-check"></i> Good
+        </button>
+      </form>
+      <a class="btn btn-sm btn-outline" href="/sessions/{{ session.id }}/turns/{{ t.id }}">
+        <i class="fa-solid fa-pen"></i> Correct / Inspect
+      </a>
+      <span id="turn-feedback-{{ t.id }}"></span>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="table-container">
+  <div class="empty-state">
+    <div class="empty-icon"><i class="fa-solid fa-comments"></i></div>
+    <div>Waiting for the first conversation turn.</div>
+  </div>
+</div>
+{% endif %}

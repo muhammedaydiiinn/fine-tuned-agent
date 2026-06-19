@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
+from app.core import model_runtime
 from app.schemas import CreateEvalRunRequest, EvalRunResponse
 from app.workers.queue import enqueue_eval_job
 
@@ -27,6 +28,36 @@ def create_eval_run(
     )
     if not model_version:
         raise HTTPException(status_code=404, detail="Model version not found")
+    artifact = model_runtime.inspect_artifact(model_version.merged_path)
+    if not artifact["valid"]:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Model artifact is invalid: {artifact['error']}",
+        )
+    target = model_runtime.serving_target(model_version)
+    active = model_runtime.active_model(db)
+    active_slot = model_runtime.serving_target(active)["slot"] if active else None
+    if (
+        model_version.deployment_status == "inactive"
+        and target["mode"] != "mock"
+        and target["slot"] == active_slot
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Candidate evaluation cannot use the active production serving slot",
+        )
+    health = model_runtime.check_serving_target(target)
+    if not health.get("healthy"):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model serving target is unhealthy: {health.get('error', 'unknown error')}",
+        )
+
+    metadata = dict(model_version.metadata_json or {})
+    metadata["artifact_manifest"] = artifact
+    metadata["serving_health"] = health
+    model_version.metadata_json = metadata
+    model_version.eval_status = "running"
 
     run = EvalRun(
         model_version_id=body.model_version_id,
@@ -35,6 +66,7 @@ def create_eval_run(
         progress_total=15,
     )
     db.add(run)
+    db.add(model_version)
     db.commit()
     db.refresh(run)
 

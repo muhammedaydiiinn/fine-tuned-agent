@@ -7,6 +7,14 @@
   <div class="page-header-left">
     <h1>Sessions</h1>
   </div>
+  <div class="page-header-right">
+    <form action="/sessions/start" method="post" class="session-start-form">
+      <input name="external_session_id" placeholder="Optional session name">
+      <button class="btn btn-primary" type="submit">
+        <i class="fa-solid fa-plus"></i> Start Session
+      </button>
+    </form>
+  </div>
 </div>
 
 <div class="stats-row">
@@ -30,7 +38,7 @@
 
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">All Sessions</span>
+    <span class="table-toolbar-title">Live and Recent Sessions</span>
   </div>
   <table data-dt-url="/sessions/data" data-dt-order="0,desc">
     <thead>

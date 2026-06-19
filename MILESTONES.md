@@ -49,8 +49,9 @@ Kabul kriteri:
 
 Kapsam:
 
-- session, turn, state, raw/repaired JSON ve latency görünümü
-- correction editor
+- üç ana çalışma alanı: `Sessions`, `Review & Train`, `Models`
+- canlı session/turn, state, raw/repaired JSON ve latency görünümü
+- turn-level correction ve session-level review
 - temel authentication
 
 Kabul kriteri:
@@ -87,14 +88,16 @@ Mevcut:
 - dataset build, LoRA train ve merge job yolları
 - mock pipeline ve gerçek training script entegrasyonu
 - merged candidate kaydının model registry'ye yazılması
+- session review'a ait candidate ID'leriyle izole training batch
+- golden/base/candidate kaynak manifestleri ve checksum'lar
+- geçici artifact dizinleri ve başarı sonrası atomik yayın
+- kritik product fact içeren training örnekleri için dataset validation
 
 Kalan kabul kapısı:
 
 - Hedef NVIDIA sunucuda gerçek LoRA eğitimi çalıştırılmalı.
-- Approved candidates + golden examples + balanced base dataset bileşimi
-  artifact manifest ile kanıtlanmalı.
-- Job restart/failure durumunda yarım artifact production adayı olmamalı.
-- LoRA ve merged model artifact checksum/path bilgileri registry'de tutulmalı.
+- Gerçek GPU job'unda aynı manifest ve atomik artifact kabul kriterleri
+  doğrulanmalı.
 
 ## M5 — Evaluation worker ve kalite kapısı
 
@@ -105,19 +108,18 @@ Mevcut:
 - sabit single-turn ve multi-turn senaryolar
 - JSON, policy, safety, product fact, repetition ve latency metrikleri
 - eval job progress/log/result ekranları
+- seçilen candidate model ID'sine özel agent routing
+- `m6-gate-v1` versiyonlu pass/fail eşikleri
+- mock training sonrası otomatik kalite kontrolü
+- production ortamında mock eval kanıtını reddeden deployment gate
 
 Kalan kabul kapısı:
 
-- Eval, production'da aktif modeli değil seçilen candidate model artifact'ını
-  izole biçimde çağırmalı.
-- Pass/fail eşikleri versiyonlanmalı ve deployment gate olarak uygulanmalı.
 - En az bir gerçek vLLM candidate koşusu GPU sunucuda doğrulanmalı.
-
-Bu kapılar M6'nın candidate serving mekanizmasına bağımlıdır.
 
 ## M6 — Model registry, candidate serving, deploy ve rollback
 
-**Durum:** Bekliyor.
+**Durum:** Koşullu tamam.
 
 Kapsam:
 
@@ -136,6 +138,21 @@ Kabul kriteri:
 - Deploy sonrası health veya smoke test başarısızsa önceki sürüme otomatik ya
   da tek işlemle dönülür.
 - Her deployment aktif ve önceki model sürümünü kaydeder.
+
+Doğrulanan:
+
+- Mock candidate eval'i production aktif modelinden ayrı model ID'siyle
+  çalıştı; eval turn kayıtlarının tamamı seçilen candidate sürümünü taşıdı.
+- Eval geçmemiş model deploy edilemiyor.
+- Ardışık iki deploy ve rollback sonrası normal `/agent-turn` trafiği doğru
+  aktif modele yönlendirildi.
+- Artifact/serving health, deployment ve rollback audit kayıtları tutuluyor.
+- Tek GPU hedefi için blue/green serving slot Compose yapısı hazırlandı.
+
+Kalan kabul kapısı:
+
+- Blue/green slot değişimi, health/smoke ve rollback gerçek vLLM modelleriyle
+  hedef NVIDIA sunucuda doğrulanmalı.
 
 ## M7 — Browser voice foundation
 

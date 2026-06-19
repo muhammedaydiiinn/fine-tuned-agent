@@ -13,11 +13,16 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def chat(messages: list[dict]) -> str:
+def chat(messages: list[dict], target: dict[str, str] | None = None) -> str:
     """Call the LLM with the given message list and return the raw text response."""
-    if settings.vllm_mode == "mock":
+    target = target or {
+        "mode": settings.vllm_mode,
+        "base_url": settings.vllm_base_url,
+        "model_name": settings.vllm_model_name,
+    }
+    if target.get("mode") == "mock":
         return _mock_chat(messages)
-    return _real_chat(messages)
+    return _real_chat(messages, target)
 
 
 # ── Mock ────────────────────────────────────────────────────────────────────
@@ -109,9 +114,9 @@ def _classify_mock(text: str) -> dict:
 
 # ── Real vLLM ────────────────────────────────────────────────────────────────
 
-def _real_chat(messages: list[dict]) -> str:
+def _real_chat(messages: list[dict], target: dict[str, str]) -> str:
     payload = {
-        "model": settings.vllm_model_name,
+        "model": target["model_name"],
         "messages": messages,
         "temperature": 0.1,
         "max_tokens": 512,
@@ -119,7 +124,7 @@ def _real_chat(messages: list[dict]) -> str:
     try:
         with httpx.Client(timeout=30.0) as client:
             response = client.post(
-                f"{settings.vllm_base_url}/chat/completions",
+                f"{target['base_url'].rstrip('/')}/chat/completions",
                 json=payload,
             )
             response.raise_for_status()

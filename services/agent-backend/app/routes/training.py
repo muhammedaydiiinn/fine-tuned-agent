@@ -203,6 +203,24 @@ def create_training_job(
         val = getattr(body, field)
         if val is not None:
             input_data[field] = val
+    if body.session_id is not None:
+        input_data["session_id"] = body.session_id
+    if body.candidate_ids:
+        candidate_ids = sorted(set(body.candidate_ids))
+        approved_count = (
+            db.query(TrainingCandidate)
+            .filter(
+                TrainingCandidate.id.in_(candidate_ids),
+                TrainingCandidate.approved == True,  # noqa: E712
+            )
+            .count()
+        )
+        if approved_count != len(candidate_ids):
+            raise HTTPException(
+                status_code=422,
+                detail="Every requested candidate must exist and be approved",
+            )
+        input_data["candidate_ids"] = candidate_ids
 
     job = TrainingJob(
         job_type="train_pipeline",
@@ -215,7 +233,12 @@ def create_training_job(
     db.commit()
     db.refresh(job)
 
-    payload = {"job_id": job.id, "dataset_version": body.dataset_version or f"ds-job{job.id}"}
+    payload = {
+        "job_id": job.id,
+        "dataset_version": body.dataset_version or f"ds-job{job.id}",
+        "candidate_ids": input_data.get("candidate_ids") or [],
+        "session_id": body.session_id,
+    }
     try:
         enqueue_training_job("train_pipeline", payload)
     except Exception as exc:

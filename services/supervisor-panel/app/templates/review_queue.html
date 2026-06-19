@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Review & Train{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Review & Train</h1>
+    <span class="text-muted">Finish a conversation, review it once, then train from the approved turns.</span>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-label">Waiting for review</div><div class="stat-value">{{ pending_count }}</div></div>
+  <div class="stat-card"><div class="stat-label">Reviewed sessions</div><div class="stat-value">{{ reviews|length }}</div></div>
+  <div class="stat-card"><div class="stat-label">Recent training jobs</div><div class="stat-value">{{ jobs|length }}</div></div>
+</div>
+
+<div class="table-container" style="margin-bottom:20px;">
+  <div class="table-toolbar"><span class="table-toolbar-title">Conversation Review Queue</span></div>
+  <table>
+    <thead><tr><th>Session</th><th>Turns</th><th>Status</th><th>Review</th><th>Training</th><th></th></tr></thead>
+    <tbody>
+    {% for session in sessions %}
+      {% set review = reviews.get(session.id) %}
+      <tr>
+        <td><code>{{ session.external_session_id or session.id }}</code></td>
+        <td>{{ turn_counts.get(session.id, 0) }}</td>
+        <td><span class="badge">{{ session.status }}</span></td>
+        <td>
+          {% if review %}
+            <span class="badge {% if review.rating == 'good' %}badge-approved{% elif review.rating == 'bad' %}badge-error{% else %}badge-pending{% endif %}">{{ review.rating }}</span>
+          {% else %}
+            <span class="badge badge-running">waiting</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if review and review.training_job_id %}
+            <a href="/training-jobs/{{ review.training_job_id }}">Job #{{ review.training_job_id }}</a>
+          {% elif review and review.candidate_ids_json %}
+            {{ review.candidate_ids_json|length }} approved turns
+          {% else %}—{% endif %}
+        </td>
+        <td><a class="btn btn-sm btn-primary" href="/review/{{ session.id }}">{{ 'Open Review' if not review else 'View Review' }}</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6"><div class="empty-state">End a session to review it here.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<details class="collapsible">
+  <summary>Recent training activity</summary>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>Session</th><th>Status</th><th>Progress</th><th>Model</th></tr></thead>
+      <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><a href="/training-jobs/{{ job.id }}">#{{ job.id }}</a></td>
+          <td>{{ (job.input_json or {}).get('session_id', '—') }}</td>
+          <td><span class="badge">{{ job.status }}</span></td>
+          <td>{{ job.progress_current }}/{{ job.progress_total }}</td>
+          <td><code>{{ (job.output_json or {}).get('version_name', '—') }}</code></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endblock %}

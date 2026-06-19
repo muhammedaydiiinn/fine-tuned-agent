@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     # "mock" skips torch imports — useful for unit tests without GPU
     training_mode: str = "real"
+    candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
+    candidate_model_name: str = "fine-tuned-agent-candidate"
 
     @property
     def database_url(self) -> str:

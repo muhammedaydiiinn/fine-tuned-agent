@@ -27,31 +27,21 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Menu</div>
+      <div class="nav-section-label">Workspace</div>
 
       <a href="/" class="nav-item {% if request.url.path == '/' %}active{% endif %}">
         <i class="fa-solid fa-phone nav-icon"></i>
         Sessions
       </a>
 
-      <a href="/corrections" class="nav-item {% if request.url.path == '/corrections' %}active{% endif %}">
-        <i class="fa-solid fa-pen-to-square nav-icon"></i>
-        Corrections
+      <a href="/review" class="nav-item {% if request.url.path.startswith('/review') %}active{% endif %}">
+        <i class="fa-solid fa-clipboard-check nav-icon"></i>
+        Review & Train
       </a>
 
-      <a href="/training-candidates" class="nav-item {% if request.url.path.startswith('/training-candidates') %}active{% endif %}">
-        <i class="fa-solid fa-layer-group nav-icon"></i>
-        Training Data
-      </a>
-
-      <a href="/training-jobs" class="nav-item {% if request.url.path.startswith('/training-jobs') %}active{% endif %}">
-        <i class="fa-solid fa-microchip nav-icon"></i>
-        Training Jobs
-      </a>
-
-      <a href="/eval-jobs" class="nav-item {% if request.url.path.startswith('/eval-jobs') %}active{% endif %}">
-        <i class="fa-solid fa-flask-vial nav-icon"></i>
-        Evaluations
+      <a href="/model-registry" class="nav-item {% if request.url.path.startswith('/model-registry') %}active{% endif %}">
+        <i class="fa-solid fa-code-branch nav-icon"></i>
+        Models
       </a>
     </nav>
 

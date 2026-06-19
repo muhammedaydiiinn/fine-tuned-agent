@@ -576,20 +576,28 @@ agent-backend DB'sine doğrudan bağlanır (aynı Postgres). Port: 8020.
 
 Build a usable first version. It can be simple, but it must work.
 
-Views:
+User-facing workspaces:
 
 ```text
 - Sessions
-- Session detail
-- Turn detail
-- Model JSON viewer
-- State viewer
-- Latency viewer
-- Correction editor
-- Training queue
-- Model registry
-- Eval results
+  - start/open a session
+  - live conversation turns
+  - inline good/correct feedback
+  - state/latency/model details as secondary information
+- Review & Train
+  - session-level rating and notes
+  - select eligible reviewed turns
+  - start a candidate-ID-scoped training batch
+  - show training progress
+- Models
+  - trained candidate and quality result
+  - approve release, make live and rollback
+  - eval, registry, artifact and serving details under technical disclosure
 ```
+
+Corrections, training candidates, training jobs, eval runs and registry records
+remain separate backend concepts. They must not appear as separate primary
+navigation items.
 
 Buttons/actions:
 

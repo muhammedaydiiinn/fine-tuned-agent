@@ -1,23 +1,70 @@
 import json
+import logging
+import uuid
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+import httpx
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
 
 from app.db import get_db
 from app.models import Session as SessionModel, Turn
+from app.config import settings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+logger = logging.getLogger(__name__)
+
+
+def _backend_headers() -> dict[str, str]:
+    return {"X-API-Key": settings.api_key} if settings.api_key else {}
+
+
+@router.post("/sessions/start")
+def start_session(external_session_id: str = Form("")):
+    external_id = external_session_id.strip() or f"session-{uuid.uuid4().hex[:10]}"
+    try:
+        response = httpx.post(
+            f"{settings.agent_backend_url}/sessions",
+            json={"external_session_id": external_id},
+            headers=_backend_headers(),
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        session_id = int(response.json()["id"])
+    except Exception as exc:
+        logger.exception("Could not start session")
+        return HTMLResponse(f"Could not start session: {exc}", status_code=502)
+    return RedirectResponse(url=f"/sessions/{session_id}", status_code=303)
 
 
 @router.get("/", response_class=HTMLResponse)
 def sessions_list(request: Request, db: DBSession = Depends(get_db)):
-    total_count  = db.query(func.count(SessionModel.id)).scalar() or 0
-    active_count = db.query(func.count(SessionModel.id)).filter(SessionModel.status == "active").scalar() or 0
-    total_turns  = db.query(func.count(Turn.id)).scalar() or 0
+    product_session = or_(
+        SessionModel.external_session_id.is_(None),
+        ~SessionModel.external_session_id.like("eval-%"),
+    )
+    total_count = (
+        db.query(func.count(SessionModel.id))
+        .filter(product_session)
+        .scalar()
+        or 0
+    )
+    active_count = (
+        db.query(func.count(SessionModel.id))
+        .filter(product_session, SessionModel.status == "active")
+        .scalar()
+        or 0
+    )
+    total_turns = (
+        db.query(func.count(Turn.id))
+        .join(SessionModel, SessionModel.id == Turn.session_id)
+        .filter(product_session)
+        .scalar()
+        or 0
+    )
     return templates.TemplateResponse(
         "sessions.html",
         {
@@ -35,6 +82,12 @@ def sessions_data(db: DBSession = Depends(get_db)):
     """DataTables AJAX source for sessions table."""
     sessions = (
         db.query(SessionModel)
+        .filter(
+            or_(
+                SessionModel.external_session_id.is_(None),
+                ~SessionModel.external_session_id.like("eval-%"),
+            )
+        )
         .order_by(SessionModel.created_at.desc())
         .limit(500)
         .all()
@@ -75,3 +128,55 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
         "session_detail.html",
         {"request": request, "session": session, "turns": turns, "state_pretty": state_pretty},
     )
+
+
+@router.get("/sessions/{session_id}/conversation", response_class=HTMLResponse)
+def session_conversation(
+    session_id: int,
+    request: Request,
+    db: DBSession = Depends(get_db),
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        return HTMLResponse("Session not found", status_code=404)
+    turns = (
+        db.query(Turn)
+        .filter(Turn.session_id == session_id)
+        .order_by(Turn.turn_index.asc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        "_session_conversation.html",
+        {"request": request, "session": session, "turns": turns},
+    )
+
+
+@router.get("/sessions/{session_id}/live-summary", response_class=HTMLResponse)
+def session_live_summary(
+    session_id: int,
+    request: Request,
+    db: DBSession = Depends(get_db),
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        return HTMLResponse("Session not found", status_code=404)
+    turn_count = (
+        db.query(func.count(Turn.id))
+        .filter(Turn.session_id == session_id)
+        .scalar()
+        or 0
+    )
+    return templates.TemplateResponse(
+        "_session_summary.html",
+        {"request": request, "session": session, "turn_count": turn_count},
+    )
+
+
+@router.post("/sessions/{session_id}/close")
+def close_session(session_id: int, db: DBSession = Depends(get_db)):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        return HTMLResponse("Session not found", status_code=404)
+    session.status = "closed"
+    db.commit()
+    return RedirectResponse(url=f"/review/{session_id}", status_code=303)

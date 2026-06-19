@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from db import get_db
-from jobs import build_dataset, merge_model, train_lora
-from models import ModelVersion, TrainingJob
+from jobs import artifacts, build_dataset, merge_model, train_lora
+from models import EvalRun, ModelVersion, TrainingJob
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s — %(message)s")
 logger = logging.getLogger("training-worker")
@@ -49,6 +50,8 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
     dataset_path = str(Path(settings.data_dir) / "datasets" / f"{dataset_version}.jsonl")
     adapter_path = str(Path(settings.model_dir) / "adapters" / new_version_name)
     merged_path = str(Path(settings.model_dir) / "merged" / new_version_name)
+    adapter_partial_path = f"{adapter_path}.partial"
+    merged_partial_path = f"{merged_path}.partial"
     base_model_path = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
     log_path = str(Path(settings.data_dir) / "training_logs" / f"{job_db_id}.log")
 
@@ -63,10 +66,19 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
     _log(log_path, f"pipeline started — version={new_version_name} mode={settings.training_mode}")
 
     try:
+        for partial_path in (adapter_partial_path, merged_partial_path):
+            shutil.rmtree(partial_path, ignore_errors=True)
+
         # Step 1: Build dataset
         _log(log_path, "step 1/3 — build_dataset")
         _update_job(db, job, progress_current=5, progress_total=100)
-        ds_result = build_dataset.build(db, dataset_path, dataset_version, data_dir=settings.data_dir)
+        ds_result = build_dataset.build(
+            db,
+            dataset_path,
+            dataset_version,
+            data_dir=settings.data_dir,
+            candidate_ids=payload.get("candidate_ids") or None,
+        )
         _log(log_path, f"dataset built — {ds_result['row_count']} rows → {dataset_path}")
         _update_job(db, job, progress_current=20)
 
@@ -96,15 +108,38 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                 if k in job.input_json:
                     train_cfg[k] = job.input_json[k]
 
-        train_result = train_lora.train(dataset_path, adapter_path, train_cfg, _progress_cb)
+        train_result = train_lora.train(
+            dataset_path,
+            adapter_partial_path,
+            train_cfg,
+            _progress_cb,
+        )
         _log(log_path, f"training done — steps={train_result.get('steps')} mode={train_result.get('mode')}")
         _update_job(db, job, progress_current=80)
 
         # Step 3: Merge model
         _log(log_path, "step 3/3 — merge_model")
-        merge_result = merge_model.merge(base_model_path, adapter_path, merged_path, settings.training_mode)
-        _log(log_path, f"merge done → {merged_path}")
+        merge_result = merge_model.merge(
+            base_model_path,
+            adapter_partial_path,
+            merged_partial_path,
+            settings.training_mode,
+        )
+        _log(log_path, f"merge done → {merged_partial_path}")
         _update_job(db, job, progress_current=95)
+
+        # Publish complete artifacts atomically only after train and merge pass.
+        shutil.rmtree(adapter_path, ignore_errors=True)
+        shutil.rmtree(merged_path, ignore_errors=True)
+        Path(adapter_partial_path).replace(adapter_path)
+        Path(merged_partial_path).replace(merged_path)
+        train_result["adapter_path"] = adapter_path
+        merge_result["merged_path"] = merged_path
+        artifact_manifest = {
+            "dataset": artifacts.file_manifest(dataset_path),
+            "adapter": artifacts.directory_manifest(adapter_path),
+            "merged": artifacts.directory_manifest(merged_path),
+        }
 
         # Register ModelVersion
         existing = db.query(ModelVersion).filter(ModelVersion.version_name == new_version_name).first()
@@ -118,10 +153,27 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                 eval_status="pending",
                 deployment_status="inactive",
                 metadata_json={
+                    "lifecycle_status": "candidate",
                     "job_id": job_db_id,
                     "train_steps": train_result.get("steps"),
                     "row_count": ds_result["row_count"],
                     "training_mode": settings.training_mode,
+                    "dataset_manifest": ds_result,
+                    "pipeline_artifacts": artifact_manifest,
+                    "serving": {
+                        "mode": "mock" if settings.training_mode == "mock" else "real",
+                        "base_url": (
+                            ""
+                            if settings.training_mode == "mock"
+                            else settings.candidate_vllm_base_url
+                        ),
+                        "model_name": (
+                            new_version_name
+                            if settings.training_mode == "mock"
+                            else settings.candidate_model_name
+                        ),
+                        "slot": "mock" if settings.training_mode == "mock" else "green",
+                    },
                 },
             )
             db.add(mv)
@@ -130,6 +182,37 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             model_version_id = mv.id
         else:
             model_version_id = existing.id
+
+        eval_run_id = None
+        if settings.training_mode == "mock":
+            eval_run = EvalRun(
+                model_version_id=model_version_id,
+                status="pending",
+                progress_current=0,
+                progress_total=15,
+            )
+            db.add(eval_run)
+            db.commit()
+            db.refresh(eval_run)
+            eval_run_id = eval_run.id
+            try:
+                queue = redis.from_url(settings.redis_url, decode_responses=True)
+                queue.rpush(
+                    "agent:eval_jobs",
+                    json.dumps({
+                        "job_type": "run_eval",
+                        "payload": {
+                            "eval_run_id": eval_run.id,
+                            "model_version_id": model_version_id,
+                        },
+                    }),
+                )
+                _log(log_path, f"quality check queued — eval_run_id={eval_run.id}")
+            except Exception as exc:
+                eval_run.status = "failed"
+                eval_run.error_message = f"Failed to enqueue quality check: {exc}"[:1000]
+                db.commit()
+                _log(log_path, f"quality check enqueue failed — {exc}")
 
         _log(log_path, f"ModelVersion created — id={model_version_id} name={new_version_name}")
         _update_job(
@@ -142,15 +225,19 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                 "adapter_path": adapter_path,
                 "merged_path": merged_path,
                 "model_version_id": model_version_id,
+                "eval_run_id": eval_run_id,
                 "version_name": new_version_name,
                 **ds_result,
                 **train_result,
                 **merge_result,
+                "artifact_manifest": artifact_manifest,
             },
         )
         logger.info("Pipeline completed: job_id=%d version=%s", job_db_id, new_version_name)
 
     except Exception as exc:
+        shutil.rmtree(adapter_partial_path, ignore_errors=True)
+        shutil.rmtree(merged_partial_path, ignore_errors=True)
         msg = str(exc)
         logger.error("Pipeline failed: job_id=%d error=%s", job_db_id, msg)
         _log(log_path, f"ERROR — {msg}")

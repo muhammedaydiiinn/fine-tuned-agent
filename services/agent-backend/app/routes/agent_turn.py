@@ -2,7 +2,7 @@
 import time
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
@@ -17,6 +17,7 @@ from app.core import (
     json_repair,
     guardrails,
     latency as latency_mod,
+    model_runtime,
 )
 
 router = APIRouter()
@@ -24,7 +25,14 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/agent-turn", response_model=AgentTurnResponse)
-def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
+def agent_turn(
+    req: AgentTurnRequest,
+    db: DBSession = Depends(get_db),
+    eval_model_version_id: int | None = Header(
+        default=None,
+        alias="X-Eval-Model-Version-ID",
+    ),
+):
     backend_start = time.perf_counter()
 
     # 1. Load or create session
@@ -63,22 +71,31 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         correction_hints=correction_hints,
     )
 
-    # 5. vLLM call
+    # 5. Resolve the production deployment, or an explicitly isolated eval model.
+    try:
+        model_version, runtime_target = model_runtime.resolve_for_turn(
+            db,
+            requested_model_version_id=eval_model_version_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # 6. vLLM call
     llm_start = time.perf_counter()
     try:
-        raw_output = vllm_client.chat(messages)
+        raw_output = vllm_client.chat(messages, runtime_target)
     except Exception as exc:
         logger.error("vLLM call failed: %s", exc)
         raw_output = ""
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
-    # 6. Extract JSON
+    # 7. Extract JSON
     raw_policy = json_repair.extract_json(raw_output)
 
-    # 7. Repair
+    # 8. Repair
     repaired_policy = json_repair.repair(raw_policy)
 
-    # 8. Correction memory override. Policy-intent matching is evaluated after
+    # 9. Correction memory override. Policy-intent matching is evaluated after
     # repair so intent-keyed hotfixes work for natural-language customer input.
     policy_hints = correction_memory.get_policy_hints(db, repaired_policy)
     after_correction = correction_memory.apply_override(
@@ -86,14 +103,14 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         policy_hints or correction_hints,
     )
 
-    # 9. Apply guardrails (including product fact templates)
+    # 10. Apply guardrails (including product fact templates)
     safe_policy = guardrails.apply(after_correction, state)
 
-    # 10. Update state
+    # 11. Update state
     new_state = state_manager.update(state, safe_policy, customer_text=req.customer_text)
     state_manager.persist(db, session, new_state)
 
-    # 11. Save turn and latency
+    # 12. Save turn and latency
     total_ms = (time.perf_counter() - backend_start) * 1000
     backend_ms = total_ms - llm_ms
 
@@ -113,7 +130,11 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         raw_model_json=raw_policy,
         repaired_model_json=repaired_policy,
         latency_json={"llm_ms": llm_ms, "backend_ms": backend_ms, "total_ms": total_ms},
-        model_version=settings.model_active_version,
+        model_version=(
+            model_version.version_name
+            if model_version is not None
+            else settings.model_active_version
+        ),
     )
     db.add(turn)
     db.commit()
@@ -126,7 +147,7 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         req.session_id, turn_index, safe_policy.get("intent"), llm_ms, total_ms,
     )
 
-    # 12. Return response
+    # 13. Return response
     return AgentTurnResponse(
         session_id=req.session_id,
         customer_text=req.customer_text,
