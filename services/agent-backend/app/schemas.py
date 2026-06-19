@@ -140,6 +140,34 @@ class ExportResult(BaseModel):
     exported_ids: list[int]
 
 
+# ── Training Job ─────────────────────────────────────────────────────────────
+
+class CreateTrainingJobRequest(BaseModel):
+    dataset_version: str | None = None
+    lora_rank: int | None = None
+    lora_alpha: int | None = None
+    epochs: int | None = None
+    lr: float | None = None
+    batch_size: int | None = None
+
+
+class TrainingJobResponse(BaseModel):
+    id: int
+    job_type: str
+    status: str
+    input_json: dict[str, Any] | None
+    output_json: dict[str, Any] | None
+    logs_path: str | None
+    progress_current: int
+    progress_total: int
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):

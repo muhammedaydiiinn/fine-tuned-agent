@@ -9,8 +9,14 @@ from sqlalchemy.orm import Session as DBSession
 from app.config import settings
 from app.core.candidate_builder import build_candidate_from_turn
 from app.db import get_db
-from app.models import Correction, TrainingCandidate, Turn
-from app.schemas import ExportResult, TrainingCandidateResponse
+from app.models import Correction, TrainingCandidate, TrainingJob, Turn
+from app.schemas import (
+    CreateTrainingJobRequest,
+    ExportResult,
+    TrainingCandidateResponse,
+    TrainingJobResponse,
+)
+from app.workers.queue import enqueue_training_job
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -178,15 +184,67 @@ def export_jsonl(db: DBSession = Depends(get_db)):
     )
 
 
-# ── Training jobs (M4 stubs) ─────────────────────────────────────────────────
+# ── Training jobs ─────────────────────────────────────────────────────────────
 
-@router.get("/training-jobs")
-def list_jobs():
-    # TODO: Milestone 4 — job list
-    return {"status": "not_implemented", "milestone": 4}
+@router.post(
+    "/training-jobs",
+    response_model=TrainingJobResponse,
+    summary="Create a training job and enqueue it",
+    status_code=201,
+)
+def create_training_job(
+    body: CreateTrainingJobRequest,
+    db: DBSession = Depends(get_db),
+):
+    input_data: dict = {}
+    if body.dataset_version:
+        input_data["dataset_version"] = body.dataset_version
+    for field in ("lora_rank", "lora_alpha", "epochs", "lr", "batch_size"):
+        val = getattr(body, field)
+        if val is not None:
+            input_data[field] = val
+
+    job = TrainingJob(
+        job_type="train_pipeline",
+        status="pending",
+        input_json=input_data or None,
+        progress_current=0,
+        progress_total=100,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    payload = {"job_id": job.id, "dataset_version": body.dataset_version or f"ds-job{job.id}"}
+    enqueue_training_job("train_pipeline", payload)
+
+    logger.info("training_job created and enqueued: id=%d", job.id)
+    return job
 
 
-@router.post("/training-jobs")
-def create_job():
-    # TODO: Milestone 4 — enqueue job
-    return {"status": "not_implemented", "milestone": 4}
+@router.get(
+    "/training-jobs",
+    response_model=list[TrainingJobResponse],
+    summary="List training jobs",
+)
+def list_training_jobs(
+    status: str | None = None,
+    limit: int = 50,
+    db: DBSession = Depends(get_db),
+):
+    q = db.query(TrainingJob)
+    if status:
+        q = q.filter(TrainingJob.status == status)
+    return q.order_by(TrainingJob.created_at.desc()).limit(limit).all()
+
+
+@router.get(
+    "/training-jobs/{job_id}",
+    response_model=TrainingJobResponse,
+    summary="Get a single training job",
+)
+def get_training_job(job_id: int, db: DBSession = Depends(get_db)):
+    job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    return job

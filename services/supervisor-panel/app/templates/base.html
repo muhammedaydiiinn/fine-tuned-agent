@@ -7,8 +7,37 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('table.dt-table').forEach(function (table) {
+        var dt = new DataTable(table, {
+          pageLength: 25,
+          order: [],
+          layout: {
+            topStart: 'pageLength',
+            topEnd: 'search',
+            bottomStart: 'info',
+            bottomEnd: 'paging'
+          },
+          language: {
+            search: '',
+            searchPlaceholder: 'Search…',
+            lengthMenu: 'Show _MENU_',
+            info: '_START_–_END_ of _TOTAL_',
+            infoEmpty: 'No records',
+            infoFiltered: '(filtered from _MAX_)',
+            emptyTable: 'No data',
+            paginate: { previous: '‹', next: '›', first: '«', last: '»' }
+          }
+        });
+        if (window.htmx) htmx.process(dt.table().container());
+      });
+    });
+  </script>
 </head>
 <body>
 <div class="layout">
@@ -38,6 +67,11 @@
       <a href="/training-candidates" class="nav-item {% if request.url.path.startswith('/training-candidates') %}active{% endif %}">
         <i class="fa-solid fa-layer-group nav-icon"></i>
         Training Data
+      </a>
+
+      <a href="/training-jobs" class="nav-item {% if request.url.path.startswith('/training-jobs') %}active{% endif %}">
+        <i class="fa-solid fa-microchip nav-icon"></i>
+        Training Jobs
       </a>
     </nav>
 

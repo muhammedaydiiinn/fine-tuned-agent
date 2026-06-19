@@ -60,7 +60,7 @@
     <span class="table-toolbar-meta">{{ turns|length }} turns</span>
   </div>
   <div class="table-wrap">
-    <table>
+    <table class="dt-table">
       <thead>
         <tr>
           <th>#</th>
@@ -111,8 +111,7 @@
         </td>
         <td>
           <a href="/sessions/{{ session.id }}/turns/{{ t.id }}" class="btn btn-sm btn-outline">
-            Open
-            <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Open <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
           </a>
         </td>
       </tr>

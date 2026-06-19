@@ -2,10 +2,17 @@ redis==5.2.1
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
 pydantic-settings==2.6.1
-# Milestone 4'te eklenecek:
-# unsloth
-# torch
-# transformers
-# datasets
-# trl
-# peft
+
+# ML deps — only imported when TRAINING_MODE=real
+# Install on GPU server host venv (not in Docker — see Dockerfile comment)
+torch
+transformers
+datasets
+trl
+peft
+accelerate
+bitsandbytes
+
+# unsloth — faster QLoRA (2x speedup). Install separately on GPU server:
+#   pip install "unsloth[cu121-torch240] @ git+https://github.com/unslothai/unsloth.git"
+# Falls back to transformers+peft if not available.
