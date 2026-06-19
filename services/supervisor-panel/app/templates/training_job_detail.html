@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Job #{{ job.id }}{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="page-header-left">
+    <a href="/training-jobs" class="btn btn-outline" style="margin-right:12px;">
+      <i class="fa-solid fa-arrow-left"></i>
+    </a>
+    <h1>Training Job <span style="opacity:.5;">#{{ job.id }}</span></h1>
+  </div>
+</div>
+
+{# ── Meta cards ──────────────────────────────────────────────────────────── #}
+<div class="stats-row" style="margin-bottom:20px;">
+  <div class="stat-card blue">
+    <div class="stat-label">Status</div>
+    <div class="stat-value" style="font-size:1rem;">
+      {% if job.status == 'pending' %}
+        <span class="badge badge-pending">pending</span>
+      {% elif job.status == 'running' %}
+        <span class="badge badge-running">running</span>
+      {% elif job.status == 'completed' %}
+        <span class="badge badge-approved">completed</span>
+      {% else %}
+        <span class="badge badge-error">{{ job.status }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="stat-card purple">
+    <div class="stat-label">Progress</div>
+    <div class="stat-value" style="font-size:1rem;">{{ pct }}%</div>
+  </div>
+  <div class="stat-card orange">
+    <div class="stat-label">Started</div>
+    <div class="stat-value" style="font-size:.85rem;font-weight:500;">
+      {{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '—' }}
+    </div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">Duration</div>
+    <div class="stat-value" style="font-size:.85rem;font-weight:500;">
+      {% if job.started_at and job.finished_at %}
+        {% set s = (job.finished_at - job.started_at).seconds %}
+        {% if s >= 3600 %}{{ s // 3600 }}h {{ (s % 3600) // 60 }}m
+        {% elif s >= 60 %}{{ s // 60 }}m {{ s % 60 }}s
+        {% else %}{{ s }}s{% endif %}
+      {% elif job.started_at %}
+        running…
+      {% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Progress bar ────────────────────────────────────────────────────────── #}
+{% if job.status in ('running', 'pending') %}
+<div style="margin-bottom:20px;">
+  <div class="progress-bar" style="height:8px;">
+    <div class="progress-fill" id="detail-progress-fill" style="width:{{ pct }}%;"></div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Input / Output / Error ──────────────────────────────────────────────── #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+  <div class="table-container" style="padding:16px;">
+    <div class="table-toolbar"><span class="table-toolbar-title">Input</span></div>
+    <pre style="font-size:.8rem;opacity:.8;white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
+  </div>
+  <div class="table-container" style="padding:16px;">
+    <div class="table-toolbar"><span class="table-toolbar-title">Output</span></div>
+    {% if job.status == 'failed' and job.error_message %}
+      <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.error_message }}</pre>
+    {% elif job.output_json %}
+      <pre style="font-size:.8rem;opacity:.8;white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.output_json | tojson(indent=2) }}</pre>
+    {% else %}
+      <span style="opacity:.4;">—</span>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Log viewer ──────────────────────────────────────────────────────────── #}
+<div class="table-container">
+  <div class="table-toolbar">
+    <span class="table-toolbar-title">
+      <i class="fa-solid fa-terminal" style="margin-right:6px;"></i>Logs
+    </span>
+    {% if job.status in ('pending', 'running') %}
+      <span class="badge badge-running" style="font-size:.72rem;">live</span>
+    {% endif %}
+  </div>
+  <div id="log-container"
+       {% if job.status in ('pending', 'running') %}
+         hx-get="/training-jobs/{{ job.id }}/logs"
+         hx-trigger="every 3s"
+         hx-swap="innerHTML"
+       {% endif %}>
+    {% include "partials/job_logs.html" ignore missing %}
+  </div>
+</div>
+
+{# Initial log load + HTMX scroll anchor #}
+<script>
+(function () {
+  var container = document.getElementById('log-container');
+  if (!container) return;
+
+  // Initial fetch — server-side render ile aynı endpoint (HTML fragment)
+  fetch('/training-jobs/{{ job.id }}/logs?tail=200')
+    .then(function (r) { return r.text(); })
+    .then(function (html) {
+      container.innerHTML = html;
+      container.scrollTop = container.scrollHeight;
+    })
+    .catch(function () {});
+
+  // HTMX afterSettle — live log güncellenmesinde scroll'ı en alta tut
+  container.addEventListener('htmx:afterSettle', function () {
+    container.scrollTop = container.scrollHeight;
+  });
+})();
+</script>
+
+{% endblock %}

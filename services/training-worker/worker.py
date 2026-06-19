@@ -66,7 +66,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
         # Step 1: Build dataset
         _log(log_path, "step 1/3 — build_dataset")
         _update_job(db, job, progress_current=5, progress_total=100)
-        ds_result = build_dataset.build(db, dataset_path, dataset_version)
+        ds_result = build_dataset.build(db, dataset_path, dataset_version, data_dir=settings.data_dir)
         _log(log_path, f"dataset built — {ds_result['row_count']} rows → {dataset_path}")
         _update_job(db, job, progress_current=20)
 

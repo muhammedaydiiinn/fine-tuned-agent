@@ -248,3 +248,30 @@ def get_training_job(job_id: int, db: DBSession = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="Training job not found")
     return job
+
+
+@router.get(
+    "/training-jobs/{job_id}/logs",
+    summary="Stream tail of training job log file",
+)
+def get_job_logs(job_id: int, tail: int = 100, db: DBSession = Depends(get_db)):
+    """Return the last N lines of the training log.
+
+    Response: {"job_id": int, "status": str, "logs": str}
+    """
+    job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Training job not found")
+
+    logs = ""
+    if job.logs_path:
+        try:
+            from pathlib import Path
+            p = Path(job.logs_path)
+            if p.exists():
+                lines = p.read_text(encoding="utf-8").splitlines()
+                logs = "\n".join(lines[-tail:])
+        except Exception as exc:
+            logs = f"[log read error: {exc}]"
+
+    return {"job_id": job_id, "status": job.status, "logs": logs}

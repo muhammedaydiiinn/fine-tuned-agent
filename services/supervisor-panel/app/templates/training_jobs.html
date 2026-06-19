@@ -43,94 +43,44 @@
   </div>
 </div>
 
-{% if not jobs %}
-<div class="empty-state">
-  <i class="fa-solid fa-dumbbell" style="font-size:2.5rem;opacity:.3;margin-bottom:12px;display:block;"></i>
-  <p>No training jobs yet.</p>
-  <p style="opacity:.6;font-size:.85rem;">Approve training candidates and click <strong>Start Training</strong>.</p>
-</div>
-{% else %}
 <div class="table-container">
   <div class="table-toolbar">
     <span class="table-toolbar-title">Job History</span>
   </div>
-  <table class="dt-table">
+
+  {# AJAX DataTable — tüm init datatable.js tarafından yönetilir, burada JS yok #}
+  <table
+    data-dt-url="/training-jobs/data"
+    data-dt-order="0,desc"
+    data-dt-poll="4000"
+    data-dt-poll-field="status"
+    data-dt-poll-values="running,pending"
+    data-dt-reload-on="/training-jobs/start">
     <thead>
       <tr>
-        <th>#</th>
-        <th>Type</th>
-        <th>Status / Progress</th>
-        <th>Dataset Version</th>
-        <th>Started</th>
-        <th>Duration</th>
-        <th>Output</th>
+        <th data-field="id"
+            data-render="link"
+            data-link-base="/training-jobs/"
+            data-width="60px">#</th>
+        <th data-field="job_type"
+            data-render="code">Type</th>
+        <th data-field="status"
+            data-render="statusProgress"
+            data-orderable="false"
+            data-width="160px">Status</th>
+        <th data-field="dataset_version"
+            data-render="code">Dataset Version</th>
+        <th data-field="started_at"
+            data-render="datetime">Started</th>
+        <th data-field="duration"
+            data-class="td-mono">Duration</th>
+        <th data-field="status"
+            data-render="jobOutput"
+            data-orderable="false">Output / Error</th>
       </tr>
     </thead>
-    <tbody>
-      {% for job in jobs %}
-      {% set pct = [((job.progress_current / job.progress_total * 100) | int), 100] | min if job.progress_total else 0 %}
-      <tr>
-        <td>{{ job.id }}</td>
-        <td><code style="font-size:.8rem;">{{ job.job_type }}</code></td>
-        <td>
-          <span class="job-status-cell"
-            {% if job.status in ('pending', 'running') %}
-              hx-get="/training-jobs/{{ job.id }}/status"
-              hx-trigger="every 3s"
-              hx-swap="outerHTML"
-            {% endif %}>
-            {% if job.status == 'pending' %}
-              <span class="badge badge-pending">pending</span>
-            {% elif job.status == 'running' %}
-              <span class="badge badge-running">running</span>
-            {% elif job.status == 'completed' %}
-              <span class="badge badge-approved">completed</span>
-            {% else %}
-              <span class="badge badge-error">{{ job.status }}</span>
-            {% endif %}
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:{{ pct }}%;"></div>
-            </div>
-          </span>
-        </td>
-        <td>
-          {% if job.input_json and job.input_json.dataset_version %}
-            <code style="font-size:.8rem;">{{ job.input_json.dataset_version }}</code>
-          {% else %}
-            <span style="opacity:.4;">—</span>
-          {% endif %}
-        </td>
-        <td style="font-size:.8rem;opacity:.7;">
-          {% if job.started_at %}{{ job.started_at.strftime('%m-%d %H:%M') }}{% else %}—{% endif %}
-        </td>
-        <td style="font-size:.8rem;opacity:.7;">
-          {% if job.started_at and job.finished_at %}
-            {% set secs = (job.finished_at - job.started_at).seconds %}
-            {% if secs >= 3600 %}{{ (secs // 3600) }}h {{ ((secs % 3600) // 60) }}m
-            {% elif secs >= 60 %}{{ secs // 60 }}m {{ secs % 60 }}s
-            {% else %}{{ secs }}s{% endif %}
-          {% else %}—{% endif %}
-        </td>
-        <td style="font-size:.8rem;">
-          {% if job.status == 'completed' and job.output_json %}
-            <span style="color:var(--green);">
-              <i class="fa-solid fa-check"></i>
-              {{ job.output_json.get('version_name', '') }}
-            </span>
-          {% elif job.status == 'failed' and job.error_message %}
-            <span style="color:var(--red);font-size:.75rem;" title="{{ job.error_message }}">
-              <i class="fa-solid fa-triangle-exclamation"></i>
-              {{ job.error_message[:60] }}{% if job.error_message|length > 60 %}…{% endif %}
-            </span>
-          {% else %}
-            <span style="opacity:.4;">—</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
+    <tbody></tbody>
   </table>
 </div>
-{% endif %}
 
 {% endblock %}

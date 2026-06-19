@@ -3,10 +3,6 @@
 
 {% block content %}
 
-{% set active_count  = sessions | selectattr('status', 'equalto', 'active') | list | length %}
-{% set total_turns   = turn_counts.values() | sum %}
-{% set closed_count  = sessions | length - active_count %}
-
 <div class="page-header">
   <div class="page-header-left">
     <h1>Sessions</h1>
@@ -16,7 +12,7 @@
 <div class="stats-row">
   <div class="stat-card blue">
     <div class="stat-label">Total</div>
-    <div class="stat-value">{{ sessions|length }}</div>
+    <div class="stat-value">{{ total_count }}</div>
   </div>
   <div class="stat-card green">
     <div class="stat-label">Active</div>
@@ -32,78 +28,24 @@
   </div>
 </div>
 
-{% if sessions %}
 <div class="table-container">
   <div class="table-toolbar">
     <span class="table-toolbar-title">All Sessions</span>
   </div>
-  <div class="table-wrap">
-    <table class="dt-table">
-      <thead>
-        <tr>
-          <th>Session</th>
-          <th>Status</th>
-          <th>Stage</th>
-          <th>Turns</th>
-          <th>Hard Decline</th>
-          <th>Created</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for s in sessions %}
+  <table data-dt-url="/sessions/data" data-dt-order="0,desc">
+    <thead>
       <tr>
-        <td>
-          <div class="flex-center">
-            {% if s.status == 'active' %}<span class="live-dot"></span>{% endif %}
-            <span class="td-mono">{{ s.external_session_id or ("#" ~ s.id) }}</span>
-          </div>
-        </td>
-        <td>
-          <span class="badge badge-{{ 'active' if s.status == 'active' else 'closed' }}">
-            {{ s.status }}
-          </span>
-        </td>
-        <td>
-          {% set stage = s.current_stage or s.state_json.get('stage', '') %}
-          {% if stage %}
-            <span class="badge badge-action">{{ stage }}</span>
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-        <td class="td-center" style="font-weight:600;">{{ turn_counts.get(s.id, 0) }}</td>
-        <td class="td-center">
-          {% set hd = s.state_json.get('hard_decline_count', 0) %}
-          {% if hd >= 2 %}
-            <span class="badge badge-risk-high">{{ hd }}</span>
-          {% elif hd == 1 %}
-            <span class="badge badge-risk-medium">{{ hd }}</span>
-          {% else %}
-            <span class="td-muted">0</span>
-          {% endif %}
-        </td>
-        <td class="td-muted">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>
-          <a href="/sessions/{{ s.id }}" class="btn btn-sm btn-outline">
-            Open <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
-          </a>
-        </td>
+        <th data-field="external_session_id" data-render="sessionId">Session</th>
+        <th data-field="status"  data-render="badge">Status</th>
+        <th data-field="stage"   data-render="badge">Stage</th>
+        <th data-field="turns"   data-class="td-center">Turns</th>
+        <th data-field="hard_decline" data-render="hardDecline" data-class="td-center">Hard Decline</th>
+        <th data-field="created_at" data-render="datetime">Created</th>
+        <th data-field="id" data-render="sessionLink" data-orderable="false" data-width="90px"></th>
       </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
-
-{% else %}
-<div class="table-container">
-  <div class="empty-state">
-    <div class="empty-icon"><i class="fa-solid fa-phone"></i></div>
-    <div>No sessions yet.</div>
-    <div style="font-size:12px;color:var(--text-3)">Sessions will appear here once the agent starts processing calls.</div>
-  </div>
-</div>
-{% endif %}
 
 {% endblock %}

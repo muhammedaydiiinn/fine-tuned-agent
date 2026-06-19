@@ -17,16 +17,44 @@ logger = logging.getLogger(__name__)
 
 @router.get("/corrections", response_class=HTMLResponse)
 def corrections_list(request: Request, db: DBSession = Depends(get_db)):
+    total = db.query(Correction).count()
+    memory_count = db.query(CorrectionMemory).filter(CorrectionMemory.active == True).count()  # noqa: E712
+    training_count = db.query(Correction).filter(Correction.send_to_training == True).count()  # noqa: E712
+    return templates.TemplateResponse(
+        "corrections.html",
+        {
+            "request": request,
+            "total_count": total,
+            "memory_count": memory_count,
+            "training_count": training_count,
+        },
+    )
+
+
+@router.get("/corrections/data")
+def corrections_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source for corrections table."""
     corrections = (
         db.query(Correction)
         .order_by(Correction.created_at.desc())
-        .limit(100)
+        .limit(500)
         .all()
     )
-    return templates.TemplateResponse(
-        "corrections.html",
-        {"request": request, "corrections": corrections},
-    )
+    rows = []
+    for c in corrections:
+        rows.append({
+            "id": c.id,
+            "correction_type": c.correction_type,
+            "old_response": (c.old_agent_response or "")[:80],
+            "new_response": (c.corrected_agent_response or "")[:80],
+            "next_action": c.corrected_next_action or "",
+            "apply_immediately": c.apply_immediately,
+            "send_to_training": c.send_to_training,
+            "created_at": c.created_at.strftime("%m-%d %H:%M"),
+            "session_id": c.session_id,
+            "turn_id": c.turn_id,
+        })
+    return {"data": rows}
 
 
 @router.post("/sessions/{session_id}/turns/{turn_id}/correct")
