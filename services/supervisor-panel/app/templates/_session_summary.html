@@ -1,0 +1,25 @@
+{% set sj = session.state_json or {} %}
+<div class="info-card">
+  <div class="info-label">Stage</div>
+  <div class="info-value">{{ sj.get('stage', '—') }}</div>
+</div>
+<div class="info-card">
+  <div class="info-label">Hard Decline</div>
+  <div class="info-value" style="color:{% if sj.get('hard_decline_count',0) >= 2 %}var(--red){% elif sj.get('hard_decline_count',0) == 1 %}var(--yellow){% else %}var(--text){% endif %}">
+    {{ sj.get('hard_decline_count', 0) }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">Identity</div>
+  <div class="info-value" style="color:{{ 'var(--green)' if sj.get('identity_confirmed') else 'var(--text-3)' }}">
+    {{ 'Confirmed' if sj.get('identity_confirmed') else 'Not confirmed' }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">Turns</div>
+  <div class="info-value">{{ turn_count if turn_count is defined else turns|length }}</div>
+</div>
+<div class="info-card">
+  <div class="info-label">Started</div>
+  <div class="info-value" style="font-size:14px;font-weight:500;">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+</div>

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from db import get_db
-from evals import run_eval
+from evals import gate, run_eval
 from models import EvalRun, ModelVersion
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s — %(message)s")
@@ -107,13 +107,39 @@ def handle_eval(
             eval_run_id=eval_run_id,
             api_key=settings.api_key,
             timeout_seconds=settings.eval_request_timeout_seconds,
+            model_version_header=model_version_id,
         )
         _write_results(results_path, report)
 
         metrics = dict(report["metrics"])
         metrics["quality_score"] = report["quality_score"]
-        passed = report["quality_score"] >= settings.eval_pass_threshold
+        deployment_gate = gate.evaluate(
+            metrics,
+            settings.deployment_gate_thresholds,
+        )
+        serving = (
+            (model_version.metadata_json or {}).get("serving")
+            if isinstance((model_version.metadata_json or {}).get("serving"), dict)
+            else {}
+        )
+        deployment_gate["evidence_mode"] = str(
+            serving.get("mode")
+            or (model_version.metadata_json or {}).get("training_mode")
+            or "unknown"
+        )
+        deployment_gate["model_version_id"] = model_version_id
+        metrics["deployment_gate"] = deployment_gate
+        passed = bool(deployment_gate["passed"])
         model_version.eval_status = "passed" if passed else "failed"
+        metadata = dict(model_version.metadata_json or {})
+        metadata["lifecycle_status"] = (
+            "deployed"
+            if str(model_version.deployment_status).startswith("active_")
+            else ("evaluated" if passed else "candidate")
+        )
+        metadata["latest_eval_run_id"] = eval_run_id
+        metadata["eval_policy_version"] = gate.POLICY_VERSION
+        model_version.metadata_json = metadata
         db.add(model_version)
         _update_run(
             db,
@@ -128,7 +154,7 @@ def handle_eval(
         _log(
             log_path,
             f"evaluation completed — score={report['quality_score']:.4f}"
-            f" verdict={model_version.eval_status}",
+            f" verdict={model_version.eval_status} gate={gate.POLICY_VERSION}",
         )
         logger.info(
             "Evaluation completed: run=%d model=%d score=%.4f",

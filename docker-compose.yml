@@ -105,7 +105,33 @@ services:
       --model /model
       --served-model-name ${VLLM_MODEL_NAME:-anrufblocker-v14}
       --max-model-len 4096
-      --gpu-memory-utilization 0.85
+      --gpu-memory-utilization 0.45
+      --port 8000
+    networks:
+      - anruf-net
+    restart: unless-stopped
+
+  # ── Isolated candidate model server (M5/M6 pre-deploy evaluation) ──────────
+  vllm-candidate:
+    image: vllm/vllm-openai:latest
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - ${CANDIDATE_MODEL_PATH:-./models/candidates/current}:/model:ro
+    command: >
+      --model /model
+      --served-model-name ${CANDIDATE_MODEL_NAME:-anrufblocker-candidate}
+      --max-model-len 4096
+      --gpu-memory-utilization 0.45
       --port 8000
     networks:
       - anruf-net

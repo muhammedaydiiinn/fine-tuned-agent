@@ -149,6 +149,8 @@ class CreateTrainingJobRequest(BaseModel):
     epochs: int | None = None
     lr: float | None = None
     batch_size: int | None = None
+    session_id: int | None = Field(default=None, gt=0)
+    candidate_ids: list[int] = Field(default_factory=list)
 
 
 class TrainingJobResponse(BaseModel):
@@ -187,6 +189,55 @@ class EvalRunResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+# ── Model Registry / Deployment ─────────────────────────────────────────────
+
+class RegisterModelRequest(BaseModel):
+    version_name: str = Field(..., min_length=1, max_length=128)
+    base_model: str | None = None
+    lora_path: str | None = None
+    merged_path: str = Field(..., min_length=1)
+    dataset_version: str | None = None
+
+
+class ConfigureServingRequest(BaseModel):
+    mode: str = Field(default="real", pattern="^(mock|real)$")
+    base_url: str = ""
+    model_name: str = Field(..., min_length=1)
+    slot: str = Field(default="green", pattern="^(blue|green|mock)$")
+
+
+class DeploymentRequest(BaseModel):
+    environment: str = Field(default="production", pattern="^(staging|production)$")
+
+
+class ModelVersionResponse(BaseModel):
+    id: int
+    version_name: str
+    base_model: str | None
+    lora_path: str | None
+    merged_path: str | None
+    dataset_version: str | None
+    eval_status: str
+    deployment_status: str
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DeploymentResponse(BaseModel):
+    id: int
+    model_version_id: int
+    environment: str
+    status: str
+    deployed_at: datetime | None
+    rollback_model_version_id: int | None
+    metadata_json: dict[str, Any]
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

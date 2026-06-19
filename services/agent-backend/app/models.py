@@ -27,6 +27,35 @@ class Session(Base):
     turns: Mapped[list["Turn"]] = relationship("Turn", back_populates="session")
     corrections: Mapped[list["Correction"]] = relationship("Correction", back_populates="session")
     latency_metrics: Mapped[list["LatencyMetric"]] = relationship("LatencyMetric", back_populates="session")
+    review: Mapped["SessionReview | None"] = relationship(
+        "SessionReview",
+        back_populates="session",
+        uselist=False,
+    )
+
+
+class SessionReview(Base):
+    __tablename__ = "session_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id"),
+        unique=True,
+        index=True,
+    )
+    rating: Mapped[str] = mapped_column(String(16))
+    notes: Mapped[str | None] = mapped_column(Text)
+    candidate_ids_json: Mapped[list] = mapped_column(JSONB, default=list)
+    training_job_id: Mapped[int | None] = mapped_column(ForeignKey("training_jobs.id"))
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    session: Mapped["Session"] = relationship("Session", back_populates="review")
 
 
 class Turn(Base):
@@ -174,6 +203,8 @@ class Deployment(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rollback_model_version_id: Mapped[int | None] = mapped_column(ForeignKey("model_versions.id"))
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     model_version: Mapped["ModelVersion"] = relationship(
         "ModelVersion", foreign_keys=[model_version_id], back_populates="deployments"

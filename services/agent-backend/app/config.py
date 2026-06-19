@@ -28,10 +28,13 @@ class Settings(BaseSettings):
     vllm_mode: str = "mock"
     vllm_base_url: str = "http://vllm-server:8000/v1"
     vllm_model_name: str = "anrufblocker-v14"
+    model_health_timeout_seconds: float = 15.0
+    allow_mock_production_deploy: bool = False
 
     # Model
     model_active_version: str = "anrufblocker-v14"
     model_dir: str = "/models"
+    model_merged_path: str = "/models/merged/anrufblocker-v14"
 
     # Data directory — docker-compose: ./data:/data
     data_dir: str = "/data"

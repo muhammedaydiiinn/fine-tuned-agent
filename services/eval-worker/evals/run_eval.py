@@ -93,6 +93,7 @@ def run(
     eval_run_id: int | None = None,
     api_key: str = "",
     timeout_seconds: float = 45.0,
+    model_version_header: int | None = None,
 ) -> dict[str, Any]:
     single_scenarios = _load_single_turn_scenarios(scenarios_path)
     multi_scenarios = get_scenario_catalog()
@@ -101,6 +102,8 @@ def run(
     results: list[dict[str, Any]] = []
     run_token = f"{eval_run_id or model_version_id}-{uuid.uuid4().hex[:10]}"
     headers = {"X-API-Key": api_key} if api_key else {}
+    if model_version_header is not None:
+        headers["X-Eval-Model-Version-ID"] = str(model_version_header)
     endpoint = f"{agent_backend_url.rstrip('/')}/agent-turn"
 
     with httpx.Client(timeout=timeout_seconds, headers=headers) as client:
@@ -159,6 +162,19 @@ def run(
             completed += 1
             if progress_cb:
                 progress_cb(completed, total, f"flow:{flow_id}")
+
+        # Eval sessions remain auditable but must not look like live customer
+        # conversations after the run has finished.
+        for result in results:
+            session_id = result.get("session_id")
+            if not session_id:
+                continue
+            try:
+                client.post(
+                    f"{agent_backend_url.rstrip('/')}/sessions/{session_id}/close"
+                )
+            except httpx.HTTPError:
+                pass
 
     metrics = compute(results)
     return {

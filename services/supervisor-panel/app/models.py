@@ -23,6 +23,20 @@ class Session(Base):
     turns: Mapped[list["Turn"]] = relationship("Turn", back_populates="session")
 
 
+class SessionReview(Base):
+    __tablename__ = "session_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), unique=True, index=True)
+    rating: Mapped[str] = mapped_column(String(16))
+    notes: Mapped[str | None] = mapped_column(Text)
+    candidate_ids_json: Mapped[list] = mapped_column(JSONB, default=list)
+    training_job_id: Mapped[int | None] = mapped_column(Integer)
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Turn(Base):
     __tablename__ = "turns"
 
@@ -144,3 +158,16 @@ class EvalRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Deployment(Base):
+    __tablename__ = "deployments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_version_id: Mapped[int] = mapped_column(ForeignKey("model_versions.id"), index=True)
+    environment: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rollback_model_version_id: Mapped[int | None] = mapped_column(Integer)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -1,8 +1,8 @@
-# Milestone 1–5 Audit — 2026-06-19
+# Milestone 1–6 Audit — 2026-06-19
 
 ## Result
 
-Milestones 1–3 are complete. Milestones 4–5 meet their current platform goals
+Milestones 1–3 are complete. Milestones 4–6 meet their current platform goals
 in mock mode and are conditionally complete until their GPU/candidate-serving
 acceptance gates are verified. The complete
 evaluation flow was verified through Docker:
@@ -82,8 +82,8 @@ Limitation:
 
 - Real GPU/Unsloth training was not executed on this Mac. It still requires the
   target NVIDIA host and model files.
-- Artifact manifests/checksums and a real candidate registry record must be
-  verified as part of the GPU acceptance run.
+- Real GPU artifacts must be verified against the same manifest and atomic
+  publication rules.
 
 ## Milestone 5 — Evaluation Worker
 
@@ -102,10 +102,27 @@ Implemented:
 
 Limitation:
 
-- The eval path uses the model currently served by the agent backend. Evaluating
-  a newly trained merged model before deployment requires the model-serving
-  selection/deploy work planned for Milestone 6.
-- Versioned pass/fail thresholds must become an enforced deployment gate in
-  Milestone 6.
+- A real isolated candidate vLLM run remains to be executed on the GPU host.
+
+## Milestone 6 — Model Lifecycle and Deployment
+
+Status: conditionally complete.
+
+Verified in Docker mock mode:
+
+- Candidate-specific eval routing and turn-level model version evidence.
+- Versioned `m6-gate-v1` deployment checks.
+- Artifact verification, approval lifecycle and deployment audit.
+- Two sequential deployments followed by rollback.
+- Normal agent traffic switched to the deployed model and back after rollback.
+- Production configuration rejects mock-only eval evidence.
+- Supervisor UI reduced to Sessions, Review & Train and Models workspaces.
+- Session review created a candidate-ID-scoped training batch and automatically
+  started its quality check.
+
+Limitation:
+
+- Blue/green vLLM serving and rollback require final verification on the target
+  NVIDIA host.
 
 The canonical scope and remaining milestones are defined in `MILESTONES.md`.
