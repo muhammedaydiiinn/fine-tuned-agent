@@ -15,19 +15,19 @@
 
 <div class="stats-row">
   <div class="stat-card blue">
-    <div class="stat-label">Toplam</div>
+    <div class="stat-label">Total</div>
     <div class="stat-value">{{ sessions|length }}</div>
   </div>
   <div class="stat-card green">
-    <div class="stat-label">Aktif</div>
+    <div class="stat-label">Active</div>
     <div class="stat-value">{{ active_count }}</div>
   </div>
   <div class="stat-card purple">
-    <div class="stat-label">Toplam Turn</div>
+    <div class="stat-label">Total Turns</div>
     <div class="stat-value">{{ total_turns }}</div>
   </div>
   <div class="stat-card yellow">
-    <div class="stat-label">Kapalı</div>
+    <div class="stat-label">Closed</div>
     <div class="stat-value">{{ closed_count }}</div>
   </div>
 </div>
@@ -35,19 +35,19 @@
 {% if sessions %}
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Tüm Sessions</span>
-    <span class="table-toolbar-meta">{{ sessions|length }} kayıt</span>
+    <span class="table-toolbar-title">All Sessions</span>
+    <span class="table-toolbar-meta">{{ sessions|length }} records</span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Session</th>
-          <th>Durum</th>
-          <th>Aşama</th>
-          <th>Turn</th>
+          <th>Status</th>
+          <th>Stage</th>
+          <th>Turns</th>
           <th>Hard Decline</th>
-          <th>Tarih</th>
+          <th>Created</th>
           <th></th>
         </tr>
       </thead>
@@ -87,7 +87,7 @@
         <td class="td-muted">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
         <td>
           <a href="/sessions/{{ s.id }}" class="btn btn-sm btn-outline">
-            Detay
+            Open
             <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
         </td>
@@ -101,9 +101,9 @@
 {% else %}
 <div class="table-container">
   <div class="empty-state">
-    <div class="empty-icon">📞</div>
-    <div>Henüz session yok.</div>
-    <div style="font-size:12px;color:var(--text-3)">Agent çalışmaya başladığında sessionlar burada görünecek.</div>
+    <div class="empty-icon">—</div>
+    <div>No sessions yet.</div>
+    <div style="font-size:12px;color:var(--text-3)">Sessions will appear here once the agent starts processing calls.</div>
   </div>
 </div>
 {% endif %}

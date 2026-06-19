@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 def create_session(req: CreateSessionRequest, db: DBSession = Depends(get_db)):
     external_id = req.external_session_id or f"session-{uuid.uuid4().hex[:12]}"
 
-    # Aynı external_id varsa döndür
     existing = db.query(SessionModel).filter(
         SessionModel.external_session_id == external_id
     ).first()
@@ -31,14 +30,13 @@ def create_session(req: CreateSessionRequest, db: DBSession = Depends(get_db)):
     db.add(session)
     db.commit()
     db.refresh(session)
-    logger.info("Yeni session oluşturuldu: %s (id=%d)", external_id, session.id)
+    logger.info("New session created: %s (id=%d)", external_id, session.id)
     return session
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 def get_session(session_id: str, db: DBSession = Depends(get_db)):
-    session = _get_or_404(db, session_id)
-    return session
+    return _get_or_404(db, session_id)
 
 
 @router.get("/sessions/{session_id}/turns", response_model=list[TurnResponse])
@@ -58,5 +56,5 @@ def _get_or_404(db: DBSession, session_id: str) -> SessionModel:
         SessionModel.external_session_id == session_id
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail=f"Session bulunamadı: {session_id}")
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
     return session

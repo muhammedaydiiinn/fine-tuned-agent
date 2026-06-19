@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM modelleri — tüm 10 tablo."""
+"""SQLAlchemy ORM models — all 10 tables."""
 from datetime import datetime
 
 from sqlalchemy import (

@@ -1,4 +1,4 @@
-"""Latency ölçümü ve veritabanına kayıt."""
+"""Latency measurement and persistence."""
 import time
 import logging
 from contextlib import contextmanager
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def measure(label: str = "") -> Generator[dict, None, None]:
-    """Context manager: elapsed_ms anahtarını olan bir dict döndürür."""
+    """Context manager that yields a dict with an elapsed_ms key."""
     result: dict = {"elapsed_ms": 0.0}
     start = time.perf_counter()
     try:
@@ -30,7 +30,7 @@ def save_metrics(
     backend_ms: float,
     total_ms: float,
 ) -> None:
-    """latency_metrics tablosuna üç kayıt yazar."""
+    """Write three latency_metrics rows to the database."""
     from app.models import LatencyMetric
 
     metrics = [

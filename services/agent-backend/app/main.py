@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="CallShield Agent Backend",
     version="1.0.0",
-    description="CallShield Gold Paket satış ajanı platformu",
+    description="CallShield Gold Paket sales agent platform",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Prod'da supervisor panel domain'ini kısıtla
+    allow_origins=["*"],  # Restrict to supervisor panel domain in production
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -30,10 +30,10 @@ app.add_middleware(
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """X-API-Key header kontrolü.
+    """X-API-Key header check.
 
-    API_KEY env boşsa atlanır (local dev).
-    /health endpoint'i her zaman muaf — Docker healthcheck için.
+    Skipped when API_KEY env is empty (local dev).
+    /health is always exempt for Docker healthcheck.
     """
     if not settings.api_key:
         return await call_next(request)
@@ -43,20 +43,20 @@ async def api_key_middleware(request: Request, call_next):
 
     incoming_key = request.headers.get("X-API-Key", "")
     if incoming_key != settings.api_key:
-        logger.warning("Geçersiz API key — path=%s ip=%s", request.url.path, request.client.host)
-        return JSONResponse(status_code=401, content={"detail": "Geçersiz veya eksik API key."})
+        logger.warning("Invalid API key — path=%s ip=%s", request.url.path, request.client.host)
+        return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key."})
 
     return await call_next(request)
 
 
 @app.on_event("startup")
 def on_startup():
-    logger.info("CallShield Agent Backend başlatılıyor — mode=%s", settings.vllm_mode)
+    logger.info("CallShield Agent Backend starting — mode=%s", settings.vllm_mode)
     create_tables()
-    logger.info("Veritabanı tabloları hazır.")
+    logger.info("Database tables ready.")
 
 
-# ── Route'ları kaydet ────────────────────────────────────────────────────────
+# ── Register routes ───────────────────────────────────────────────────────────
 app.include_router(health.router, tags=["health"])
 app.include_router(sessions.router, tags=["sessions"])
 app.include_router(agent_turn.router, tags=["agent"])

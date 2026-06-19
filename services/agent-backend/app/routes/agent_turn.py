@@ -1,9 +1,8 @@
-"""POST /agent-turn — 12 adımlı stateful agent akışı."""
+"""POST /agent-turn — 12-step stateful agent flow."""
 import time
-import uuid
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
     backend_start = time.perf_counter()
 
-    # ── 1. Session yükle veya oluştur ────────────────────────────────────────
+    # 1. Load or create session
     session = db.query(SessionModel).filter(
         SessionModel.external_session_id == req.session_id
     ).first()
@@ -41,15 +40,15 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         db.add(session)
         db.commit()
         db.refresh(session)
-        logger.info("agent-turn: session otomatik oluşturuldu — %s", req.session_id)
+        logger.info("agent-turn: session auto-created — %s", req.session_id)
 
-    # ── 2. State yükle ────────────────────────────────────────────────────────
+    # 2. Load state
     state = state_manager.load(session)
 
-    # ── 3. Correction memory kontrolü ────────────────────────────────────────
+    # 3. Correction memory check
     correction_hints = correction_memory.get_hints(db, req.customer_text, state)
 
-    # ── 4. Prompt oluştur ─────────────────────────────────────────────────────
+    # 4. Build prompt
     recent_turns = (
         db.query(Turn)
         .filter(Turn.session_id == session.id)
@@ -64,32 +63,32 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
         correction_hints=correction_hints,
     )
 
-    # ── 5. vLLM çağrısı ───────────────────────────────────────────────────────
+    # 5. vLLM call
     llm_start = time.perf_counter()
     try:
         raw_output = vllm_client.chat(messages)
     except Exception as exc:
-        logger.error("vLLM çağrısı başarısız: %s", exc)
+        logger.error("vLLM call failed: %s", exc)
         raw_output = ""
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
-    # ── 6. JSON çıkar ─────────────────────────────────────────────────────────
+    # 6. Extract JSON
     raw_policy = json_repair.extract_json(raw_output)
 
-    # ── 7. Onar ──────────────────────────────────────────────────────────────
+    # 7. Repair
     repaired_policy = json_repair.repair(raw_policy)
 
-    # ── 8. Correction memory override ────────────────────────────────────────
+    # 8. Correction memory override
     after_correction = correction_memory.apply_override(repaired_policy, correction_hints)
 
-    # ── 9. Guardrail'leri uygula (product fact template'leri dahil) ───────────
+    # 9. Apply guardrails (including product fact templates)
     safe_policy = guardrails.apply(after_correction, state)
 
-    # ── 10. State güncelle ────────────────────────────────────────────────────
+    # 10. Update state
     new_state = state_manager.update(state, safe_policy)
     state_manager.persist(db, session, new_state)
 
-    # ── 11. Turn ve latency kaydet ────────────────────────────────────────────
+    # 11. Save turn and latency
     total_ms = (time.perf_counter() - backend_start) * 1000
     backend_ms = total_ms - llm_ms
 
@@ -118,11 +117,11 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
     latency_mod.save_metrics(db, session.id, turn.id, llm_ms, backend_ms, total_ms)
 
     logger.info(
-        "agent-turn tamamlandı — session=%s turn=%d intent=%s llm=%.0fms total=%.0fms",
+        "agent-turn complete — session=%s turn=%d intent=%s llm=%.0fms total=%.0fms",
         req.session_id, turn_index, safe_policy.get("intent"), llm_ms, total_ms,
     )
 
-    # ── 12. Yanıt döndür ──────────────────────────────────────────────────────
+    # 12. Return response
     return AgentTurnResponse(
         session_id=req.session_id,
         customer_text=req.customer_text,

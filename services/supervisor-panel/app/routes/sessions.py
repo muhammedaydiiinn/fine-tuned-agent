@@ -21,7 +21,6 @@ def sessions_list(request: Request, db: DBSession = Depends(get_db)):
         .limit(100)
         .all()
     )
-    # Her session için turn sayısı
     turn_counts = dict(
         db.query(Turn.session_id, func.count(Turn.id))
         .group_by(Turn.session_id)
@@ -37,7 +36,7 @@ def sessions_list(request: Request, db: DBSession = Depends(get_db)):
 def session_detail(session_id: int, request: Request, db: DBSession = Depends(get_db)):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session bulunamadı", status_code=404)
+        return HTMLResponse("Session not found", status_code=404)
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)

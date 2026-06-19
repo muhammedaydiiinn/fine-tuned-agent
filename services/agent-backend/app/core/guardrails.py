@@ -1,7 +1,7 @@
-"""Deterministik guardrail kuralları.
+"""Deterministic guardrail rules.
 
-Model çıktısını alır, iş kurallarına göre düzeltir ve güvenli policy döndürür.
-Kritik ürün yanıtları burada template olarak uygulanır.
+Receives model output, applies business rules, and returns a safe policy.
+Critical product responses are enforced here as templates.
 """
 import logging
 from typing import Any
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 MAX_REPEATED_ACTION = 3
 
-# Closing aşamasında fiyat sorusu tanıma — premature close guard için
+# Price-question tokens for detecting premature close guard
 PRICE_QUESTION_TOKENS = [
     "was kostet", "wie teuer", "preis danach", "und der preis",
     "was zahle ich", "kosten danach", "monatlich", "gratisfase",
@@ -21,7 +21,7 @@ PRICE_QUESTION_TOKENS = [
 
 
 def is_closing_price_question(customer_message: str) -> bool:
-    """Closing stage'de müşteri fiyat sorusu soruyor mu? (close_call → explain_offer_terms koruması)"""
+    """Return True if the customer is asking a price question during closing stage."""
     msg = (customer_message or "").lower()
     return any(t in msg for t in PRICE_QUESTION_TOKENS)
 
@@ -36,7 +36,7 @@ def customer_asked_price_or_trial(text: str) -> bool:
 
 
 def apply(policy: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
-    """Tüm guardrail kurallarını sırayla uygular."""
+    """Apply all guardrail rules in sequence."""
     p = dict(policy)
 
     p = _rule_hard_decline(p, state)
@@ -48,18 +48,17 @@ def apply(policy: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     return p
 
 
-# ── Kurallar ────────────────────────────────────────────────────────────────
+# ── Rules ────────────────────────────────────────────────────────────────────
 
 def _rule_hard_decline(policy: dict, state: dict) -> dict:
-    """İki veya daha fazla hard decline → kapanışa zorla."""
+    """Force close when two or more hard declines have occurred."""
     hard_decline_count = state.get("hard_decline_count", 0)
     intent = policy.get("intent", "")
 
-    # Mevcut tur da hard decline ise sayacı artır
     current_count = hard_decline_count + (1 if intent == "hard_decline" else 0)
 
     if current_count >= 2:
-        logger.info("guardrail: hard_decline >= 2 → close_call")
+        logger.info("guardrail: hard_decline >= 2 -> close_call")
         policy["next_action"] = "close_call"
         policy["behavior_strategy"] = "graceful_exit"
         policy["allowed_to_continue"] = False
@@ -68,10 +67,10 @@ def _rule_hard_decline(policy: dict, state: dict) -> dict:
 
 
 def _rule_identity_before_link(policy: dict, state: dict) -> dict:
-    """Kimlik doğrulanmadıysa aktivasyon linki gönderilmesini engelle."""
+    """Block activation link if identity has not been confirmed."""
     if policy.get("next_action") == "send_activation_link":
         if not state.get("identity_confirmed", False):
-            logger.info("guardrail: kimlik doğrulanmadı → send_activation_link bloke")
+            logger.info("guardrail: identity not confirmed -> blocking send_activation_link")
             policy["next_action"] = "confirm_identity"
             policy["behavior_strategy"] = "ask_for_name_first"
             policy["agent_response"] = (
@@ -81,14 +80,14 @@ def _rule_identity_before_link(policy: dict, state: dict) -> dict:
 
 
 def _rule_price_template(policy: dict) -> dict:
-    """Fiyat sorusunda onaylı şablonu kullan — model yanıtına güvenilmez."""
+    """Use the approved price template for price-related intents."""
     intent = policy.get("intent", "")
     next_action = policy.get("next_action", "")
 
     if intent in ("price_question", "free_question") or next_action in (
         "explain_price", "explain_trial"
     ):
-        logger.info("guardrail: price template uygulandı")
+        logger.info("guardrail: price template applied")
         policy["agent_response"] = PRICE_TEMPLATE
         policy["next_action"] = "explain_price"
 
@@ -96,12 +95,12 @@ def _rule_price_template(policy: dict) -> dict:
 
 
 def _rule_security_template(policy: dict) -> dict:
-    """Güvenlik itirazında onaylı şablonu kullan."""
+    """Use the approved security template for security objections."""
     intent = policy.get("intent", "")
     next_action = policy.get("next_action", "")
 
     if intent == "security_objection" or next_action == "address_security":
-        logger.info("guardrail: security template uygulandı")
+        logger.info("guardrail: security template applied")
         policy["agent_response"] = SECURITY_TEMPLATE
         policy["next_action"] = "address_security"
 
@@ -109,7 +108,7 @@ def _rule_security_template(policy: dict) -> dict:
 
 
 def _rule_loop_detection(policy: dict, state: dict) -> dict:
-    """Aynı next_action MAX_REPEATED_ACTION kez tekrar ederse yön değiştir."""
+    """Change direction when the same next_action repeats MAX_REPEATED_ACTION times."""
     history: list = state.get("last_next_actions", [])
     next_action = policy.get("next_action", "")
 
@@ -117,7 +116,7 @@ def _rule_loop_detection(policy: dict, state: dict) -> dict:
         recent = history[-MAX_REPEATED_ACTION:]
         if all(a == next_action for a in recent):
             logger.info(
-                "guardrail: next_action '%s' %d kez tekrar etti → reframe_offer",
+                "guardrail: next_action '%s' repeated %d times -> reframe_offer",
                 next_action,
                 MAX_REPEATED_ACTION,
             )

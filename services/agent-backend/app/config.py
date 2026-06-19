@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Proje
+    # Project
     project_name: str = "fine-tuned-agent"
     environment: str = "staging"
     log_level: str = "INFO"
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     # vLLM
-    # "mock" → GPU'suz lokal geliştirme; "real" → GPU sunucu
+    # "mock" -> local development without GPU; "real" -> GPU server
     vllm_mode: str = "mock"
     vllm_base_url: str = "http://vllm-server:8000/v1"
     vllm_model_name: str = "fine-tuned-agent-v14"
@@ -29,13 +29,16 @@ class Settings(BaseSettings):
     model_active_version: str = "fine-tuned-agent-v14"
     model_dir: str = "/models"
 
+    # Data directory — docker-compose: ./data:/data
+    data_dir: str = "/data"
+
     # Auth
     jwt_secret: str = "change_me"
     admin_user: str = "admin"
     admin_password: str = "change_me"
 
-    # API Key koruması — boş bırakılırsa kontrol atlanır (local dev)
-    # Prod'da mutlaka doldur: openssl rand -hex 32
+    # API key guard — skip check if empty (local dev)
+    # Production: set with openssl rand -hex 32
     api_key: str = ""
 
     @property

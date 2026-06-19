@@ -14,15 +14,15 @@
 
 <div class="stats-row">
   <div class="stat-card blue">
-    <div class="stat-label">Toplam</div>
+    <div class="stat-label">Total</div>
     <div class="stat-value">{{ corrections|length }}</div>
   </div>
   <div class="stat-card green">
-    <div class="stat-label">Memory'e Eklenen</div>
+    <div class="stat-label">Memory Applied</div>
     <div class="stat-value">{{ memory_count }}</div>
   </div>
   <div class="stat-card purple">
-    <div class="stat-label">Training Kandidatı</div>
+    <div class="stat-label">Training Candidates</div>
     <div class="stat-value">{{ training_count }}</div>
   </div>
 </div>
@@ -30,20 +30,20 @@
 {% if corrections %}
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Tüm Corrections</span>
-    <span class="table-toolbar-meta">{{ corrections|length }} kayıt</span>
+    <span class="table-toolbar-title">All Corrections</span>
+    <span class="table-toolbar-meta">{{ corrections|length }} records</span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Tip</th>
-          <th>Eski Yanıt</th>
-          <th>Yeni Yanıt</th>
+          <th>Type</th>
+          <th>Old Response</th>
+          <th>New Response</th>
           <th>Next Action</th>
           <th>Memory</th>
           <th>Training</th>
-          <th>Tarih</th>
+          <th>Date</th>
           <th></th>
         </tr>
       </thead>
@@ -66,14 +66,14 @@
         </td>
         <td class="td-center">
           {% if c.apply_immediately %}
-            <span class="text-success" style="font-size:15px;">✓</span>
+            <span class="text-success" style="font-size:15px;">+</span>
           {% else %}
             <span class="td-muted">—</span>
           {% endif %}
         </td>
         <td class="td-center">
           {% if c.send_to_training %}
-            <span class="text-success" style="font-size:15px;">✓</span>
+            <span class="text-success" style="font-size:15px;">+</span>
           {% else %}
             <span class="td-muted">—</span>
           {% endif %}
@@ -97,9 +97,9 @@
 {% else %}
 <div class="table-container">
   <div class="empty-state">
-    <div class="empty-icon">✏️</div>
-    <div>Henüz correction yok.</div>
-    <div style="font-size:12px;color:var(--text-3)">Turn detayına giderek yanıtları düzeltebilirsin.</div>
+    <div class="empty-icon">—</div>
+    <div>No corrections yet.</div>
+    <div style="font-size:12px;color:var(--text-3)">Go to a turn detail page to add corrections.</div>
   </div>
 </div>
 {% endif %}

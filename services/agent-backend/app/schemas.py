@@ -119,6 +119,27 @@ class CorrectionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Training Candidate ───────────────────────────────────────────────────────
+
+class TrainingCandidateResponse(BaseModel):
+    id: int
+    source_type: str
+    source_id: int | None
+    messages_json: list[Any]
+    metadata_json: dict[str, Any]
+    approved: bool
+    exported: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ExportResult(BaseModel):
+    file_path: str
+    count: int
+    exported_ids: list[int]
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):

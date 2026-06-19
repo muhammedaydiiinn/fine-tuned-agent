@@ -273,6 +273,7 @@ h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .stat-card.green::before  { background: var(--green);   opacity: 1; }
 .stat-card.yellow::before { background: var(--yellow);  opacity: 1; }
 .stat-card.purple::before { background: var(--purple);  opacity: 1; }
+.stat-card.orange::before { background: var(--red);     opacity: 1; }
 
 .stat-label {
   font-size: 10.5px;
@@ -294,6 +295,7 @@ h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .stat-card.green  .stat-value { color: var(--green); }
 .stat-card.yellow .stat-value { color: var(--yellow); }
 .stat-card.purple .stat-value { color: var(--purple); }
+.stat-card.orange .stat-value { color: var(--red); }
 
 /* ─── Info Cards Row ─────────────────────────────────────────────────── */
 .card-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
@@ -409,6 +411,9 @@ tbody tr:hover { background: rgba(26,34,53,.6); }
 .badge-risk-low    { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-bdr); }
 .badge-risk-medium { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-bdr); }
 .badge-risk-high   { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-bdr); }
+.badge-approved    { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-bdr); }
+.badge-rejected    { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-bdr); }
+.badge-error       { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-bdr); }
 
 /* Live pulse dot */
 .live-dot {
@@ -446,6 +451,9 @@ tbody tr:hover { background: rgba(26,34,53,.6); }
 
 .btn-success { background: var(--green-bg); color: var(--green); border-color: var(--green-bdr); }
 .btn-success:hover { background: rgba(0,217,122,.18); }
+
+.btn-danger { background: var(--red-bg); color: var(--red); border-color: var(--red-bdr); }
+.btn-danger:hover { background: rgba(255,77,106,.18); }
 
 .btn-outline { background: transparent; color: var(--text-2); border-color: var(--border-2); }
 .btn-outline:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-2); }

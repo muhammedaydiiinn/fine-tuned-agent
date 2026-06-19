@@ -21,7 +21,7 @@
 
 <div class="card-row">
   <div class="info-card">
-    <div class="info-label">Aşama</div>
+    <div class="info-label">Stage</div>
     <div class="info-value">{{ session.state_json.get('stage', '—') }}</div>
   </div>
   <div class="info-card">
@@ -31,17 +31,17 @@
     </div>
   </div>
   <div class="info-card">
-    <div class="info-label">Kimlik</div>
+    <div class="info-label">Identity</div>
     <div class="info-value" style="color:{{ 'var(--green)' if session.state_json.get('identity_confirmed') else 'var(--text-3)' }}">
-      {{ '✓ Doğrulandı' if session.state_json.get('identity_confirmed') else '✗ Yok' }}
+      {{ 'Confirmed' if session.state_json.get('identity_confirmed') else 'Not confirmed' }}
     </div>
   </div>
   <div class="info-card">
-    <div class="info-label">Turn</div>
+    <div class="info-label">Turns</div>
     <div class="info-value">{{ turns|length }}</div>
   </div>
   <div class="info-card">
-    <div class="info-label">Başlangıç</div>
+    <div class="info-label">Started</div>
     <div class="info-value" style="font-size:14px;font-weight:500;">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
   </div>
 </div>
@@ -51,24 +51,24 @@
   <pre class="json-block">{{ state_pretty }}</pre>
 </details>
 
-<div class="section-title">Konuşma Turları</div>
+<div class="section-title">Conversation Turns</div>
 
 {% if turns %}
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Turlar</span>
-    <span class="table-toolbar-meta">{{ turns|length }} tur</span>
+    <span class="table-toolbar-title">Turns</span>
+    <span class="table-toolbar-meta">{{ turns|length }} turns</span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>#</th>
-          <th>Müşteri Mesajı</th>
+          <th>Customer Message</th>
           <th>Intent</th>
           <th>Next Action</th>
           <th>Risk</th>
-          <th>Devam</th>
+          <th>Continue</th>
           <th>ms</th>
           <th></th>
         </tr>
@@ -101,9 +101,9 @@
         </td>
         <td class="td-center">
           {% if t.allowed_to_continue %}
-            <span class="text-success" style="font-size:16px;">✓</span>
+            <span class="text-success" style="font-size:16px;">+</span>
           {% else %}
-            <span class="text-danger" style="font-size:16px;">✗</span>
+            <span class="text-danger" style="font-size:16px;">x</span>
           {% endif %}
         </td>
         <td class="td-mono td-muted">
@@ -111,7 +111,7 @@
         </td>
         <td>
           <a href="/sessions/{{ session.id }}/turns/{{ t.id }}" class="btn btn-sm btn-outline">
-            Aç
+            Open
             <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
         </td>
@@ -124,8 +124,8 @@
 {% else %}
 <div class="table-container">
   <div class="empty-state">
-    <div class="empty-icon">💬</div>
-    <div>Bu session'da henüz turn yok.</div>
+    <div class="empty-icon">—</div>
+    <div>No turns in this session yet.</div>
   </div>
 </div>
 {% endif %}

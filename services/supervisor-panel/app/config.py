@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     agent_backend_url: str = "http://agent-backend:8010"
     model_active_version: str = "fine-tuned-agent-v14"
 
+    # Data directory — no ./data:/data mount on panel; used for config reference only
+    data_dir: str = "/data"
+
     @property
     def database_url(self) -> str:
         return (
