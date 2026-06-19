@@ -4,6 +4,10 @@
 
 Bu plan 20 Haziran 2026 - 6 Temmuz 2026 arasında dedicated GPU sunucuda profesyonel CallShield Agent Platform altyapısını ayağa kaldırmak içindir.
 
+Bu tarihli belge artık **GPU sunucuya geçiş ve M4–M6 kabul planıdır**. Genel
+milestone sırası ve nihai voice ürün kapsamı için `MILESTONES.md` kanonik
+kaynaktır. Lokal/mock ortamda M1–M3 tamamlanmış, M4–M5 ise koşullu tamamdır.
+
 Ana hedef Colab’dan çıkmak ve sunucuda çalışan şu çekirdeği kurmaktır:
 
 ```text
@@ -681,8 +685,8 @@ Sistemin Colab’dan çıktığını ve sunucuda profesyonel bir platform çekir
 6. Benzer durumda sistem düzeltmeyi kullanıyor.
 7. Correction training candidate oluyor.
 8. Training job queue’ya düşüyor.
-9. Model registry ve eval ekranı gösteriliyor.
-10. Deploy/rollback mantığı gösteriliyor.
+9. Candidate model production'dan izole eval ediliyor.
+10. Eval-gated deploy/rollback çalışan akışla gösteriliyor.
 ```
 
 ### Ana mesaj
@@ -708,16 +712,42 @@ Sunucuda çalışan, ölçülen, düzeltilebilen, eğitime veri üreten ve model
 - Training worker job status
 - Eval worker temel testleri
 - Model registry
-- Deploy/rollback tasarımı
+- Candidate modeli production'dan izole eval etme
+- Eval-gated deploy/rollback çalışan akışı
 ```
+
+---
+
+## 7 Temmuz sonrası milestone sırası
+
+```text
+M7 — Browser voice foundation
+     browser microphone + streaming STT + /agent-turn + streaming TTS
+
+M8 — Realtime turn-taking ve interruption
+     VAD + barge-in + playback cancel + backchannel ayrımı
+
+M9 — Canlı supervisor control
+     Stop Agent + Send This Instead + replacement TTS
+     + correction memory + training candidate
+
+M10 — Voice performance ve production hardening
+      uçtan uca latency + tracing + load/failure testleri
+      + privacy/security/operations
+
+M11 — Telefon/pilot entegrasyonu
+      browser voice ve interruption kabulünden sonra
+```
+
+M7–M10 için ayrıntılı kapsam ve kabul kriterleri `MILESTONES.md` içindedir.
 
 ---
 
 ## Bilerek sonraya bırakılanlar
 
 ```text
-- Telefon entegrasyonu
-- Full LiveKit/Pipecat voice runtime
+- Telefon entegrasyonu (M11)
+- İkinci voice runtime adapter'ının production implementasyonu
 - Production-grade multi-user auth
 - Tam blue/green deployment
 - Tam otomatik quantization pipeline
@@ -725,4 +755,3 @@ Sunucuda çalışan, ölçülen, düzeltilebilen, eğitime veri üreten ve model
 ```
 
 Bu parçalar çekirdek platform sağlamlaştıktan sonra eklenecek.
-
