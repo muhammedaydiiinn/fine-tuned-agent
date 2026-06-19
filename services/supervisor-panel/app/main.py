@@ -1,40 +1,36 @@
-"""Supervisor Panel — Milestone 2'de tam hale getirilecek.
+import logging
 
-Şu an: /health + basit hoş geldiniz sayfası.
-"""
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import os
 
-app = FastAPI(title="Anrufblocker Supervisor Panel", version="0.1.0")
+from app.auth import PUBLIC_PATHS, is_authenticated
+from app.config import settings
+from app.routes import auth, corrections, sessions, turns
 
-# Template klasörü Milestone 2'de oluşturulacak
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
-os.makedirs(TEMPLATES_DIR, exist_ok=True)
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Anrufblocker Supervisor Panel", version="1.0.0")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+app.include_router(auth.router, tags=["auth"])
+app.include_router(sessions.router, tags=["sessions"])
+app.include_router(turns.router, tags=["turns"])
+app.include_router(corrections.router, tags=["corrections"])
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if path in PUBLIC_PATHS or path.startswith("/static"):
+        return await call_next(request)
+    if not is_authenticated(request):
+        return RedirectResponse(url="/login", status_code=302)
+    return await call_next(request)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "supervisor-panel", "milestone": "2-pending"}
-
-
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    html = """
-    <!doctype html>
-    <html lang="tr">
-    <head><meta charset="utf-8"><title>Anrufblocker Supervisor Panel</title>
-    <style>body{font-family:sans-serif;max-width:600px;margin:80px auto;text-align:center}
-    .badge{background:#e0f2fe;color:#0369a1;padding:4px 12px;border-radius:999px;font-size:.85rem}</style>
-    </head>
-    <body>
-    <h1>Anrufblocker Supervisor Panel</h1>
-    <p><span class="badge">Milestone 2 — Geliştirme aşamasında</span></p>
-    <p>Bu panel Milestone 2'de FastAPI + Jinja2 + HTMX ile tamamlanacak.</p>
-    <p>Backend API: <a href="http://localhost:8010/health">localhost:8010/health</a></p>
-    <p>API Docs: <a href="http://localhost:8010/docs">localhost:8010/docs</a></p>
-    </body></html>
-    """
-    return HTMLResponse(content=html)
+    return {"status": "ok", "service": "supervisor-panel"}

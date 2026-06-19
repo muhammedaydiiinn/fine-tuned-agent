@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Session {{ session.external_session_id or session.id }}{% endblock %}
+
+{% block content %}
+
+<div class="breadcrumb">
+  <a href="/">Sessions</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>{{ session.external_session_id or ("#" ~ session.id) }}</span>
+</div>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>{{ session.external_session_id or ("Session #" ~ session.id) }}</h1>
+    <span class="badge badge-{{ 'active' if session.status == 'active' else 'closed' }}">
+      {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
+      {{ session.status }}
+    </span>
+  </div>
+</div>
+
+<div class="card-row">
+  <div class="info-card">
+    <div class="info-label">Aşama</div>
+    <div class="info-value">{{ session.state_json.get('stage', '—') }}</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Hard Decline</div>
+    <div class="info-value" style="color:{% if session.state_json.get('hard_decline_count',0) >= 2 %}var(--red){% elif session.state_json.get('hard_decline_count',0) == 1 %}var(--yellow){% else %}var(--text){% endif %}">
+      {{ session.state_json.get('hard_decline_count', 0) }}
+    </div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Kimlik</div>
+    <div class="info-value" style="color:{{ 'var(--green)' if session.state_json.get('identity_confirmed') else 'var(--text-3)' }}">
+      {{ '✓ Doğrulandı' if session.state_json.get('identity_confirmed') else '✗ Yok' }}
+    </div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Turn</div>
+    <div class="info-value">{{ turns|length }}</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Başlangıç</div>
+    <div class="info-value" style="font-size:14px;font-weight:500;">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+  </div>
+</div>
+
+<details class="collapsible" style="margin-bottom:20px;">
+  <summary>State JSON</summary>
+  <pre class="json-block">{{ state_pretty }}</pre>
+</details>
+
+<div class="section-title">Konuşma Turları</div>
+
+{% if turns %}
+<div class="table-container">
+  <div class="table-toolbar">
+    <span class="table-toolbar-title">Turlar</span>
+    <span class="table-toolbar-meta">{{ turns|length }} tur</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Müşteri Mesajı</th>
+          <th>Intent</th>
+          <th>Next Action</th>
+          <th>Risk</th>
+          <th>Devam</th>
+          <th>ms</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in turns %}
+      <tr>
+        <td class="td-mono" style="color:var(--text-3);font-size:12px;">{{ t.turn_index }}</td>
+        <td class="td-truncate" title="{{ t.customer_text }}" style="max-width:280px;">{{ t.customer_text[:70] }}{% if t.customer_text|length > 70 %}…{% endif %}</td>
+        <td>
+          {% if t.intent %}
+            <span class="badge badge-intent">{{ t.intent }}</span>
+          {% else %}
+            <span class="td-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.next_action %}
+            <span class="badge badge-action">{{ t.next_action }}</span>
+          {% else %}
+            <span class="td-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.risk %}
+            <span class="badge badge-risk-{{ t.risk }}">{{ t.risk }}</span>
+          {% else %}
+            <span class="td-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="td-center">
+          {% if t.allowed_to_continue %}
+            <span class="text-success" style="font-size:16px;">✓</span>
+          {% else %}
+            <span class="text-danger" style="font-size:16px;">✗</span>
+          {% endif %}
+        </td>
+        <td class="td-mono td-muted">
+          {% if t.latency_json %}{{ t.latency_json.get('total_ms', 0)|round|int }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <a href="/sessions/{{ session.id }}/turns/{{ t.id }}" class="btn btn-sm btn-outline">
+            Aç
+            <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="table-container">
+  <div class="empty-state">
+    <div class="empty-icon">💬</div>
+    <div>Bu session'da henüz turn yok.</div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Turn #{{ turn.turn_index }}{% endblock %}
+
+{% block content %}
+
+<div class="breadcrumb">
+  <a href="/">Sessions</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/sessions/{{ session.id }}">{{ session.external_session_id or ("#" ~ session.id) }}</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>Turn #{{ turn.turn_index }}</span>
+</div>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Turn #{{ turn.turn_index }}</h1>
+    <div class="flex-center" style="gap:6px;flex-wrap:wrap;">
+      {% if turn.intent %}<span class="badge badge-intent">{{ turn.intent }}</span>{% endif %}
+      {% if turn.next_action %}<span class="badge badge-action">{{ turn.next_action }}</span>{% endif %}
+      {% if turn.risk %}<span class="badge badge-risk-{{ turn.risk }}">{{ turn.risk }}</span>{% endif %}
+      {% if not turn.allowed_to_continue %}
+        <span class="badge" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-bdr);">Engellendi</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Latency bar -->
+{% if turn.latency_json %}
+<div class="card-row" style="margin-bottom:18px;">
+  <div class="info-card">
+    <div class="info-label">LLM</div>
+    <div class="info-value" style="font-size:16px;">{{ turn.latency_json.get('llm_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Backend</div>
+    <div class="info-value" style="font-size:16px;">{{ turn.latency_json.get('backend_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Toplam</div>
+    <div class="info-value" style="font-size:16px;color:var(--accent-2)">{{ turn.latency_json.get('total_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
+  </div>
+  {% if turn.model_version %}
+  <div class="info-card">
+    <div class="info-label">Model</div>
+    <div class="info-value" style="font-size:12px;font-family:var(--font-mono);">{{ turn.model_version }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Konuşma -->
+<div class="section-title">Konuşma</div>
+<div class="chat-block">
+  <div class="chat-bubble chat-customer">
+    <div class="bubble-label">Müşteri</div>
+    {{ turn.customer_text }}
+  </div>
+  <div class="chat-bubble chat-agent">
+    <div class="bubble-label">Ajan</div>
+    {{ turn.agent_response or "—" }}
+  </div>
+</div>
+
+<!-- JSON Detayları -->
+<div class="section-title">Model Çıktıları</div>
+<div class="json-grid">
+  <details class="collapsible" open>
+    <summary>Raw Model JSON</summary>
+    <pre class="json-block">{{ raw_json }}</pre>
+  </details>
+  <details class="collapsible" open>
+    <summary>Repaired JSON</summary>
+    <pre class="json-block">{{ repaired_json }}</pre>
+  </details>
+  <details class="collapsible">
+    <summary>State — Önce</summary>
+    <pre class="json-block">{{ state_before }}</pre>
+  </details>
+  <details class="collapsible">
+    <summary>State — Sonra</summary>
+    <pre class="json-block">{{ state_after }}</pre>
+  </details>
+</div>
+
+<!-- Mevcut Corrections -->
+{% if corrections %}
+<div class="section-title">Önceki Corrections ({{ corrections|length }})</div>
+<div class="table-container" style="margin-bottom:20px;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tip</th>
+          <th>Eski Yanıt</th>
+          <th>Yeni Yanıt</th>
+          <th>Memory</th>
+          <th>Training</th>
+          <th>Tarih</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in corrections %}
+      <tr>
+        <td><span class="badge badge-intent">{{ c.correction_type }}</span></td>
+        <td class="td-truncate td-muted">{{ (c.old_agent_response or "—")[:55] }}</td>
+        <td class="td-truncate">{{ (c.corrected_agent_response or "—")[:55] }}</td>
+        <td class="td-center">{{ '✓' if c.apply_immediately else '—' }}</td>
+        <td class="td-center">{{ '✓' if c.send_to_training else '—' }}</td>
+        <td class="td-muted">{{ c.created_at.strftime('%d.%m %H:%M') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Correction Formu -->
+<div class="correction-panel">
+  <div class="correction-header">
+    <div class="correction-header-title">Correction Ekle</div>
+    <div id="correction-result"></div>
+  </div>
+
+  <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
+        hx-target="#correction-result"
+        hx-swap="innerHTML">
+
+    <div class="quick-actions">
+      <button type="submit" name="mark_good" value="1" class="btn btn-success">
+        <svg style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        İyi Olarak İşaretle
+      </button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="form-group">
+      <label>Mevcut Yanıt</label>
+      <textarea class="readonly-area" readonly rows="3">{{ turn.agent_response or "" }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="corrected_response">Düzeltilmiş Yanıt</label>
+      <textarea id="corrected_response" name="corrected_response" rows="4"
+                placeholder="Doğru Almanca yanıtı buraya yaz...">{{ turn.agent_response or "" }}</textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mevcut Next Action</label>
+        <input type="text" readonly value="{{ turn.next_action or '' }}" class="readonly-input">
+      </div>
+      <div class="form-group">
+        <label for="corrected_next_action">Düzeltilmiş Next Action</label>
+        <input type="text" id="corrected_next_action" name="corrected_next_action"
+               placeholder="örn: explain_price" value="{{ turn.next_action or '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="notes">Notlar (İsteğe bağlı)</label>
+      <input type="text" id="notes" name="notes" placeholder="Neden bu correction yapıldı?">
+    </div>
+
+    <div class="form-check-row">
+      <label class="checkbox-label">
+        <input type="checkbox" name="apply_immediately" value="true">
+        <span>Hemen Uygula — Correction Memory'e Kaydet</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="send_to_training" value="true">
+        <span>Training Kandidatına Gönder</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      <svg style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Correction Kaydet
+    </button>
+  </form>
+</div>
+
+{% endblock %}
