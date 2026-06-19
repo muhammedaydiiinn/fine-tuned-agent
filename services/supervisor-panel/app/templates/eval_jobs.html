@@ -6,11 +6,11 @@
   <div class="page-header-left"><h1>Evaluations</h1></div>
 </div>
 
-<form class="table-container" style="padding:16px;margin-bottom:20px;display:flex;gap:10px;align-items:end;"
+<form class="table-container eval-launcher"
       hx-post="/eval-jobs/start"
       hx-target="#eval-start-result"
       hx-swap="innerHTML">
-  <div class="form-group" style="margin:0;min-width:320px;">
+  <div class="form-group">
     <label for="model-version">Model Version</label>
     <select id="model-version" name="model_version_id" required {% if not model_versions %}disabled{% endif %}>
       {% for version in model_versions %}

@@ -422,10 +422,17 @@ docker compose down -v
 | 1 | Çekirdek (backend + guardrails + correction_memory) | ✅ Tamamlandı |
 | 2 | Supervisor panel (Jinja2/HTMX) | ✅ Tamamlandı |
 | 3 | Correction flow + training candidate pipeline | ✅ Tamamlandı |
-| 4 | Training worker (gerçek LoRA + mock mode) | ✅ Tamamlandı |
-| 5 | Eval worker + sabit senaryolar + metrik paneli | ✅ Tamamlandı |
-| 6 | Model registry + deploy/rollback | ⏳ Bekliyor |
-| 7 | Voice adapter (LiveKit/Pipecat) | ⏳ Bekliyor |
+| 4 | Training worker + model candidate üretimi | 🟡 Koşullu tamam — gerçek GPU kabulü bekliyor |
+| 5 | Eval worker + kalite kapısı | 🟡 Koşullu tamam — candidate isolation bekliyor |
+| 6 | Model registry + candidate serving + deploy/rollback | ⏳ Bekliyor |
+| 7 | Browser voice foundation (streaming STT/TTS) | ⏳ Bekliyor |
+| 8 | Realtime turn-taking + interruption/barge-in | ⏳ Bekliyor |
+| 9 | Canlı supervisor control + replacement audio | ⏳ Bekliyor |
+| 10 | Voice performansı + production hardening | ⏳ Bekliyor |
+| 11 | Telefon/pilot entegrasyonu | ⏳ Sonraki faz |
+
+Kapsam, bağımlılıklar ve kabul kriterleri için
+[`MILESTONES.md`](./MILESTONES.md) tek referans plandır.
 
 ---
 

@@ -176,14 +176,37 @@ a { color: inherit; text-decoration: none; }
 .dt-container { width: 100%; }
 
 /* Top controls row (search + length) */
-.dt-layout-row:first-child {
+div.dt-container > div.dt-layout-row:first-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  background: rgba(255,255,255,.012);
+}
+
+div.dt-container > div.dt-layout-row:first-child > .dt-layout-cell {
+  display: flex !important;
+  align-items: center;
+  width: auto !important;
+  padding: 0 !important;
+}
+
+div.dt-container > div.dt-layout-row:first-child > .dt-layout-cell.dt-end {
+  justify-content: flex-end;
+}
+
+div.dt-container .dt-length {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 9px;
+}
+
+div.dt-container .dt-search {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .dt-search label,
@@ -196,43 +219,83 @@ a { color: inherit; text-decoration: none; }
   font-weight: 400;
 }
 
-.dt-search input,
-.dt-length select {
-  background: var(--bg);
+div.dt-container .dt-search input.dt-input,
+div.dt-container .dt-length select.dt-input {
+  height: 34px;
+  margin: 0;
+  background-color: var(--surface-2);
   border: 1px solid var(--border-2);
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 5px 10px;
+  padding: 6px 10px;
   font-family: var(--font);
   font-size: 12.5px;
   outline: none;
-  transition: border-color .1s;
+  transition: border-color .12s, box-shadow .12s, background-color .12s;
 }
 
-.dt-search input:focus,
-.dt-length select:focus { border-color: var(--accent); }
+div.dt-container .dt-search input.dt-input {
+  width: 220px;
+  padding-left: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%237F8190' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 11px center;
+}
+
+div.dt-container .dt-length select.dt-input {
+  min-width: 70px;
+}
+
+div.dt-container .dt-search input.dt-input:hover,
+div.dt-container .dt-length select.dt-input:hover {
+  border-color: rgba(255,255,255,.18);
+  background-color: var(--surface-3);
+}
+
+div.dt-container .dt-search input.dt-input:focus,
+div.dt-container .dt-length select.dt-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
 
 .dt-search input::placeholder { color: var(--text-3); }
 
 /* Bottom row (info + pagination) */
-.dt-layout-row:last-child {
-  display: flex;
+div.dt-container > div.dt-layout-row:last-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
+}
+
+div.dt-container > div.dt-layout-row:last-child > .dt-layout-cell {
+  display: flex !important;
+  align-items: center;
+  width: auto !important;
+  padding: 0 !important;
+}
+
+div.dt-container > div.dt-layout-row:last-child > .dt-layout-cell.dt-end {
+  justify-content: flex-end;
 }
 
 .dt-info { font-size: 12px; color: var(--text-3); }
 
 /* Pagination buttons */
-.dt-paging { display: flex; gap: 3px; align-items: center; }
+div.dt-container .dt-paging { display: flex; gap: 5px; align-items: center; }
 
-.dt-paging-button {
-  background: transparent;
-  border: 1px solid var(--border);
+div.dt-container .dt-paging .dt-paging-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0 8px !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
   color: var(--text-2) !important;
   border-radius: var(--radius-sm);
   padding: 3px 9px;
@@ -243,19 +306,23 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.5;
 }
 
-.dt-paging-button:hover:not(.disabled):not(.current) {
+div.dt-container .dt-paging .dt-paging-button:hover:not(.disabled):not(.current) {
   background: var(--surface-3) !important;
   color: var(--text) !important;
   border-color: var(--border-2) !important;
 }
 
-.dt-paging-button.current {
+div.dt-container .dt-paging .dt-paging-button.current {
   background: var(--accent) !important;
   color: #fff !important;
   border-color: var(--accent) !important;
+  box-shadow: 0 4px 12px rgba(77,142,255,.18);
 }
 
-.dt-paging-button.disabled { opacity: .3 !important; cursor: not-allowed; }
+div.dt-container .dt-paging .dt-paging-button.disabled {
+  opacity: .28 !important;
+  cursor: not-allowed;
+}
 
 /* Sorting arrows */
 table.dataTable thead th.dt-orderable-asc,
@@ -564,8 +631,10 @@ label { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
 
 input[type="text"],
 input[type="password"],
+input[type="search"],
+select,
 textarea {
-  background: var(--bg);
+  background-color: var(--bg);
   border: 1px solid var(--border-2);
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -576,10 +645,28 @@ textarea {
   resize: vertical;
 }
 
-input:focus, textarea:focus {
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237F8190' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+
+select:hover { border-color: rgba(255,255,255,.18); }
+
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(77,142,255,.10);
+}
+
+select:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+  opacity: .65;
 }
 
 .readonly-area, .readonly-input { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
@@ -720,3 +807,53 @@ table.dataTable thead th.dt-orderable-asc span.dt-column-order,
 table.dataTable thead th.dt-orderable-desc span.dt-column-order { opacity: .35; }
 table.dataTable thead th.dt-ordering-asc span.dt-column-order,
 table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; color: var(--accent-2); }
+
+/* ─── Evaluation launcher ────────────────────────────────────────────── */
+.eval-launcher {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.eval-launcher .form-group {
+  width: min(420px, 100%);
+  margin: 0;
+}
+
+.eval-launcher select {
+  height: 36px;
+  background-color: var(--surface-2);
+}
+
+.eval-launcher .btn {
+  min-height: 36px;
+}
+
+@media (max-width: 700px) {
+  div.dt-container > div.dt-layout-row:first-child,
+  div.dt-container > div.dt-layout-row:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  div.dt-container > div.dt-layout-row:first-child > .dt-layout-cell.dt-end,
+  div.dt-container > div.dt-layout-row:last-child > .dt-layout-cell.dt-end {
+    justify-content: flex-start;
+  }
+
+  div.dt-container .dt-search,
+  div.dt-container .dt-search input.dt-input {
+    width: 100%;
+  }
+
+  .eval-launcher {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .eval-launcher .form-group,
+  .eval-launcher .btn {
+    width: 100%;
+  }
+}
