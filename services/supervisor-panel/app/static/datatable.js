@@ -3,15 +3,18 @@
  *
  * İki mod, otomatik seçim:
  *   table.dt-table          → client-side (mevcut server-render tbody'ler değişmez)
- *   table[data-dt-url]      → AJAX — kolonlar <th data-field> ile deklaratif
+ *   table[data-dt-url]      → AJAX — kolonlar <th data-dt-col-field> ile deklaratif
  *
  * <th> attribute'ları:
- *   data-field="fieldName"         columns[].data
- *   data-render="rendererName"     kayıtlı renderer (bkz. RENDERERS)
- *   data-orderable="false"         sıralama kapalı
- *   data-class="td-mono"           className
- *   data-width="60px"              genişlik
- *   data-link-base="/path/"        link renderer'ı için base URL (hücre değeri eklenir)
+ *   data-dt-col-field="fieldName"      columns[].data
+ *   data-dt-col-render="rendererName"  kayıtlı renderer (bkz. RENDERERS)
+ *   data-dt-col-orderable="false"      sıralama kapalı
+ *   data-dt-col-class="td-mono"        className
+ *   data-dt-col-width="60px"           genişlik
+ *   data-dt-col-link-base="/path/"     link renderer'ı için base URL (hücre değeri eklenir)
+ *
+ * Not: data-render / data-orderable gibi DataTables'ın kendi HTML5 ayar
+ * isimlerini kullanmayın. Kütüphane bu değerlerle JS kolon ayarlarını ezer.
  *
  * <table> attribute'ları (sadece AJAX mod):
  *   data-dt-url="..."              AJAX kaynak URL, dataSrc:'data'
@@ -201,20 +204,22 @@
 
     // Yeni renderer eklemek için:
     //   RENDERERS.myRenderer = function(d, type, row) { ... };
-    // ve <th data-render="myRenderer"> ile kullan.
+    // ve <th data-dt-col-render="myRenderer"> ile kullan.
   };
 
   // ── Kolonu <th> attribute'larından üret ─────────────────────────────────
   function buildColumn(th) {
-    var col = {};
+    // defaultContent, API satırında alan eksik/null olduğunda DataTables'ın
+    // "Requested unknown parameter" uyarısı üretmesini engeller.
+    var col = { defaultContent: '' };
 
-    var field = th.getAttribute('data-field');
+    var field = th.getAttribute('data-dt-col-field');
     if (field) col.data = field;
 
-    var renderName = th.getAttribute('data-render');
+    var renderName = th.getAttribute('data-dt-col-render');
     if (renderName === 'link') {
       // link renderer: closure — base URL <th>'den alınır
-      var base = th.getAttribute('data-link-base') || '#';
+      var base = th.getAttribute('data-dt-col-link-base') || '#';
       col.render = function (d, type) {
         if (type !== 'display') return d;
         return '<a href="' + esc(base) + esc(d) + '" class="td-link">' + esc(String(d)) + '</a>';
@@ -223,10 +228,10 @@
       col.render = RENDERERS[renderName];
     }
 
-    if (th.getAttribute('data-orderable') === 'false') col.orderable = false;
-    var cls = th.getAttribute('data-class');
+    if (th.getAttribute('data-dt-col-orderable') === 'false') col.orderable = false;
+    var cls = th.getAttribute('data-dt-col-class');
     if (cls) col.className = cls;
-    var w = th.getAttribute('data-width');
+    var w = th.getAttribute('data-dt-col-width');
     if (w) col.width = w;
 
     return col;
@@ -262,7 +267,18 @@
       var columns  = Array.prototype.map.call(ths, buildColumn);
 
       var cfg = Object.assign({}, COMMON, {
-        ajax:    { url: url, dataSrc: 'data' },
+        ajax: {
+          url: url,
+          // Fonksiyon tabanlı dataSrc: string 'data' yerine explicit, güvenli
+          dataSrc: function (json) {
+            if (json && Array.isArray(json.data)) return json.data;
+            console.warn('[dt] unexpected response from ' + url, json);
+            return [];
+          },
+          error: function (xhr, err) {
+            console.error('[dt] ajax error ' + url + ':', err, xhr.status, xhr.responseText.slice(0, 300));
+          }
+        },
         columns: columns,
         order:   parseOrder(orderStr),
         drawCallback: function () {
