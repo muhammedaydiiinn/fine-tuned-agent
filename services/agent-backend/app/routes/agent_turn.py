@@ -78,21 +78,26 @@ def agent_turn(req: AgentTurnRequest, db: DBSession = Depends(get_db)):
     # 7. Repair
     repaired_policy = json_repair.repair(raw_policy)
 
-    # 8. Correction memory override
-    after_correction = correction_memory.apply_override(repaired_policy, correction_hints)
+    # 8. Correction memory override. Policy-intent matching is evaluated after
+    # repair so intent-keyed hotfixes work for natural-language customer input.
+    policy_hints = correction_memory.get_policy_hints(db, repaired_policy)
+    after_correction = correction_memory.apply_override(
+        repaired_policy,
+        policy_hints or correction_hints,
+    )
 
     # 9. Apply guardrails (including product fact templates)
     safe_policy = guardrails.apply(after_correction, state)
 
     # 10. Update state
-    new_state = state_manager.update(state, safe_policy)
+    new_state = state_manager.update(state, safe_policy, customer_text=req.customer_text)
     state_manager.persist(db, session, new_state)
 
     # 11. Save turn and latency
     total_ms = (time.perf_counter() - backend_start) * 1000
     backend_ms = total_ms - llm_ms
 
-    turn_index = len(recent_turns)
+    turn_index = int(state.get("turn_count", 0))
     turn = Turn(
         session_id=session.id,
         turn_index=turn_index,

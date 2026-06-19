@@ -421,9 +421,9 @@ docker compose down -v
 |---|------|-------|
 | 1 | Çekirdek (backend + guardrails + correction_memory) | ✅ Tamamlandı |
 | 2 | Supervisor panel (Jinja2/HTMX) | ✅ Tamamlandı |
-| 3 | Correction flow + training candidate pipeline | ⏳ Bekliyor |
-| 4 | Training worker (gerçek LoRA) | ⏳ Bekliyor |
-| 5 | Eval worker + metrikler | ⏳ Bekliyor |
+| 3 | Correction flow + training candidate pipeline | ✅ Tamamlandı |
+| 4 | Training worker (gerçek LoRA + mock mode) | ✅ Tamamlandı |
+| 5 | Eval worker + sabit senaryolar + metrik paneli | ✅ Tamamlandı |
 | 6 | Model registry + deploy/rollback | ⏳ Bekliyor |
 | 7 | Voice adapter (LiveKit/Pipecat) | ⏳ Bekliyor |
 
@@ -431,7 +431,8 @@ docker compose down -v
 
 ## Notlar
 
-- Veritabanı migration'ları (Alembic) Milestone 2'de eklenecek. Şu an `create_all` kullanılıyor.
-- `training-worker` ve `eval-worker` şu an stub; `--profile workers` ile başlatılıyor.
+- Veritabanı hâlâ `create_all` kullanıyor. M5'in `eval_runs` kolonları başlangıçta idempotent
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ile yükseltiliyor; uzun vadede Alembic'e geçilmeli.
+- `training-worker` ve `eval-worker` `--profile workers` ile başlatılır.
 - vLLM GPU profili: `docker compose --profile gpu up -d`
 - RedisInsight sadece `127.0.0.1:8001`'e bind edilmiş — dışarıdan erişilemez.

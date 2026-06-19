@@ -1,5 +1,6 @@
-# Training worker — Milestone 4'te Unsloth/LoRA eğitimi eklenecek
-# GPU sunucuda host-native venv ile de çalıştırılabilir (Dockerfile alternatifi)
+# Lightweight worker image for TRAINING_MODE=mock.
+# For TRAINING_MODE=real, use a GPU host venv with requirements-gpu.txt and an
+# Unsloth build matching the installed CUDA/Torch versions.
 FROM python:3.11-slim
 
 WORKDIR /app

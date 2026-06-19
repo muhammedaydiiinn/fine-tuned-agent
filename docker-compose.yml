@@ -147,6 +147,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      agent-backend:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

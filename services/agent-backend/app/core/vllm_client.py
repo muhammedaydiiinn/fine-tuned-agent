@@ -46,13 +46,18 @@ def _classify_mock(text: str) -> dict:
         "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"},
     }
 
-    # Price question
-    if any(w in text for w in ["kostet", "preis", "kosten", "wie viel", "wieviel", "euro"]):
-        return {**base, "intent": "price_question", "next_action": "explain_price",
-                "agent_response": "Das kostet 29,99 Euro monatlich nach der Testphase."}
+    # Activation link request. The identity-before-link guardrail decides
+    # whether this action is allowed for the current session.
+    if any(phrase in text for phrase in [
+        "schicken sie mir den sicheren link",
+        "schicken sie mir den link",
+        "ich öffne den link",
+    ]):
+        return {**base, "intent": "activation_link_request", "next_action": "send_activation_link",
+                "agent_response": "Ich sende Ihnen jetzt den sicheren Aktivierungslink."}
 
     # Security objection
-    if any(w in text for w in ["virus", "link", "phishing", "gefährlich", "sicher"]):
+    if any(w in text for w in ["virus", "phishing", "gefährlich", "ist der link sicher"]):
         return {**base, "intent": "security_objection", "next_action": "address_security",
                 "agent_response": "Der Link ist sicher."}
 
@@ -66,6 +71,11 @@ def _classify_mock(text: str) -> dict:
     if any(w in text for w in ["kostenlos", "gratis", "umsonst", "frei"]):
         return {**base, "intent": "free_question", "next_action": "explain_trial",
                 "agent_response": "Ja, die ersten 14 Tage sind komplett kostenlos."}
+
+    # Price question
+    if any(w in text for w in ["kostet", "preis", "kosten", "wie viel", "wieviel", "euro"]):
+        return {**base, "intent": "price_question", "next_action": "explain_price",
+                "agent_response": "Das kostet 29,99 Euro monatlich nach der Testphase."}
 
     # After 14 days question
     if any(w in text for w in ["nach 14", "danach", "nach der testphase", "was passiert"]):

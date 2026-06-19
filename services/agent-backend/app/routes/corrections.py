@@ -68,6 +68,7 @@ def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_
     # 2. apply_immediately -> upsert correction_memory
     if req.apply_immediately and req.corrected_agent_response:
         trigger_key = _derive_trigger_key(req, db)
+        context_json = _derive_context(req, db)
         existing = (
             db.query(CorrectionMemory)
             .filter(
@@ -80,10 +81,12 @@ def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_
             existing.correct_response = req.corrected_agent_response
             existing.correct_next_action = req.corrected_next_action
             existing.source_correction_id = correction.id
+            existing.context_json = context_json
             logger.info("correction_memory updated: trigger=%s", trigger_key)
         else:
             mem = CorrectionMemory(
                 trigger_key=trigger_key,
+                context_json=context_json,
                 correct_response=req.corrected_agent_response,
                 correct_next_action=req.corrected_next_action,
                 source_correction_id=correction.id,
@@ -114,6 +117,18 @@ def _derive_trigger_key(req: CreateCorrectionRequest, db: DBSession) -> str:
         if turn and turn.intent:
             return turn.intent
     return req.correction_type
+
+
+def _derive_context(req: CreateCorrectionRequest, db: DBSession) -> dict:
+    """Persist auditable matching context for the correction memory entry."""
+    if req.turn_id:
+        turn = db.query(Turn).filter(Turn.id == req.turn_id).first()
+        if turn:
+            return {
+                "intent": turn.intent,
+                "customer_text": turn.customer_text,
+            }
+    return {"correction_type": req.correction_type}
 
 
 def _build_training_candidate(req: CreateCorrectionRequest, db: DBSession):

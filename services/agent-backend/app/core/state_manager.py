@@ -51,9 +51,13 @@ def load(session_model) -> dict[str, Any]:
     return state
 
 
-def update(state: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
+def update(
+    state: dict[str, Any],
+    policy: dict[str, Any],
+    customer_text: str = "",
+) -> dict[str, Any]:
     """Update state based on the policy output of one turn."""
-    new_state = dict(state)
+    new_state = {**DEFAULT_STATE, **state}
     intent = policy.get("intent", "")
     next_action = policy.get("next_action", "")
 
@@ -63,8 +67,9 @@ def update(state: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
     if intent == "hard_decline":
         new_state["hard_decline_count"] = new_state.get("hard_decline_count", 0) + 1
 
-    # Identity confirmation
-    if next_action == "confirm_identity" and policy.get("allowed_to_continue"):
+    # Identity confirmation must come from the customer's statement, not from
+    # the agent merely deciding to ask for identity.
+    if customer_signals_identity_confirmation(customer_text):
         new_state["identity_confirmed"] = True
 
     # Price / offer terms explained
@@ -119,6 +124,18 @@ def customer_signals_app_progress(text: str) -> bool:
         "link geöffnet", "store geöffnet", "sms-code", "code ist da",
         "telefonnummer bestätigen", "schutz aktivieren", "schutz aktiv",
         "bildschirm steht", "auf dem bildschirm",
+    ])
+
+
+def customer_signals_identity_confirmation(text: str) -> bool:
+    """Return True when the customer explicitly confirms their identity."""
+    msg = " ".join((text or "").lower().split())
+    return any(phrase in msg for phrase in [
+        "ja, das bin ich",
+        "ja das bin ich",
+        "ich bin das",
+        "das ist richtig",
+        "mein name ist",
     ])
 
 

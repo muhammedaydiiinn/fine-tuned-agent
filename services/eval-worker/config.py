@@ -14,16 +14,13 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
-    admin_user: str = "admin"
-    admin_password: str = "change_me"
-    jwt_secret: str = "change_me"
-
+    redis_url: str = "redis://redis:6379/0"
+    data_dir: str = "/data"
+    model_dir: str = "/models"
     agent_backend_url: str = "http://agent-backend:8010"
     api_key: str = ""
-    model_active_version: str = "fine-tuned-agent-v14"
-
-    # Data directory — no ./data:/data mount on panel; used for config reference only
-    data_dir: str = "/data"
+    eval_request_timeout_seconds: float = 45.0
+    eval_pass_threshold: float = 0.80
 
     @property
     def database_url(self) -> str:

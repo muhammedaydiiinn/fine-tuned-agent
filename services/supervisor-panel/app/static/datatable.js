@@ -136,6 +136,15 @@
       return '<span style="opacity:.4;">—</span>';
     },
 
+    /** evaluation quality score (0..1) */
+    evalScore: function (d, type) {
+      if (type !== 'display') return d == null ? -1 : d;
+      if (d == null || d === '') return '<span style="opacity:.4;">—</span>';
+      var pct = Math.round(Number(d) * 100);
+      var cls = pct >= 80 ? 'badge-approved' : (pct >= 60 ? 'badge-pending' : 'badge-error');
+      return '<span class="badge ' + cls + '">' + pct + '%</span>';
+    },
+
     /** sessions: external_session_id + live dot + link */
     sessionId: function (d, type, row) {
       if (type !== 'display') return d;

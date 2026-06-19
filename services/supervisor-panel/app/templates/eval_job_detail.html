@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Evaluation #{{ run.id }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <a href="/eval-jobs" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i></a>
+    <h1>Evaluation <span style="opacity:.5;">#{{ run.id }}</span></h1>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-label">Status</div>
+    <div class="stat-value" style="font-size:1rem;">
+      <span class="badge {% if run.status == 'completed' %}badge-approved{% elif run.status == 'failed' %}badge-error{% else %}badge-running{% endif %}">
+        {{ run.status }}
+      </span>
+    </div>
+  </div>
+  <div class="stat-card"><div class="stat-label">Model</div><div class="stat-value" style="font-size:.9rem;">{{ model_version.version_name if model_version else run.model_version_id }}</div></div>
+  <div class="stat-card"><div class="stat-label">Progress</div><div class="stat-value" style="font-size:1rem;">{{ progress_pct }}%</div></div>
+  <div class="stat-card"><div class="stat-label">Duration</div><div class="stat-value" style="font-size:.9rem;">{{ duration }}</div></div>
+  <div class="stat-card"><div class="stat-label">Quality Score</div><div class="stat-value">{{ (metrics.get('quality_score', 0) * 100)|round|int }}%</div></div>
+</div>
+
+{% if run.error_message %}
+  <div class="alert alert-error" style="margin-bottom:20px;">{{ run.error_message }}</div>
+{% endif %}
+
+<div class="table-container" style="margin-bottom:20px;">
+  <div class="table-toolbar"><span class="table-toolbar-title">Metric Breakdown</span></div>
+  <table>
+    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+    <tbody>
+      {% set rate_metrics = [
+        ('JSON validity', 'json_validity_rate'),
+        ('Required key coverage', 'required_key_coverage'),
+        ('Next action accuracy', 'next_action_accuracy'),
+        ('Hard decline handling', 'hard_decline_handling'),
+        ('Identity before link', 'identity_before_link_pass'),
+        ('Price answer correctness', 'price_answer_correctness'),
+        ('Security objection correctness', 'security_objection_correctness'),
+        ('Loop repetition rate', 'loop_repetition_rate')
+      ] %}
+      {% for label, key in rate_metrics %}
+        <tr><td>{{ label }}</td><td class="td-mono">{{ (metrics.get(key, 0) * 100)|round(1) }}%</td></tr>
+      {% endfor %}
+      <tr><td>Latency average</td><td class="td-mono">{{ metrics.get('latency_avg', 0)|round(1) }} ms</td></tr>
+      <tr><td>Latency p95</td><td class="td-mono">{{ metrics.get('latency_p95', 0)|round(1) }} ms</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="table-container" style="margin-bottom:20px;">
+  <div class="table-toolbar"><span class="table-toolbar-title">Scenario Results</span></div>
+  <table class="dt-table">
+    <thead><tr><th>Scenario</th><th>Type</th><th>Requests</th><th>Final Action</th><th>Result</th></tr></thead>
+    <tbody>
+      {% for result in results %}
+        {% if result.kind == 'multi_turn' %}
+          {% set turns = result.turns or [] %}
+          {% set final_turn = turns[-1] if turns else {} %}
+          <tr>
+            <td><code>{{ result.scenario_id }}</code></td>
+            <td>Multi-turn</td>
+            <td>{{ turns|length }}</td>
+            <td><code>{{ final_turn.actual_next_action or '—' }}</code></td>
+            <td><span class="badge {{ 'badge-approved' if result.request_ok else 'badge-error' }}">{{ 'passed' if result.request_ok else 'failed' }}</span></td>
+          </tr>
+        {% else %}
+          <tr>
+            <td><code>{{ result.scenario_id }}</code></td>
+            <td>Single-turn</td>
+            <td>1</td>
+            <td><code>{{ result.actual_next_action or '—' }}</code></td>
+            <td>
+              {% set passed = result.request_ok and (not result.expected_next_action or result.actual_next_action == result.expected_next_action) %}
+              <span class="badge {{ 'badge-approved' if passed else 'badge-error' }}">{{ 'passed' if passed else 'failed' }}</span>
+            </td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="table-container">
+  <div class="table-toolbar">
+    <span class="table-toolbar-title"><i class="fa-solid fa-terminal" style="margin-right:6px;"></i>Logs</span>
+    {% if run.status in ('pending', 'running') %}<span class="badge badge-running">live</span>{% endif %}
+  </div>
+  <div id="eval-log-container"
+       hx-get="/eval-jobs/{{ run.id }}/logs"
+       hx-trigger="load{% if run.status in ('pending', 'running') %}, every 3s{% endif %}"
+       hx-swap="innerHTML"></div>
+</div>
+{% endblock %}

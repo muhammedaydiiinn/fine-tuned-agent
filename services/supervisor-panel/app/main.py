@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import PUBLIC_PATHS, is_authenticated
 from app.config import settings
-from app.routes import auth, corrections, sessions, training, turns
+from app.routes import auth, corrections, evals, sessions, training, turns
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ app.include_router(sessions.router, tags=["sessions"])
 app.include_router(turns.router, tags=["turns"])
 app.include_router(corrections.router, tags=["corrections"])
 app.include_router(training.router, tags=["training"])
+app.include_router(evals.router, tags=["evals"])
 
 
 @app.middleware("http")
