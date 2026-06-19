@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# HTMX'i CDN olmadan çalışabilmesi için build sırasında indir
+RUN mkdir -p app/static && \
+    curl -sL "https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" -o app/static/htmx.min.js
+
 COPY app/ ./app/
 
 EXPOSE 8020
