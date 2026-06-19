@@ -55,6 +55,10 @@ def create_tables() -> None:
             "ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",
         ):
             connection.execute(text(f"ALTER TABLE deployments {clause}"))
+        connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_deployments_one_active_per_env "
+            "ON deployments (environment) WHERE status = 'active'"
+        ))
     _bootstrap_active_model()
 
 

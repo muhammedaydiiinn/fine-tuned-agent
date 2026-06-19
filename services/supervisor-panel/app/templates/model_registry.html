@@ -39,7 +39,9 @@
       {% set gate = (latest_eval.metrics_json or {}).get('deployment_gate', {}) if latest_eval else {} %}
       <tr>
         <td>
-          <code>{{ model.version_name }}</code>
+          <a href="/model-registry/{{ model.version_name }}" style="text-decoration:none;">
+            <code>{{ model.version_name }}</code>
+          </a>
           <div class="text-muted" style="font-size:11px;">Created {{ model.created_at.strftime('%d.%m %H:%M') }}</div>
         </td>
         <td>
@@ -109,20 +111,22 @@
   <summary>Release history and technical audit</summary>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>#</th><th>Model</th><th>Environment</th><th>Status</th><th>Action</th><th>Rollback Target</th><th>Time</th></tr></thead>
+    <thead><tr><th>#</th><th>Model</th><th>Environment</th><th>Status</th><th>Action</th><th>Actor</th><th>Rollback Target</th><th>Time</th></tr></thead>
     <tbody>
     {% for deployment in deployments %}
+      {% set dmeta = deployment.metadata_json or {} %}
       <tr>
         <td>{{ deployment.id }}</td>
         <td><code>#{{ deployment.model_version_id }}</code></td>
         <td>{{ deployment.environment }}</td>
         <td><span class="badge">{{ deployment.status }}</span></td>
-        <td>{{ (deployment.metadata_json or {}).get('action', 'deploy') }}</td>
+        <td>{{ dmeta.get('action', 'deploy') }}</td>
+        <td>{{ dmeta.get('actor') or '—' }}</td>
         <td>{{ deployment.rollback_model_version_id or '—' }}</td>
         <td>{{ deployment.deployed_at.strftime('%m-%d %H:%M') if deployment.deployed_at else '—' }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7"><div class="empty-state">No deployments yet.</div></td></tr>
+      <tr><td colspan="8"><div class="empty-state">No deployments yet.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>
