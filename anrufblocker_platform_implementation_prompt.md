@@ -1,5 +1,21 @@
 # Anrufblocker Agent Platform — Implementation Prompt
 
+## Implementation Approach
+
+**Milestone bazlı, adım adım ilerleme:**
+
+- **Milestone 1 (Çekirdek):** Docker Compose + Postgres + Redis + FastAPI backend (/health, /sessions, /agent-turn) + guardrails + product-facts + correction-memory. vLLM mock/real geçişli.
+- **Milestone 2:** Supervisor panel (FastAPI+Jinja2) — Sessions, Turn detail, Correction editor.
+- **Milestone 3:** Correction flow + training candidate pipeline (JSONL export).
+- **Milestone 4:** Training worker (Redis job queue, build_dataset, *_dry_run, gerçek LoRA train).
+- **Milestone 5:** Eval worker + scenarios.jsonl + metrikler.
+- **Milestone 6:** Model registry ekranı + deploy/rollback.
+- **Milestone 7:** Voice-runtime adapter docs, observability polish.
+
+**Geliştirme dili:** Kod/değişken/log İngilizce; README ve kritik yorumlar Türkçe.
+
+---
+
 ## Role
 
 You are a senior AI platform engineer and MLOps architect. Build a production-oriented server platform for the Anrufblocker voice sales agent. The system must move beyond Colab/notebook experimentation and become a deployable service stack on a dedicated GPU server.
@@ -125,11 +141,12 @@ vLLM Deployment
 Create this project structure:
 
 ```text
-anrufblocker-platform/
+anruf-llm-system/               ← proje kök dizini (ayrı alt klasör yok)
   docker-compose.yml
   .env.example
   README.md
   PLAN.md
+  .gitignore
 
   infra/
     nginx/
@@ -172,11 +189,26 @@ anrufblocker-platform/
 
     supervisor-panel/
       Dockerfile
-      package.json
-      src/
-        app/
-        components/
-        lib/
+      requirements.txt
+      app/
+        main.py
+        routes/
+          sessions.py
+          turns.py
+          corrections.py
+          registry.py
+          evals.py
+        templates/
+          base.html
+          sessions.html
+          session_detail.html
+          turn_detail.html
+          corrections.html
+          training.html
+          registry.html
+          evals.html
+        static/
+          style.css
 
     training-worker/
       Dockerfile
@@ -241,7 +273,7 @@ eval-worker
 ```text
 80/443    nginx
 8010      agent-backend internal
-3000      supervisor-panel internal
+8020      supervisor-panel internal (FastAPI+Jinja2)
 8000      vLLM internal
 5432      postgres internal
 6379      redis internal
@@ -258,6 +290,9 @@ Create `.env.example` with:
 ```env
 PROJECT_NAME=anrufblocker-platform
 ENVIRONMENT=staging
+
+# vLLM mode: "mock" for local dev (GPU'suz Mac), "real" for GPU server
+VLLM_MODE=mock
 
 POSTGRES_DB=anrufblocker
 POSTGRES_USER=anrufblocker
@@ -528,6 +563,10 @@ Nein, das ist kein Virus-Link. Der Link führt nur zum offiziellen Apple App Sto
 ---
 
 ## Supervisor Panel Requirements
+
+**Teknoloji:** FastAPI + Jinja2 templates + HTMX (ayrı Node/npm build yoktur).
+Supervisor panel, `services/supervisor-panel/` altında bağımsız bir FastAPI uygulamasıdır;
+agent-backend DB'sine doğrudan bağlanır (aynı Postgres). Port: 8020.
 
 Build a usable first version. It can be simple, but it must work.
 
