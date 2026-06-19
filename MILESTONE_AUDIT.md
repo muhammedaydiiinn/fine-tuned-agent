@@ -2,7 +2,9 @@
 
 ## Result
 
-Milestones 1–5 meet their current platform goals in mock mode. The complete
+Milestones 1–3 are complete. Milestones 4–5 meet their current platform goals
+in mock mode and are conditionally complete until their GPU/candidate-serving
+acceptance gates are verified. The complete
 evaluation flow was verified through Docker:
 
 ```text
@@ -66,7 +68,7 @@ Verified:
 
 ## Milestone 4 — Training Worker
 
-Status: complete for the implemented mock/real pipeline.
+Status: conditionally complete for the implemented mock/real pipeline.
 
 Verified:
 
@@ -80,10 +82,12 @@ Limitation:
 
 - Real GPU/Unsloth training was not executed on this Mac. It still requires the
   target NVIDIA host and model files.
+- Artifact manifests/checksums and a real candidate registry record must be
+  verified as part of the GPU acceptance run.
 
 ## Milestone 5 — Evaluation Worker
 
-Status: complete.
+Status: conditionally complete.
 
 Implemented:
 
@@ -101,3 +105,7 @@ Limitation:
 - The eval path uses the model currently served by the agent backend. Evaluating
   a newly trained merged model before deployment requires the model-serving
   selection/deploy work planned for Milestone 6.
+- Versioned pass/fail thresholds must become an enforced deployment gate in
+  Milestone 6.
+
+The canonical scope and remaining milestones are defined in `MILESTONES.md`.

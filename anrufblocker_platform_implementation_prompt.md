@@ -7,10 +7,16 @@
 - **Milestone 1 (Çekirdek):** Docker Compose + Postgres + Redis + FastAPI backend (/health, /sessions, /agent-turn) + guardrails + product-facts + correction-memory. vLLM mock/real geçişli.
 - **Milestone 2:** Supervisor panel (FastAPI+Jinja2) — Sessions, Turn detail, Correction editor.
 - **Milestone 3:** Correction flow + training candidate pipeline (JSONL export).
-- **Milestone 4:** Training worker (Redis job queue, build_dataset, *_dry_run, gerçek LoRA train).
-- **Milestone 5:** Eval worker + scenarios.jsonl + metrikler.
-- **Milestone 6:** Model registry ekranı + deploy/rollback.
-- **Milestone 7:** Voice-runtime adapter docs, observability polish.
+- **Milestone 4:** Training worker + model candidate üretimi. Mock akış tamam; gerçek GPU kabul testi zorunlu.
+- **Milestone 5:** Eval worker + scenarios.jsonl + kalite kapısı. Candidate isolation M6'ya bağlı.
+- **Milestone 6:** Model registry + isolated candidate serving + eval-gated deploy/rollback.
+- **Milestone 7:** Browser voice foundation — streaming STT/TTS ve voice latency.
+- **Milestone 8:** Realtime turn-taking + interruption/barge-in.
+- **Milestone 9:** Canlı supervisor control + replacement audio + immediate correction.
+- **Milestone 10:** Voice performance, reliability, security ve production hardening.
+- **Milestone 11:** Telefon/pilot entegrasyonu; browser voice kabulünden sonra.
+
+Milestone kapsamı ve kabul kriterleri için `MILESTONES.md` kanonik plandır.
 
 **Development language:** All code, variable names, log messages, comments, docstrings, and UI text must be in English. README files may be in Turkish.
 
@@ -742,17 +748,33 @@ Initial deployment can restart vLLM with a new model path. Later, support blue/g
 
 ---
 
-## Voice Runtime Adapter
+## Voice Runtime
 
-Do not implement full phone flow in the first infrastructure pass.
+Do not implement phone flow before the browser voice, interruption and
+production-hardening milestones pass.
 
-Create a clear adapter layer for future browser voice:
+Start with one runtime implementation for browser voice. Prefer LiveKit for the
+first implementation; keep Pipecat as an alternative adapter instead of
+building both in parallel.
+
+The runtime must eventually own:
 
 ```text
 voice-runtime/
   adapters/
     livekit_adapter.md
     pipecat_adapter.md
+```
+
+```text
+- browser microphone/WebRTC transport
+- streaming STT
+- turn detection/VAD
+- streaming TTS and playback cancellation
+- customer interruption/barge-in
+- backchannel versus real-interruption classification
+- voice session ↔ backend session mapping
+- STT, first-audio and end-to-end latency metrics
 ```
 
 Adapter events:
@@ -780,6 +802,10 @@ Adapter events:
   "turn_id": 7
 }
 ```
+
+Supervisor control must support stopping active playback and sending a
+replacement answer through TTS. That action must also be traceable to the
+correction memory and optional training candidate records.
 
 ---
 
@@ -856,4 +882,3 @@ The first platform version is successful when:
 - Eval worker can run fixed scenario tests.
 - Model versions are visible in registry.
 ```
-

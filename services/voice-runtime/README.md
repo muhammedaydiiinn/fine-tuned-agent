@@ -1,7 +1,14 @@
-# Voice Runtime Adapter
+# Voice Runtime
 
-Bu klasör sesli arayüz entegrasyonu için adapter katmanını hazırlar.
-Milestone 7'de LiveKit ve Pipecat entegrasyonu burada implement edilecek.
+Bu klasör browser voice ve ileride telefon entegrasyonu için gerçek zamanlı ses
+katmanını barındırır.
+
+- M7: İlk runtime ile browser microphone, streaming STT/TTS ve latency ölçümü
+- M8: VAD, turn-taking, interruption/barge-in ve playback cancellation
+- M9: Supervisor interrupt ve replacement cevabın TTS ile gönderilmesi
+
+İlk implementasyonda tek runtime seçilir. LiveKit önerilen başlangıçtır;
+Pipecat aynı anda kurulması gereken ikinci runtime değil, alternatif adapter'dır.
 
 ## Adapter Olayları
 
@@ -13,12 +20,13 @@ Agent backend, aşağıdaki event formatlarını kabul edecek şekilde tasarlanm
 {"event": "supervisor_interrupt",  "session_id": "session-123", "turn_id": 7}
 ```
 
-## Planlanan Adaptörler
+## Adapter seçenekleri
 
 - `adapters/livekit_adapter.md` — LiveKit WebRTC entegrasyon rehberi
 - `adapters/pipecat_adapter.md` — Pipecat pipeline entegrasyon rehberi
 
 ## Durum
 
-Milestone 1–6 tamamlanana kadar sesli entegrasyon yapılmayacak.
-Çekirdek platform kararlı olduğunda bu adım başlar.
+Şu anda tasarım dokümanları mevcuttur; çalışan browser voice runtime henüz
+implement edilmemiştir. Kanonik kapsam ve kabul kriterleri kökteki
+`MILESTONES.md` dosyasındadır.
