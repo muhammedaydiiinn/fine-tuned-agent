@@ -1,7 +1,7 @@
-"""Kritik ürün bilgileri — model belleğine bırakılmaz, burada tek kaynak.
+"""Critical product facts — not left to model memory; this is the single source of truth.
 
-Dokümandaki product facts ve onaylı yanıt şablonları buradan okunur.
-Guardrail ve prompt_builder bu modülü import eder.
+Product facts and approved response templates are read from here.
+Guardrails and prompt_builder import this module.
 """
 
 PRODUCT_FACTS: dict[str, str] = {
@@ -13,7 +13,7 @@ PRODUCT_FACTS: dict[str, str] = {
     "support_channel":  "Support über die App",
 }
 
-# Ham LLM action adlarını platform action adlarına normalize eder
+# Normalises raw LLM action names to platform action names
 RAW_ACTION_TO_SALES: dict[str, str] = {
     "explain_product_value":        "pitch_product",
     "create_problem_awareness":     "pitch_product",
@@ -35,7 +35,7 @@ RAW_ACTION_TO_SALES: dict[str, str] = {
     "answer_question_then_resume":  "handle_objection",
 }
 
-# LLM'in ürettiği ses tonu adlarını normalize eder
+# Normalises LLM voice tone names
 VOICE_TONE_ALIASES: dict[str, str] = {
     "calm":          "warm",
     "empathetic":    "warm",
@@ -45,27 +45,27 @@ VOICE_TONE_ALIASES: dict[str, str] = {
     "sachlich":      "formal",
 }
 
-# Onaylı fiyat yanıtı — price_question intent'inde her zaman bu kullanılır
+# Approved price response — always used for price_question intent
 PRICE_TEMPLATE = (
     "Das Gold Paket ist 14 Tage kostenlos. "
     "Danach kostet es 29,99 Euro monatlich."
 )
 
-# Onaylı güvenlik yanıtı — security_objection intent'inde her zaman bu kullanılır
+# Approved security response — always used for security_objection intent
 SECURITY_TEMPLATE = (
     "Nein, das ist kein Virus-Link. "
     "Der Link führt nur zum offiziellen Apple App Store oder Google Play Store."
 )
 
-# Prompt'a eklenecek özet metin (prompt_builder tarafından kullanılır)
+# Summary text injected into the prompt (used by prompt_builder)
 PRODUCT_FACTS_TEXT = """
-Ürün gerçekleri (bunlar kesin, değiştirilemez):
-- Deneme süresi: 14 Tage kostenlos
-- Aylık fiyat: 29,99 Euro monatlich (14. günden sonra)
-- İndirme: Apple App Store oder Google Play Store
-- Engellenen numara: über 7.000 bekannte Risikonummern
-- Hukuki destek: Unterstützung bei Anwalts- und Gerichtskosten bis zu 2.500 Euro
-- Destek: Support über die App
+Product facts (fixed, non-negotiable):
+- Trial period: 14 Tage kostenlos
+- Monthly price: 29,99 Euro monatlich (after day 14)
+- Download: Apple App Store oder Google Play Store
+- Blocked numbers: über 7.000 bekannte Risikonummern
+- Legal support: Unterstützung bei Anwalts- und Gerichtskosten bis zu 2.500 Euro
+- Support: Support über die App
 """.strip()
 
 
@@ -74,12 +74,12 @@ def format_for_prompt() -> str:
 
 
 def normalize_action(raw_action: str) -> str:
-    """Ham LLM action adını platform action adına çevirir. Bilinmeyeni olduğu gibi döndürür."""
+    """Map a raw LLM action name to the platform action name. Returns the input unchanged if unknown."""
     return RAW_ACTION_TO_SALES.get(raw_action, raw_action)
 
 
 def normalize_voice_tone(tone: str) -> str:
-    """LLM'in ürettiği ses tonu adını normalize eder."""
+    """Normalise an LLM-generated voice tone name."""
     return VOICE_TONE_ALIASES.get((tone or "").lower(), tone)
 
 

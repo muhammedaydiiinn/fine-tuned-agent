@@ -1,4 +1,4 @@
-"""Panel kimlik doğrulama — cookie tabanlı basit auth."""
+"""Panel authentication — simple cookie-based auth."""
 import hashlib
 import hmac
 
@@ -8,12 +8,11 @@ from fastapi.responses import RedirectResponse
 from app.config import settings
 
 COOKIE_NAME = "anruf_panel_session"
-# Korumasız path'ler
 PUBLIC_PATHS = {"/login", "/logout", "/health"}
 
 
 def _expected_token() -> str:
-    """JWT_SECRET'ten türetilmiş statik token. Secret değişince otomatik geçersiz olur."""
+    """Static token derived from JWT_SECRET. Automatically invalidated when secret changes."""
     return hmac.new(
         settings.jwt_secret.encode(),
         b"panel_session_v1",
@@ -34,7 +33,7 @@ def login_response(redirect_to: str = "/") -> RedirectResponse:
         value=token,
         httponly=True,
         samesite="lax",
-        max_age=60 * 60 * 24 * 7,  # 7 gün
+        max_age=60 * 60 * 24 * 7,  # 7 days
     )
     return response
 

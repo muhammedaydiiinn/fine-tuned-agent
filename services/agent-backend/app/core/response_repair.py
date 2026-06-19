@@ -1,7 +1,7 @@
-"""Model yanıt onarım katmanı.
+"""Response repair layer.
 
-LLM'in ürettiği yanıttaki hataları deterministik kuralarla düzeltir.
-Guardrail'den sonra, agent_response son haline gelmeden önce çalışır.
+Deterministically fixes errors in LLM-generated agent_response strings.
+Runs after guardrails, before the final response is returned.
 """
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ from app.core.product_facts import PRODUCT_FACTS
 
 
 def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[str, list[str]]:
-    """Tüm onarım kurallarını sırayla uygular.
+    """Apply all repair rules in sequence.
 
-    Returns (fixed_response, applied_repairs) — applied_repairs, hangi kuralların tetiklendiğini listeler.
+    Returns (fixed_response, applied_repairs) where applied_repairs lists
+    which rules were triggered.
     """
     applied: list[str] = []
     filled = (state or {}).get("filled_slots") or {}
@@ -47,7 +48,7 @@ def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[
 
 
 def repair_trial_in_response(response: str) -> tuple[str, bool]:
-    """Model 14 Tage ezberlemiş ama aktif profil farklıysa düzelt."""
+    """Fix outdated trial period references if the configured trial differs from 14 days."""
     trial = PRODUCT_FACTS.get("trial_period", "")
     if not trial or not response:
         return response, False
@@ -67,7 +68,7 @@ def repair_trial_in_response(response: str) -> tuple[str, bool]:
 
 
 def repair_stale_vague_price(response: str, filled_slots: dict) -> tuple[str, bool]:
-    """'aus unserem Angebot' gibi belirsiz fiyat ifadelerini düzelt."""
+    """Replace vague price phrases like 'aus unserem Angebot' with the real price."""
     msg = (response or "").lower()
     if "aus unserem angebot" in msg or "preis direkt in der app" in msg:
         return _format_price_answer(filled_slots), True
@@ -75,7 +76,7 @@ def repair_stale_vague_price(response: str, filled_slots: dict) -> tuple[str, bo
 
 
 def repair_price_deflection(response: str, filled_slots: dict) -> tuple[str, bool]:
-    """Model fiyatı müşteriye havale ederse (ekrana bakın / bana okuyun) düzelt."""
+    """Fix responses that deflect price questions back to the customer."""
     msg = (response or "").lower()
     _deflection_triggers = [
         "welche rate angezeigt", "welchen betrag angezeigt", "welchen preis angezeigt",
@@ -92,7 +93,7 @@ def repair_price_deflection(response: str, filled_slots: dict) -> tuple[str, boo
 
 
 def repair_sms_code_request(response: str) -> tuple[str, bool]:
-    """Model SMS kodunu kendisi isterse engelle — güvenlik kuralı."""
+    """Block responses that ask the customer to read out an SMS code — security rule."""
     msg = (response or "").lower()
     _triggers = [
         "lesen sie mir den code", "nennen sie mir den code", "code vor",
@@ -112,7 +113,7 @@ def repair_sms_code_request(response: str) -> tuple[str, bool]:
 
 
 def repair_premature_link(response: str, filled_slots: dict) -> tuple[str, bool]:
-    """Değer slotu dolmadan link/store pushlanırsa değer-önce cümleye çevir."""
+    """Replace premature store/link pushes with a value-first sentence."""
     msg = (response or "").lower()
     if "product_value_explained" in filled_slots:
         return response, False

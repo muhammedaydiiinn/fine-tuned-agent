@@ -23,7 +23,7 @@ def turn_detail(session_id: int, turn_id: int, request: Request, db: DBSession =
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     turn = db.query(Turn).filter(Turn.id == turn_id, Turn.session_id == session_id).first()
     if not turn:
-        return HTMLResponse("Turn bulunamadı", status_code=404)
+        return HTMLResponse("Turn not found", status_code=404)
 
     corrections = (
         db.query(Correction)

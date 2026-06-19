@@ -1,4 +1,4 @@
-import json
+"""Correction panel routes — list corrections and save corrections from turns."""
 import logging
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -13,11 +13,6 @@ from app.models import Correction, CorrectionMemory, TrainingCandidate, Turn
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 logger = logging.getLogger(__name__)
-
-SYSTEM_INSTRUCTION = (
-    "You are an Anrufblocker Gold Paket sales policy agent. "
-    "Return ONLY a valid JSON policy object."
-)
 
 
 @router.get("/corrections", response_class=HTMLResponse)
@@ -50,7 +45,7 @@ async def save_correction(
 ):
     turn = db.query(Turn).filter(Turn.id == turn_id).first()
     if not turn:
-        return HTMLResponse('<div class="alert alert-error">Turn bulunamadı.</div>')
+        return HTMLResponse('<div class="alert alert-error">Turn not found.</div>')
 
     correction_type = "response_correction"
     if mark_good:
@@ -78,9 +73,9 @@ async def save_correction(
     db.refresh(correction)
 
     if mark_good:
-        return HTMLResponse('<div class="alert alert-success">✓ İyi olarak işaretlendi.</div>')
+        return HTMLResponse('<div class="alert alert-success">Marked as good.</div>')
 
-    # apply_immediately → correction_memory
+    # apply_immediately -> correction_memory
     if apply_immediately and corrected_response:
         trigger_key = turn.intent or correction_type
         existing = (
@@ -105,46 +100,54 @@ async def save_correction(
                 priority=10,
             ))
         db.commit()
-        logger.info("correction_memory güncellendi: trigger=%s", trigger_key)
+        logger.info("correction_memory updated: trigger=%s", trigger_key)
 
-    # send_to_training → training_candidate
+    # send_to_training -> training_candidate
     if send_to_training:
         candidate = _build_candidate(turn, corrected_response, corrected_next_action)
         if candidate:
             db.add(candidate)
             db.commit()
 
-    parts = ["Correction kaydedildi (id=" + str(correction.id) + ")"]
+    parts = [f"Correction saved (id={correction.id})"]
     if apply_immediately:
-        parts.append("• Correction memory güncellendi")
+        parts.append("Correction memory updated")
     if send_to_training:
-        parts.append("• Training candidate oluşturuldu")
+        parts.append("Training candidate created")
 
-    msg = " &nbsp;".join(parts)
-    return HTMLResponse(f'<div class="alert alert-success">✓ {msg}</div>')
+    msg = " &nbsp;|&nbsp; ".join(parts)
+    return HTMLResponse(f'<div class="alert alert-success">{msg}</div>')
 
 
 def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action: str):
-    from app.models import TrainingCandidate
+    """Build a TrainingCandidate from a turn and corrected response."""
+    import json as _json
+
+    SYSTEM_INSTRUCTION = (
+        "You are an Anrufblocker Gold Paket sales policy agent. "
+        "Return ONLY a valid JSON policy object."
+    )
     messages = [
         {"role": "system", "content": SYSTEM_INSTRUCTION},
         {
             "role": "user",
-            "content": json.dumps(
+            "content": _json.dumps(
                 {"customer_message": turn.customer_text, "state": turn.state_before_json or {}},
                 ensure_ascii=False,
             ),
         },
         {
             "role": "assistant",
-            "content": json.dumps(
+            "content": _json.dumps(
                 {
                     "intent": turn.intent or "unknown",
                     "emotion": turn.emotion or "neutral",
                     "risk": turn.risk or "low",
                     "next_action": corrected_next_action or turn.next_action or "",
                     "behavior_strategy": "corrected",
-                    "allowed_to_continue": turn.allowed_to_continue if turn.allowed_to_continue is not None else True,
+                    "allowed_to_continue": (
+                        turn.allowed_to_continue if turn.allowed_to_continue is not None else True
+                    ),
                     "agent_response": corrected_response or turn.agent_response or "",
                     "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"},
                 },
@@ -156,6 +159,10 @@ def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action:
         source_type="correction",
         source_id=turn.id,
         messages_json=messages,
-        metadata_json={"source": "correction", "approved": True, "model_version": settings.model_active_version},
+        metadata_json={
+            "source": "correction",
+            "approved": True,
+            "model_version": settings.model_active_version,
+        },
         approved=True,
     )

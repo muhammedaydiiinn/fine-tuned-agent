@@ -23,7 +23,7 @@ def login_submit(
         return login_response("/")
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "error": "Kullanıcı adı veya şifre hatalı."},
+        {"request": request, "error": "Invalid username or password."},
         status_code=401,
     )
 

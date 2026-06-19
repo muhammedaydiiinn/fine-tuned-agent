@@ -12,7 +12,7 @@
 - **Milestone 6:** Model registry ekranı + deploy/rollback.
 - **Milestone 7:** Voice-runtime adapter docs, observability polish.
 
-**Geliştirme dili:** Kod/değişken/log İngilizce; README ve kritik yorumlar Türkçe.
+**Development language:** All code, variable names, log messages, comments, docstrings, and UI text must be in English. README files may be in Turkish.
 
 ---
 

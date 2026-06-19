@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,7 +22,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Menü</div>
+      <div class="nav-section-label">Menu</div>
 
       <a href="/" class="nav-item {% if request.url.path == '/' %}active{% endif %}">
         <svg class="nav-icon" viewBox="0 0 24 24">
@@ -38,6 +38,13 @@
         </svg>
         Corrections
       </a>
+
+      <a href="/training-candidates" class="nav-item {% if request.url.path.startswith('/training-candidates') %}active{% endif %}">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+        </svg>
+        Training Data
+      </a>
     </nav>
 
     <div class="sidebar-footer">
@@ -45,7 +52,7 @@
         <svg class="nav-icon" viewBox="0 0 24 24">
           <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
         </svg>
-        Çıkış
+        Sign Out
       </a>
     </div>
   </aside>
