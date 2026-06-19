@@ -11,7 +11,25 @@
   <div class="page-header-left">
     <h1>Training Data</h1>
   </div>
+  <div class="page-header-right">
+    <a href="/training-jobs" class="btn btn-outline">
+      <i class="fa-solid fa-microchip"></i>
+      View Training Jobs
+    </a>
+    <button class="btn btn-primary"
+            hx-post="/training-jobs/start"
+            hx-target="#train-result"
+            hx-swap="innerHTML"
+            {% if total_approved == 0 %}disabled title="No approved candidates"{% endif %}>
+      <i class="fa-solid fa-play"></i>
+      Start Training
+      {% if total_approved > 0 %}
+        <span class="badge badge-info" style="margin-left:6px;">{{ total_approved }} ready</span>
+      {% endif %}
+    </button>
+  </div>
 </div>
+<div id="train-result" style="margin-bottom:12px;"></div>
 
 <div class="stats-row">
   <div class="stat-card blue">
@@ -64,7 +82,7 @@
 
   {% if candidates %}
   <div class="table-wrap">
-    <table>
+    <table class="dt-table">
       <thead>
         <tr>
           <th>ID</th>

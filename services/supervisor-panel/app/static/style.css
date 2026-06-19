@@ -170,7 +170,104 @@ a { color: inherit; text-decoration: none; }
 
 /* ─── Main Content ───────────────────────────────────────────────────── */
 .main { flex: 1; margin-left: var(--sidebar-w); min-height: 100vh; }
-.main-inner { padding: 32px 40px 72px; max-width: 1280px; width: 100%; }
+.main-inner { padding: 32px 40px 72px; width: 100%; }
+
+/* ─── DataTables Dark Theme ──────────────────────────────────────────── */
+.dt-container { width: 100%; }
+
+/* Top controls row (search + length) */
+.dt-layout-row:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dt-search label,
+.dt-length label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.dt-search input,
+.dt-length select {
+  background: var(--bg);
+  border: 1px solid var(--border-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color .1s;
+}
+
+.dt-search input:focus,
+.dt-length select:focus { border-color: var(--accent); }
+
+.dt-search input::placeholder { color: var(--text-3); }
+
+/* Bottom row (info + pagination) */
+.dt-layout-row:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dt-info { font-size: 12px; color: var(--text-3); }
+
+/* Pagination buttons */
+.dt-paging { display: flex; gap: 3px; align-items: center; }
+
+.dt-paging-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2) !important;
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-family: var(--font);
+  transition: all .1s;
+  line-height: 1.5;
+}
+
+.dt-paging-button:hover:not(.disabled):not(.current) {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border-color: var(--border-2) !important;
+}
+
+.dt-paging-button.current {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+.dt-paging-button.disabled { opacity: .3 !important; cursor: not-allowed; }
+
+/* Sorting arrows */
+table.dataTable thead th.dt-orderable-asc,
+table.dataTable thead th.dt-orderable-desc {
+  cursor: pointer;
+}
+
+table.dataTable thead th.dt-ordering-asc span.dt-column-order::before  { opacity: 1; }
+table.dataTable thead th.dt-ordering-desc span.dt-column-order::after { opacity: 1; }
+
+/* Hide DataTables default "processing" overlay */
+.dt-processing { display: none !important; }
 
 /* ─── Login Page ─────────────────────────────────────────────────────── */
 .login-body {
@@ -382,6 +479,13 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .badge-approved    { background: var(--green-bg);  color: var(--green);  border-color: var(--green-bdr); }
 .badge-rejected    { background: var(--red-bg);    color: var(--red);    border-color: var(--red-bdr); }
 .badge-error       { background: var(--red-bg);    color: var(--red);    border-color: var(--red-bdr); }
+.badge-pending     { background: var(--yellow-bg); color: var(--yellow); border-color: var(--yellow-bdr); }
+.badge-running     { background: var(--sky-bg);    color: var(--sky);    border-color: var(--sky-bdr); }
+
+/* ─── Training job progress bar ──────────────────────────────────────── */
+.job-status-cell  { display: flex; flex-direction: column; gap: 4px; min-width: 110px; }
+.progress-bar     { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.progress-fill    { height: 100%; background: var(--accent-2); border-radius: 2px; transition: width .4s ease; }
 
 /* Live dot */
 .live-dot {
@@ -579,3 +683,16 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .text-danger  { color: var(--red); }
 .text-muted   { color: var(--text-3); }
 .flex-center  { display: flex; align-items: center; gap: 6px; }
+
+/* ─── DataTables Reset (override library defaults) ───────────────────── */
+table.dataTable { border-collapse: collapse !important; width: 100% !important; }
+table.dataTable thead th, table.dataTable thead td { border-bottom: 1px solid var(--border) !important; background: var(--surface-2) !important; }
+table.dataTable tbody tr { background: transparent !important; }
+table.dataTable tbody tr:hover { background: rgba(255,255,255,.025) !important; }
+table.dataTable tbody td { border-bottom: 1px solid var(--border) !important; color: var(--text); }
+table.dataTable tbody tr:last-child td { border-bottom: none !important; }
+/* Sorting indicator colors */
+table.dataTable thead th.dt-orderable-asc span.dt-column-order,
+table.dataTable thead th.dt-orderable-desc span.dt-column-order { opacity: .35; }
+table.dataTable thead th.dt-ordering-asc span.dt-column-order,
+table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; color: var(--accent-2); }
