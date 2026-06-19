@@ -29,7 +29,7 @@ Redis Stack  ←→  Training Worker  ←→  Eval Worker  ←→  Model Registr
 
 1. [Mac'te Lokal Geliştirme](#1-macte-lokal-geliştirme)
 2. [GPU Sunucuda İlk Kurulum](#2-gpu-sunucuda-ilk-kurulum)
-3. [Model Dosyalarını Sunucuya Taşıma](#3-model-dosyalarını-sunucuya-taşıma)
+3. [Model Dosyalarını İndirme](#3-model-dosyalarını-i̇ndirme)
 4. [Servisleri Başlatma](#4-servisleri-başlatma)
 5. [Servis Portları](#5-servis-portları)
 6. [API Endpoint'leri](#6-api-endpointleri)
@@ -71,25 +71,11 @@ open http://localhost:8001
 
 ## 2. GPU Sunucuda İlk Kurulum
 
-### 2.1 SSH ile Bağlan ve Güvenliği Sağla
+### 2.1 SSH ile Bağlan
 
 ```bash
-# Sunucuya bağlan (ilk kez root ile)
 ssh root@SUNUCU_IP
-
-# Deploy kullanıcısı oluştur
-bash infra/scripts/setup_deploy_user.sh
-
-# Artık deploy kullanıcısıyla bağlan
-ssh deploy@SUNUCU_IP
 ```
-
-`setup_deploy_user.sh` şunları yapar:
-
-- `deploy` kullanıcısı oluşturur
-- SSH public key'ini kopyalar
-- Root SSH girişini kapatır
-- `sudo` yetkisi tanır
 
 ### 2.2 Sistem ve GPU Bağımlılıklarını Kur
 
@@ -99,7 +85,7 @@ git clone <repo_url> /opt/fine-tuned-agent/repo
 cd /opt/fine-tuned-agent/repo
 
 # Tüm bağımlılıkları kur (Docker, NVIDIA Container Toolkit, UFW, fail2ban)
-sudo bash infra/scripts/install_host_dependencies.sh
+bash infra/scripts/install_host_dependencies.sh
 ```
 
 Script şunları kurar:
@@ -118,8 +104,8 @@ Script şunları kurar:
 nvidia-smi
 
 # Kurulu değilse:
-sudo apt install -y nvidia-driver-550
-sudo reboot
+apt install -y nvidia-driver-550
+reboot
 
 # Reboot sonrası doğrula
 nvidia-smi
@@ -167,41 +153,127 @@ bash infra/scripts/setup_cron_backup.sh
 
 ---
 
-## 3. Model Dosyalarını Sunucuya Taşıma
+## 3. Model Dosyalarını İndirme
 
-### Google Drive'dan Doğrudan Sunucuya
+Platform iki model kullanır:
+
+| Model | Kaynak | Hedef Klasör | Kullanım |
+|-------|--------|-------------|----------|
+| **fine-tuned-agent-v14** | Google Drive (özel) | `models/merged/fine-tuned-agent-v14/` | vLLM — ana satış ajanı |
+| **whisper-large-v3-turbo-german** | HuggingFace | `models/whisper/whisper-large-v3-turbo-german/` | STT — Almanca ses tanıma (M7) |
+
+---
+
+### 3.1 Otomatik İndirme (Önerilen)
+
+İki modeli de tek script ile indir:
+
+```bash
+# GPU sunucuda (varsayılan hedef: /opt/fine-tuned-agent/models)
+bash infra/scripts/download_models.sh
+
+# Mac'te (lokal test için)
+bash infra/scripts/download_models.sh ./models
+```
+
+Script şunları yapar:
+- `gdown` ve `huggingface_hub` yoksa otomatik kurar
+- Model zaten mevcutsa atlar (tekrar indirmez)
+- Drive klasörünü `fine-tuned-agent-v14/` olarak yeniden adlandırır
+- HuggingFace'den sadece PyTorch ağırlıklarını indirir (flax/tf atlanır)
+
+> **Google Drive erişimi:** Klasör "herkese açık" olarak paylaşılmış olmalı.
+> Erişim hatası alırsan Drive'da klasörü sağ tıkla → Paylaş → Bağlantıya sahip herkes → Görüntüleyici yap.
+
+---
+
+### 3.2 Manuel İndirme
+
+**LLM — Google Drive:**
 
 ```bash
 pip install gdown
-# Drive paylaşım linkindeki ID'yi al
-gdown "https://drive.google.com/uc?id=FILE_ID" -O /tmp/model.zip
-unzip /tmp/model.zip -d /opt/fine-tuned-agent/models/merged/
+
+# Tüm klasörü indir
+gdown --folder "https://drive.google.com/drive/folders/YOUR_GDRIVE_FOLDER_ID" \
+      -O /opt/fine-tuned-agent/models/merged/
+
+# Klasör adı farklıysa yeniden adlandır
+mv /opt/fine-tuned-agent/models/merged/<drive_klasör_adı> \
+   /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14
 ```
 
-### Mac'ten SCP ile
+**Whisper — HuggingFace:**
 
 ```bash
-# Mac'ten sunucuya kopyala
-scp -r ./fine-tuned-agent-v14/ deploy@SUNUCU_IP:/opt/fine-tuned-agent/models/merged/
+pip install huggingface_hub
+
+huggingface-cli download primeline/whisper-large-v3-turbo-german \
+  --local-dir /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german \
+  --local-dir-use-symlinks False \
+  --ignore-patterns "*.msgpack" "flax_model*" "tf_model*"
 ```
 
-### Beklenen Klasör Yapısı
+**Mac'ten SCP ile sunucuya taşıma:**
 
-```
-/opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/
-  config.json
-  tokenizer.json
-  tokenizer_config.json
-  special_tokens_map.json
-  model-00001-of-000XX.safetensors
-  ...
-  model.safetensors.index.json
-```
-
-Doğrulama:
 ```bash
-ls /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/
-# config.json ve .safetensors dosyaları görünmeli
+# LLM modelini Mac'ten sunucuya kopyala
+scp -r ./models/merged/fine-tuned-agent-v14/ \
+    deploy@SUNUCU_IP:/opt/fine-tuned-agent/models/merged/
+
+# Whisper modelini Mac'ten sunucuya kopyala
+scp -r ./models/whisper/whisper-large-v3-turbo-german/ \
+    deploy@SUNUCU_IP:/opt/fine-tuned-agent/models/whisper/
+```
+
+---
+
+### 3.3 Beklenen Klasör Yapısı
+
+```
+models/
+├── merged/
+│   └── fine-tuned-agent-v14/          ← LLM (vLLM'e yüklenir)
+│       ├── config.json
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       ├── special_tokens_map.json
+│       ├── model-00001-of-000XX.safetensors
+│       └── model.safetensors.index.json
+│
+└── whisper/
+    └── whisper-large-v3-turbo-german/    ← Whisper STT (Milestone 7)
+        ├── config.json
+        ├── model.safetensors
+        ├── tokenizer.json
+        └── preprocessor_config.json
+```
+
+**Doğrulama:**
+
+```bash
+# LLM modeli
+ls /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/config.json
+# → dosya görünmeli
+
+# Whisper modeli
+ls /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german/config.json
+# → dosya görünmeli
+
+# Disk kullanımı özeti
+du -sh /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/
+du -sh /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german/
+```
+
+---
+
+### 3.4 .env Güncelleme
+
+Model indirildikten sonra `.env` dosyasını kontrol et:
+
+```env
+MODEL_MERGED_PATH=/opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14
+WHISPER_MODEL_PATH=/opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german
 ```
 
 ---
@@ -285,7 +357,8 @@ Tüm değişkenler `.env.example`'da açıklamalı olarak tanımlıdır.
 | `VLLM_MODE` | `mock` (local) veya `real` (GPU sunucu) | ✅ |
 | `API_KEY` | Boşsa kontrol atlanır; prod'da doldur | ✅ |
 | `POSTGRES_PASSWORD` | Prod'da güçlü şifre kullan | ✅ |
-| `MODEL_MERGED_PATH` | Merged model klasörü (real modda) | ✅ |
+| `MODEL_MERGED_PATH` | LLM model klasörü — `models/merged/fine-tuned-agent-v14` | ✅ |
+| `WHISPER_MODEL_PATH` | Whisper STT klasörü — Milestone 7'de kullanılır | — |
 | `VLLM_MODEL_NAME` | vLLM'e yüklenen model adı | — |
 | `JWT_SECRET` | Panel auth için | — |
 
@@ -347,7 +420,7 @@ docker compose down -v
 | # | Konu | Durum |
 |---|------|-------|
 | 1 | Çekirdek (backend + guardrails + correction_memory) | ✅ Tamamlandı |
-| 2 | Supervisor panel (Jinja2/HTMX) | 🔜 Sıradaki |
+| 2 | Supervisor panel (Jinja2/HTMX) | ✅ Tamamlandı |
 | 3 | Correction flow + training candidate pipeline | ⏳ Bekliyor |
 | 4 | Training worker (gerçek LoRA) | ⏳ Bekliyor |
 | 5 | Eval worker + metrikler | ⏳ Bekliyor |

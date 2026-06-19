@@ -19,16 +19,30 @@ env/
 # Docker
 .docker/
 
-# Model dosyaları — büyük binary'ler
-models/base/
-models/lora/
-models/merged/
-models/candidates/
-models/approved/
+# Model dosyaları — klasör yapısı git'te durur, içerik ignore'lanır
+models/base/**
+models/lora/**
+models/merged/**
+models/candidates/**
+models/approved/**
+models/whisper/**
+# .gitkeep dosyaları hariç tut (klasörlerin git'te görünmesi için)
+!models/base/.gitkeep
+!models/lora/.gitkeep
+!models/merged/.gitkeep
+!models/candidates/.gitkeep
+!models/approved/.gitkeep
+!models/whisper/.gitkeep
+# Model binary uzantıları (herhangi bir yerde)
 *.safetensors
 *.bin
 *.pt
 *.gguf
+# HuggingFace indirme cache'i
+.cache/
+**/.cache/
+*.metadata
+*.lock
 
 # Veri
 data/datasets/
