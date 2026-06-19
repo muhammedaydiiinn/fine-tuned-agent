@@ -21,27 +21,48 @@ logger = logging.getLogger(__name__)
 # ── Training candidates ───────────────────────────────────────────────────────
 
 @router.get("/training-candidates", response_class=HTMLResponse)
-def candidates_list(
-    request: Request,
-    approved: str = "",
-    db: DBSession = Depends(get_db),
-):
-    q = db.query(TrainingCandidate)
-    if approved == "true":
-        q = q.filter(TrainingCandidate.approved == True)   # noqa: E712
-    elif approved == "false":
-        q = q.filter(TrainingCandidate.approved == False)  # noqa: E712
-    candidates = q.order_by(TrainingCandidate.created_at.desc()).limit(200).all()
-    total_approved = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()  # noqa: E712
+def candidates_list(request: Request, db: DBSession = Depends(get_db)):
+    total          = db.query(TrainingCandidate).count()
+    total_approved = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()   # noqa: E712
+    total_exported = db.query(TrainingCandidate).filter(TrainingCandidate.exported == True).count()   # noqa: E712
     return templates.TemplateResponse(
         "training_candidates.html",
         {
             "request": request,
-            "candidates": candidates,
-            "filter_approved": approved,
+            "total_count": total,
             "total_approved": total_approved,
+            "total_exported": total_exported,
+            "total_pending": total - total_approved,
         },
     )
+
+
+@router.get("/training-candidates/data")
+def candidates_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source for training candidates table."""
+    candidates = (
+        db.query(TrainingCandidate)
+        .order_by(TrainingCandidate.created_at.desc())
+        .limit(500)
+        .all()
+    )
+    rows = []
+    for c in candidates:
+        msgs = c.messages_json or []
+        customer_msg  = msgs[1].get("content", "") if len(msgs) > 1 else ""
+        corrected_msg = msgs[2].get("content", "") if len(msgs) > 2 else ""
+        correction_type = (c.metadata_json or {}).get("correction_type", "")
+        rows.append({
+            "id": c.id,
+            "source_type": c.source_type,
+            "customer_msg": customer_msg[:100],
+            "corrected_response": corrected_msg[:100],
+            "correction_type": correction_type,
+            "approved": c.approved,
+            "exported": c.exported,
+            "created_at": c.created_at.strftime("%m-%d %H:%M"),
+        })
+    return {"data": rows}
 
 
 @router.post("/training-candidates/{candidate_id}/approve", response_class=HTMLResponse)
@@ -101,6 +122,49 @@ def export_jsonl(db: DBSession = Depends(get_db)):
 
 # ── Training jobs ─────────────────────────────────────────────────────────────
 
+@router.get("/training-jobs/data")
+def training_jobs_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source — returns {data: [...]} format."""
+    jobs = (
+        db.query(TrainingJob)
+        .order_by(TrainingJob.created_at.desc())
+        .limit(500)
+        .all()
+    )
+
+    def _fmt_duration(job: TrainingJob) -> str:
+        if not job.started_at:
+            return "—"
+        end = job.finished_at or job.started_at
+        secs = int((end - job.started_at).total_seconds())
+        if job.finished_at is None:
+            return "running…"
+        if secs >= 3600:
+            return f"{secs // 3600}h {(secs % 3600) // 60}m"
+        if secs >= 60:
+            return f"{secs // 60}m {secs % 60}s"
+        return f"{secs}s"
+
+    rows = []
+    for j in jobs:
+        pct = 0
+        if j.progress_total and j.progress_total > 0:
+            pct = min(100, int(j.progress_current / j.progress_total * 100))
+        rows.append({
+            "id": j.id,
+            "job_type": j.job_type,
+            "status": j.status,
+            "progress_pct": pct,
+            "dataset_version": (j.input_json or {}).get("dataset_version", "—"),
+            "started_at": j.started_at.strftime("%m-%d %H:%M") if j.started_at else "—",
+            "duration": _fmt_duration(j),
+            "version_name": (j.output_json or {}).get("version_name", ""),
+            "error_message": (j.error_message or "")[:80],
+        })
+
+    return {"data": rows}
+
+
 @router.get("/training-jobs", response_class=HTMLResponse)
 def training_jobs_list(request: Request, db: DBSession = Depends(get_db)):
     jobs = (
@@ -159,31 +223,41 @@ def start_training(request: Request, db: DBSession = Depends(get_db)):
         )
 
 
-@router.get("/training-jobs/{job_id}/status", response_class=HTMLResponse)
-def job_status_fragment(job_id: int, db: DBSession = Depends(get_db)):
-    """HTMX polling endpoint — returns status badge + progress bar fragment."""
+@router.get("/training-jobs/{job_id}", response_class=HTMLResponse)
+def training_job_detail(job_id: int, request: Request, db: DBSession = Depends(get_db)):
+    """Job detail page — metadata + live log viewer."""
     job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
     if not job:
-        return HTMLResponse('<span class="badge badge-error">Not found</span>')
+        return HTMLResponse('<div class="alert alert-error">Job not found.</div>', status_code=404)
 
     pct = 0
     if job.progress_total and job.progress_total > 0:
         pct = min(100, int(job.progress_current / job.progress_total * 100))
 
-    status_class = {
-        "pending": "badge-pending",
-        "running": "badge-running",
-        "completed": "badge-approved",
-        "failed": "badge-error",
-    }.get(job.status, "badge-pending")
-
-    poll_attr = ""
-    if job.status in ("pending", "running"):
-        poll_attr = f'hx-get="/training-jobs/{job_id}/status" hx-trigger="every 3s" hx-swap="outerHTML"'
-
-    return HTMLResponse(
-        f'<span class="job-status-cell" {poll_attr}>'
-        f'<span class="badge {status_class}">{job.status}</span>'
-        f'<div class="progress-bar"><div class="progress-fill" style="width:{pct}%"></div></div>'
-        f'</span>'
+    return templates.TemplateResponse(
+        "training_job_detail.html",
+        {"request": request, "job": job, "pct": pct},
     )
+
+
+@router.get("/training-jobs/{job_id}/logs", response_class=HTMLResponse)
+def job_logs_proxy(job_id: int, tail: int = 200):
+    """Proxy log lines from agent-backend and return as HTML fragment for HTMX."""
+    try:
+        resp = httpx.get(
+            f"{settings.agent_backend_url}/training-jobs/{job_id}/logs",
+            params={"tail": tail},
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        logs = (data.get("logs") or "").strip()
+    except Exception as exc:
+        logger.error("Log proxy error job_id=%d: %s", job_id, exc)
+        logs = f"[proxy error: {exc}]"
+
+    if not logs:
+        return HTMLResponse('<span style="opacity:.4;padding:12px;display:block;">No log output yet.</span>')
+
+    escaped = logs.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return HTMLResponse(f'<pre class="log-viewer">{escaped}</pre>')

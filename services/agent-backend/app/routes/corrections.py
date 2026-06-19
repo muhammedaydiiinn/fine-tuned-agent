@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.config import settings
 from app.core.candidate_builder import build_candidate_from_turn
 from app.db import get_db
-from app.models import Correction, CorrectionMemory, TrainingCandidate, Turn
+from app.models import Correction, CorrectionMemory, Session as SessionModel, TrainingCandidate, Turn
 from app.schemas import CreateCorrectionRequest, CorrectionResponse
 
 router = APIRouter()
@@ -34,6 +34,17 @@ def get_correction(correction_id: int, db: DBSession = Depends(get_db)):
 
 @router.post("/corrections", response_model=CorrectionResponse)
 def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_db)):
+    # Validate FK references before INSERT
+    if req.session_id is not None:
+        if not db.query(SessionModel).filter(SessionModel.id == req.session_id).first():
+            raise HTTPException(status_code=404, detail=f"Session {req.session_id} not found")
+    if req.turn_id is not None:
+        turn_check = db.query(Turn).filter(Turn.id == req.turn_id).first()
+        if not turn_check:
+            raise HTTPException(status_code=404, detail=f"Turn {req.turn_id} not found")
+        if req.session_id is not None and turn_check.session_id != req.session_id:
+            raise HTTPException(status_code=400, detail="Turn does not belong to the given session")
+
     # 1. Save correction
     correction = Correction(
         session_id=req.session_id,

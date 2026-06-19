@@ -487,6 +487,30 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .progress-bar     { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
 .progress-fill    { height: 100%; background: var(--accent-2); border-radius: 2px; transition: width .4s ease; }
 
+/* ─── Log viewer ─────────────────────────────────────────────────────── */
+.log-viewer {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: .78rem;
+  line-height: 1.6;
+  color: var(--text-2);
+  background: var(--surface-1);
+  border-radius: 0 0 8px 8px;
+  padding: 16px;
+  margin: 0;
+  max-height: 480px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ─── Table link cells ───────────────────────────────────────────────── */
+.td-link {
+  color: var(--accent-2);
+  text-decoration: none;
+  font-weight: 600;
+}
+.td-link:hover { text-decoration: underline; }
+
 /* Live dot */
 .live-dot {
   display: inline-block;

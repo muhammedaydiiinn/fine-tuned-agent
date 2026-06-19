@@ -3,9 +3,6 @@
 
 {% block content %}
 
-{% set memory_count   = corrections | selectattr('apply_immediately') | list | length %}
-{% set training_count = corrections | selectattr('send_to_training')  | list | length %}
-
 <div class="page-header">
   <div class="page-header-left">
     <h1>Corrections</h1>
@@ -15,7 +12,7 @@
 <div class="stats-row">
   <div class="stat-card blue">
     <div class="stat-label">Total</div>
-    <div class="stat-value">{{ corrections|length }}</div>
+    <div class="stat-value">{{ total_count }}</div>
   </div>
   <div class="stat-card green">
     <div class="stat-label">Memory Applied</div>
@@ -27,80 +24,25 @@
   </div>
 </div>
 
-{% if corrections %}
 <div class="table-container">
   <div class="table-toolbar">
     <span class="table-toolbar-title">All Corrections</span>
   </div>
-  <div class="table-wrap">
-    <table class="dt-table">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Old Response</th>
-          <th>New Response</th>
-          <th>Next Action</th>
-          <th>Memory</th>
-          <th>Training</th>
-          <th>Date</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for c in corrections %}
+  <table data-dt-url="/corrections/data" data-dt-order="0,desc">
+    <thead>
       <tr>
-        <td><span class="badge badge-intent">{{ c.correction_type }}</span></td>
-        <td class="td-truncate td-muted" title="{{ c.old_agent_response }}">
-          {{ (c.old_agent_response or "—")[:55] }}
-        </td>
-        <td class="td-truncate" title="{{ c.corrected_agent_response }}">
-          {{ (c.corrected_agent_response or "—")[:55] }}
-        </td>
-        <td>
-          {% if c.corrected_next_action %}
-            <span class="badge badge-action">{{ c.corrected_next_action }}</span>
-          {% else %}
-            <span class="td-muted">—</span>
-          {% endif %}
-        </td>
-        <td class="td-center">
-          {% if c.apply_immediately %}
-            <span class="text-success" style="font-size:15px;">+</span>
-          {% else %}
-            <span class="td-muted">—</span>
-          {% endif %}
-        </td>
-        <td class="td-center">
-          {% if c.send_to_training %}
-            <span class="text-success" style="font-size:15px;">+</span>
-          {% else %}
-            <span class="td-muted">—</span>
-          {% endif %}
-        </td>
-        <td class="td-muted">{{ c.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>
-          {% if c.turn_id and c.session_id %}
-          <a href="/sessions/{{ c.session_id }}/turns/{{ c.turn_id }}" class="btn btn-sm btn-outline">
-            Turn
-            <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
-          </a>
-          {% endif %}
-        </td>
+        <th data-field="correction_type" data-render="badge">Type</th>
+        <th data-field="old_response"   data-render="truncate">Old Response</th>
+        <th data-field="new_response"   data-render="truncate">New Response</th>
+        <th data-field="next_action"    data-render="badge">Next Action</th>
+        <th data-field="apply_immediately" data-render="boolCheck" data-class="td-center">Memory</th>
+        <th data-field="send_to_training"  data-render="boolCheck" data-class="td-center">Training</th>
+        <th data-field="created_at"     data-render="datetime">Date</th>
+        <th data-field="id" data-render="correctionLink" data-orderable="false" data-width="80px"></th>
       </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
-
-{% else %}
-<div class="table-container">
-  <div class="empty-state">
-    <div class="empty-icon"><i class="fa-solid fa-pen-to-square"></i></div>
-    <div>No corrections yet.</div>
-    <div style="font-size:12px;color:var(--text-3)">Go to a turn detail page to add corrections.</div>
-  </div>
-</div>
-{% endif %}
 
 {% endblock %}

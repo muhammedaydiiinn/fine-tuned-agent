@@ -3,10 +3,6 @@
 
 {% block content %}
 
-{% set approved_count  = candidates | selectattr('approved') | list | length %}
-{% set exported_count  = candidates | selectattr('exported') | list | length %}
-{% set pending_count   = candidates | rejectattr('approved') | list | length %}
-
 <div class="page-header">
   <div class="page-header-left">
     <h1>Training Data</h1>
@@ -34,19 +30,19 @@
 <div class="stats-row">
   <div class="stat-card blue">
     <div class="stat-label">Total</div>
-    <div class="stat-value">{{ candidates|length }}</div>
+    <div class="stat-value">{{ total_count }}</div>
   </div>
   <div class="stat-card green">
     <div class="stat-label">Approved</div>
-    <div class="stat-value">{{ approved_count }}</div>
+    <div class="stat-value">{{ total_approved }}</div>
   </div>
   <div class="stat-card purple">
     <div class="stat-label">Exported</div>
-    <div class="stat-value">{{ exported_count }}</div>
+    <div class="stat-value">{{ total_exported }}</div>
   </div>
   <div class="stat-card orange">
     <div class="stat-label">Pending</div>
-    <div class="stat-value">{{ pending_count }}</div>
+    <div class="stat-value">{{ total_pending }}</div>
   </div>
 </div>
 
@@ -54,25 +50,11 @@
   <div class="table-toolbar">
     <span class="table-toolbar-title">Training Candidates</span>
     <div style="display:flex;gap:8px;align-items:center;">
-      <a href="/training-candidates"
-         class="btn btn-sm {% if filter_approved == '' %}btn-primary{% else %}btn-outline{% endif %}">
-        All
-      </a>
-      <a href="/training-candidates?approved=true"
-         class="btn btn-sm {% if filter_approved == 'true' %}btn-primary{% else %}btn-outline{% endif %}">
-        Approved
-      </a>
-      <a href="/training-candidates?approved=false"
-         class="btn btn-sm {% if filter_approved == 'false' %}btn-primary{% else %}btn-outline{% endif %}">
-        Rejected
-      </a>
-
       <button
         class="btn btn-sm btn-success"
         hx-post="/training-candidates/export-jsonl"
         hx-target="#export-result"
-        hx-swap="innerHTML"
-      >
+        hx-swap="innerHTML">
         Export JSONL
       </button>
     </div>
@@ -80,90 +62,24 @@
 
   <div id="export-result" style="padding:0 16px 4px;"></div>
 
-  {% if candidates %}
-  <div class="table-wrap">
-    <table class="dt-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Source</th>
-          <th>Customer Message</th>
-          <th>Corrected Response</th>
-          <th>Correction Type</th>
-          <th>Status</th>
-          <th>Exported</th>
-          <th>Date</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for c in candidates %}
-      {% set user_msg   = c.messages_json[1].content if c.messages_json|length > 1 else '{}' %}
-      {% set asst_msg   = c.messages_json[2].content if c.messages_json|length > 2 else '{}' %}
+  <table
+    data-dt-url="/training-candidates/data"
+    data-dt-order="0,desc">
+    <thead>
       <tr>
-        <td class="td-muted">{{ c.id }}</td>
-        <td><span class="badge badge-intent">{{ c.source_type }}</span></td>
-        <td class="td-truncate td-muted" title="{{ user_msg }}">
-          {{ user_msg[:60] }}
-        </td>
-        <td class="td-truncate" title="{{ asst_msg }}">
-          {{ asst_msg[:60] }}
-        </td>
-        <td>
-          {% if c.metadata_json and c.metadata_json.get('correction_type') %}
-            <span class="badge badge-action">{{ c.metadata_json['correction_type'] }}</span>
-          {% else %}
-            <span class="td-muted">—</span>
-          {% endif %}
-        </td>
-        <td id="status-{{ c.id }}">
-          {% if c.approved %}
-            <span class="badge badge-approved">Approved</span>
-          {% else %}
-            <span class="badge badge-rejected">Rejected</span>
-          {% endif %}
-        </td>
-        <td class="td-center">
-          {% if c.exported %}
-            <span class="text-success" style="font-size:13px;">+</span>
-          {% else %}
-            <span class="td-muted">—</span>
-          {% endif %}
-        </td>
-        <td class="td-muted">{{ c.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>
-          <div style="display:flex;gap:4px;">
-            <button
-              class="btn btn-sm btn-success"
-              hx-post="/training-candidates/{{ c.id }}/approve"
-              hx-target="#status-{{ c.id }}"
-              hx-swap="innerHTML"
-              {% if c.approved %}disabled{% endif %}
-            >Approve</button>
-            <button
-              class="btn btn-sm btn-danger"
-              hx-post="/training-candidates/{{ c.id }}/reject"
-              hx-target="#status-{{ c.id }}"
-              hx-swap="innerHTML"
-              {% if not c.approved %}disabled{% endif %}
-            >Reject</button>
-          </div>
-        </td>
+        <th data-field="id"                data-width="60px">ID</th>
+        <th data-field="source_type"       data-render="badge">Source</th>
+        <th data-field="customer_msg"      data-render="truncate">Customer Message</th>
+        <th data-field="corrected_response" data-render="truncate">Corrected Response</th>
+        <th data-field="correction_type"   data-render="badge">Correction Type</th>
+        <th data-field="approved"          data-render="approvedBadge">Status</th>
+        <th data-field="exported"          data-render="boolCheck" data-class="td-center">Exported</th>
+        <th data-field="created_at"        data-render="datetime">Date</th>
+        <th data-field="id"                data-render="approveReject" data-orderable="false">Actions</th>
       </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  {% else %}
-  <div class="empty-state">
-    <div class="empty-icon"><i class="fa-solid fa-layer-group"></i></div>
-    <div>No training candidates yet.</div>
-    <div style="font-size:12px;color:var(--text-3)">
-      Save a correction with "Send to training" checked to create one.
-    </div>
-  </div>
-  {% endif %}
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 {% endblock %}
