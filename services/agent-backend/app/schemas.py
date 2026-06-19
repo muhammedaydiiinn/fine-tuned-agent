@@ -212,6 +212,11 @@ class ConfigureServingRequest(BaseModel):
 
 class DeploymentRequest(BaseModel):
     environment: str = Field(default="production", pattern="^(staging|production)$")
+    actor: str | None = None
+
+
+class RollbackRequest(BaseModel):
+    actor: str | None = None
 
 
 class ModelVersionResponse(BaseModel):

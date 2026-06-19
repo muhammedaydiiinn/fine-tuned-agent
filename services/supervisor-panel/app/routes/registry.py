@@ -96,12 +96,47 @@ def quality_check(model_version_id: int):
         )
 
 
+@router.get("/model-registry/{version_name}", response_class=HTMLResponse)
+def model_detail(version_name: str, request: Request, db: DBSession = Depends(get_db)):
+    model = (
+        db.query(ModelVersion)
+        .filter(ModelVersion.version_name == version_name)
+        .first()
+    )
+    if not model:
+        return HTMLResponse("<div class='alert alert-error'>Model not found.</div>", status_code=404)
+    eval_runs = (
+        db.query(EvalRun)
+        .filter(EvalRun.model_version_id == model.id)
+        .order_by(EvalRun.created_at.desc())
+        .all()
+    )
+    deployments = (
+        db.query(Deployment)
+        .filter(
+            (Deployment.model_version_id == model.id)
+            | (Deployment.rollback_model_version_id == model.id)
+        )
+        .order_by(Deployment.deployed_at.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        "model_detail.html",
+        {
+            "request": request,
+            "model": model,
+            "eval_runs": eval_runs,
+            "deployments": deployments,
+        },
+    )
+
+
 @router.post("/model-registry/{version_name}/deploy", response_class=HTMLResponse)
 def deploy(version_name: str, environment: str = Form("production")):
     return _action(
         f"/models/{version_name}/deploy",
         f"Model deployed to {environment}",
-        {"environment": environment},
+        {"environment": environment, "actor": settings.admin_user},
     )
 
 
@@ -130,6 +165,7 @@ def rollback(environment: str):
     return _action(
         f"/deployments/{environment}/rollback",
         f"{environment.title()} rolled back",
+        {"actor": settings.admin_user},
     )
 
 

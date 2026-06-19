@@ -17,6 +17,7 @@ from app.schemas import (
     DeploymentResponse,
     ModelVersionResponse,
     RegisterModelRequest,
+    RollbackRequest,
 )
 
 router = APIRouter()
@@ -292,6 +293,8 @@ def deploy_model(
             "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
             "serving_health": health,
             "serving_target": target,
+            "actor": body.actor,
+            "deployed_at": now.isoformat(),
         },
     )
     if current:
@@ -324,7 +327,7 @@ def deploy_model(
     response_model=DeploymentResponse,
     status_code=201,
 )
-def rollback(environment: str, db: DBSession = Depends(get_db)):
+def rollback(environment: str, body: RollbackRequest | None = None, db: DBSession = Depends(get_db)):
     if environment not in {"staging", "production"}:
         raise HTTPException(status_code=422, detail="Invalid deployment environment")
     current = (
@@ -364,6 +367,8 @@ def rollback(environment: str, db: DBSession = Depends(get_db)):
             "rolled_back_deployment_id": current.id,
             "serving_health": health,
             "serving_target": target,
+            "actor": body.actor if body else None,
+            "deployed_at": now.isoformat(),
         },
     )
     current.status = "rolled_back"
