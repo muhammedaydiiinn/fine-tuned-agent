@@ -19,8 +19,9 @@ Supervisor Panel / Sessions microphone
 ```
 
 Room adı ile backend `external_session_id` aynıdır. Her turn için
-`stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms` ve konuşma sonundan
-ilk sese kadar geçen `total_voice_turn_ms` backend turn kaydına yazılır.
+`stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms`,
+`speech_end_to_first_audio_ms` ve playback dahil `total_voice_turn_ms`
+backend turn kaydına yazılır.
 Backend, kaydedilen final transcript ve agent cevabı ile voice runtime'ın
 bildirdiği transcript/duyulan cevap eşleşmezse metriği reddeder.
 
@@ -55,10 +56,10 @@ FISH_TTS_REFERENCE_ID=...
 `TTS_MODE=mock` sadece transport ve backend smoke testleri içindir; gerçek M7
 kabul testi sayılmaz.
 
-## Kapsam sınırı
+## Turn-taking
 
-M7'de konuşma sonu basit enerji/sessizlik sınırıyla belirlenir. Agent
-konuşurken barge-in, playback cancellation, backchannel ayrımı ve stale
-response koruması M8 kapsamıdır.
+Konuşma sonu enerji/sessizlik sınırıyla belirlenir. M8 ile sustained customer
+overlap, playback cancellation, backchannel ayrımı, duplicate transcript ve
+stale response koruması aynı runtime içine eklenmiştir.
 
 Canlı kabul adımları için `LIVE_ACCEPTANCE.md` dosyasını kullan.
