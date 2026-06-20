@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p app/static && \
     curl -sL "https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" -o app/static/htmx.min.js
 
+# LiveKit browser client is vendored so the supervisor test flow has no runtime CDN dependency.
+RUN curl --fail --silent --show-error --location \
+    "https://cdn.jsdelivr.net/npm/livekit-client@2.15.6/dist/livekit-client.umd.min.js" \
+    -o app/static/livekit-client.umd.min.js
+
 COPY app/ ./app/
 
 EXPOSE 8020

@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     api_key: str = ""
     model_active_version: str = "fine-tuned-agent-v14"
 
+    livekit_public_url: str = "ws://localhost:7880"
+    livekit_api_key: str = "devkey"
+    livekit_api_secret: str = "devsecretdevsecretdevsecretdevsecret"
+    livekit_agent_name: str = "fine-tuned-agent-voice"
+
     # Data directory — no ./data:/data mount on panel; used for config reference only
     data_dir: str = "/data"
 

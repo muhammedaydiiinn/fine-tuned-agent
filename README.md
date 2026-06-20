@@ -320,6 +320,7 @@ docker compose up -d --build agent-backend   # Kod değişikliği sonrası
 | nginx            | 80 / 443         | Halka açık   | Tek giriş noktası              |
 | agent-backend    | 8010             | İç ağ        | FastAPI                        |
 | supervisor-panel | 8020             | İç ağ        | Yönetim paneli                 |
+| LiveKit          | 7880/7881 TCP, 7882 UDP | Browser/WebRTC | M7 media server       |
 | vLLM             | 8000             | İç ağ        | Sadece `real` modda            |
 | PostgreSQL       | 5432             | İç ağ        | —                              |
 | Redis Stack      | 6379             | İç ağ        | —                              |
@@ -328,6 +329,10 @@ docker compose up -d --build agent-backend   # Kod değişikliği sonrası
 > Prod'da nginx dışındaki hiçbir port dışarıya açılmamalı.
 > agent-backend ve supervisor-panel portları geliştirme kolaylığı için açık;
 > prod'da `docker-compose.yml`'den `ports` satırlarını kaldır.
+
+Browser voice testi ayrı bir uygulama değildir. Supervisor Panel'de
+`Sessions → Start Voice Test` üzerinden senaryo seçilir, mikrofon başlatılır ve
+aynı session ekranında konuşma, latency ve test adımları izlenir.
 
 ---
 
@@ -361,6 +366,9 @@ Tüm değişkenler `.env.example`'da açıklamalı olarak tanımlıdır.
 | `POSTGRES_PASSWORD` | Prod'da güçlü şifre kullan | ✅ |
 | `MODEL_MERGED_PATH` | LLM model klasörü — `models/merged/fine-tuned-agent-v14` | ✅ |
 | `WHISPER_MODEL_PATH` | Whisper STT klasörü — Milestone 7'de kullanılır | — |
+| `LIVEKIT_PUBLIC_URL` | Browser'ın erişeceği LiveKit WebSocket URL'si | ✅ |
+| `LIVEKIT_API_KEY/SECRET` | LiveKit token imzalama bilgileri | ✅ |
+| `FISH_API_KEY` | Streaming TTS erişim anahtarı | ✅ |
 | `VLLM_MODEL_NAME` | vLLM'e yüklenen model adı | — |
 | `JWT_SECRET` | Panel auth için | — |
 
@@ -427,7 +435,7 @@ docker compose down -v
 | 4 | Training worker + model candidate üretimi | 🟡 Koşullu tamam — gerçek GPU kabulü bekliyor |
 | 5 | Eval worker + kalite kapısı | 🟡 Koşullu tamam — gerçek vLLM kabulü bekliyor |
 | 6 | Model lifecycle + blue/green deploy/rollback | 🟡 Koşullu tamam — gerçek GPU kabulü bekliyor |
-| 7 | Browser voice foundation (streaming STT/TTS) | ⏳ Bekliyor |
+| 7 | Browser voice foundation (streaming STT/TTS) | 🟡 Koşullu tamam — gerçek 10-turn/p95 kabulü bekliyor |
 | 8 | Realtime turn-taking + interruption/barge-in | ⏳ Bekliyor |
 | 9 | Canlı supervisor control + replacement audio | ⏳ Bekliyor |
 | 10 | Voice performansı + production hardening | ⏳ Bekliyor |

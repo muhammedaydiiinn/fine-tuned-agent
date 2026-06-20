@@ -1,0 +1,5 @@
+pydantic-settings==2.14.2
+httpx==0.28.1
+numpy==2.4.6
+faster-whisper==1.2.1
+livekit-agents==1.6.2

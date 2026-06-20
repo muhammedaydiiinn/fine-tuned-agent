@@ -141,6 +141,7 @@ def agent_turn(
         state_after_json=new_state,
         raw_model_json=raw_policy,
         repaired_model_json=repaired_policy,
+        final_policy_json=safe_policy,
         latency_json={"llm_ms": llm_ms, "backend_ms": backend_ms, "total_ms": total_ms},
         model_version=(
             model_version.version_name
@@ -161,9 +162,12 @@ def agent_turn(
 
     # 13. Return response
     return AgentTurnResponse(
+        turn_id=turn.id,
+        turn_index=turn.turn_index,
         session_id=req.session_id,
         customer_text=req.customer_text,
         agent_response=safe_policy["agent_response"],
+        voice_style=safe_policy.get("voice_style", {}),
         policy=PolicySummary(
             intent=safe_policy.get("intent", "unknown"),
             next_action=safe_policy.get("next_action", ""),

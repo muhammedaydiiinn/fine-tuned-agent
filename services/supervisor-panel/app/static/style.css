@@ -674,6 +674,150 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   opacity: .72;
 }
 
+/* ─── Supervisor voice testing ─────────────────────────────────────── */
+.voice-test-launcher {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(210px, 280px) minmax(190px, 240px) auto;
+  align-items: end;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.voice-test-launcher .form-group {
+  margin: 0;
+}
+
+.voice-test-launcher-title,
+.voice-test-title,
+.scenario-guide-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.voice-test-launcher-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 3px;
+}
+
+.voice-test-console {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
+  gap: 0;
+  margin-bottom: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.voice-test-main,
+.scenario-guide {
+  padding: 18px;
+}
+
+.scenario-guide {
+  border-left: 1px solid var(--border);
+  background: rgba(255,255,255,.012);
+}
+
+.voice-test-heading,
+.scenario-guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.voice-test-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.voice-status {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.voice-status[data-state="ready"] { color: var(--green); }
+.voice-status[data-state="working"],
+.voice-status[data-state="speaking"] { color: var(--accent-2); }
+.voice-status[data-state="error"] { color: var(--red); }
+
+.voice-latency {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.voice-latency > div {
+  min-width: 0;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.voice-latency span {
+  display: block;
+  min-height: 30px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.voice-latency strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-guide-header {
+  margin-bottom: 12px;
+}
+
+.scenario-turns {
+  display: grid;
+  gap: 5px;
+  max-height: 250px;
+  padding-left: 24px;
+  overflow-y: auto;
+}
+
+.scenario-turns li {
+  padding: 6px 8px;
+  color: var(--text-3);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.scenario-turns li.current {
+  color: var(--text);
+  background: var(--accent-bg);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.scenario-turns li.complete {
+  color: var(--text-3);
+  text-decoration: line-through;
+  opacity: .7;
+}
+
+.scenario-free {
+  padding: 18px 0 4px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
 /* ─── Forms ──────────────────────────────────────────────────────────── */
 .form-group  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .form-row    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -758,6 +902,25 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   margin-bottom: 20px;
 }
 @media (max-width: 900px) { .json-grid { grid-template-columns: 1fr; } }
+
+@media (max-width: 1100px) {
+  .voice-test-launcher {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .voice-test-launcher-copy {
+    grid-column: 1 / -1;
+  }
+
+  .voice-test-console {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-guide {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
 
 /* ─── Collapsible ────────────────────────────────────────────────────── */
 .collapsible {
@@ -1081,6 +1244,31 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   .eval-launcher .form-group,
   .eval-launcher .btn {
     width: 100%;
+  }
+
+  .voice-test-launcher {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-test-launcher-copy {
+    grid-column: auto;
+  }
+
+  .voice-test-heading {
+    flex-direction: column;
+  }
+
+  .voice-test-actions,
+  .voice-test-actions .btn {
+    width: 100%;
+  }
+
+  .voice-test-actions .btn {
+    justify-content: center;
+  }
+
+  .voice-latency {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

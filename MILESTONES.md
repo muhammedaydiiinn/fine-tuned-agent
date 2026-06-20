@@ -156,7 +156,7 @@ Kalan kabul kapısı:
 
 ## M7 — Browser voice foundation
 
-**Durum:** Bekliyor.
+**Durum:** Koşullu tamam.
 
 İlk uygulama için tek runtime seçilir. Önerilen başlangıç LiveKit'tir; Pipecat
 aynı milestone içinde ikinci paralel implementasyon değil, alternatif adapter
@@ -164,7 +164,7 @@ olarak tutulur.
 
 Kapsam:
 
-- browser microphone/WebRTC demo
+- supervisor panel Sessions üzerinden browser microphone/WebRTC testi
 - streaming STT
 - transcript final → `/agent-turn`
 - streaming TTS ve browser playback
@@ -174,9 +174,31 @@ Kapsam:
 
 Kabul kriteri:
 
-- Kullanıcı yazı yazmadan browser üzerinden en az 10 turn konuşabilir.
+- Supervisor yazı yazmadan Sessions ekranından en az 10 turn konuşabilir.
 - Transcript, final policy ve duyulan cevap aynı session altında izlenebilir.
 - İlk hedef p95 konuşma sonu → first audio 2.5 saniyenin altındadır.
+
+Doğrulanan:
+
+- LiveKit media server ve named-agent dispatch çalıştı.
+- Authenticated Supervisor Panel, session'a bağlı browser token'ı doğrudan
+  üretiyor; ayrı voice web servisi veya 8030 portu bulunmuyor.
+- Sessions ekranına senaryo seçimi, microphone start/stop, transcript/response
+  event akışı, audio playback ve voice latency görünümü eklendi.
+- Yerel Faster Whisper STT → `/agent-turn` → Fish Audio streaming PCM TTS
+  pipeline'ı implement edildi.
+- Voice session ile backend external session ID birebir eşlendi.
+- Final transcript ve duyulan cevap backend turn kaydıyla doğrulanmadan voice
+  metrikleri kabul edilmiyor.
+- Beş M7 metriği turn bazında saklanıyor; backend persistence smoke testi geçti.
+
+Kalan kabul kapısı:
+
+- Gerçek GPU Whisper modeli ve Fish Audio ile browser üzerinden en az 10 turn
+  konuşulmalı.
+- Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
+  doğrulanmalı.
+- Canlı kontrol listesi `services/voice-runtime/LIVE_ACCEPTANCE.md` içindedir.
 
 ## M8 — Realtime turn-taking ve interruption
 

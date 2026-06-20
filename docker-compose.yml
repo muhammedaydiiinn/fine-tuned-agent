@@ -76,6 +76,11 @@ services:
     build:
       context: ./services/supervisor-panel
     env_file: .env
+    environment:
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}
+      LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-fine-tuned-agent-voice}
     networks:
       - agent-net
     depends_on:
@@ -84,6 +89,41 @@ services:
     restart: unless-stopped
     ports:
       - "8020:8020"
+
+  # ── LiveKit WebRTC media server (Milestone 7) ──────────────────────────────
+  livekit-server:
+    image: livekit/livekit-server:v1.9
+    command: --bind 0.0.0.0 --udp-port 7882
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}"
+      LIVEKIT_LOGGING_LEVEL: info
+    networks:
+      - agent-net
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    restart: unless-stopped
+
+  # ── LiveKit STT → agent backend → TTS worker (Milestone 7) ────────────────
+  voice-runtime-worker:
+    build:
+      context: ./services/voice-runtime
+    command: python -m app.worker start
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit-server:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}
+      LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-fine-tuned-agent-voice}
+    volumes:
+      - ./models:/models:ro
+    networks:
+      - agent-net
+    depends_on:
+      - livekit-server
+      - agent-backend
+    restart: unless-stopped
 
   # ── vLLM model server (sadece VLLM_MODE=real + GPU sunucuda) ───────────────
   vllm-server:

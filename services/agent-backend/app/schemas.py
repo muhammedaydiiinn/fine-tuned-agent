@@ -46,9 +46,12 @@ class PolicySummary(BaseModel):
 
 
 class AgentTurnResponse(BaseModel):
+    turn_id: int
+    turn_index: int
     session_id: str
     customer_text: str
     agent_response: str
+    voice_style: VoiceStyle
     policy: PolicySummary
     state: dict[str, Any]
     latency: LatencyInfo
@@ -86,11 +89,29 @@ class TurnResponse(BaseModel):
     risk: str | None
     next_action: str | None
     allowed_to_continue: bool | None
+    final_policy_json: dict[str, Any] | None
     latency_json: dict[str, Any] | None
     model_version: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class VoiceTurnMetricsRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=128)
+    stt_ms: float = Field(..., ge=0)
+    backend_ms: float = Field(..., ge=0)
+    llm_ms: float = Field(..., ge=0)
+    tts_first_audio_ms: float = Field(..., ge=0)
+    total_voice_turn_ms: float = Field(..., ge=0)
+    transcript_final: str = Field(..., min_length=1)
+    heard_response: str = Field(..., min_length=1)
+
+
+class VoiceTurnMetricsResponse(BaseModel):
+    turn_id: int
+    session_id: str
+    latency: dict[str, float]
 
 
 # ── Correction ───────────────────────────────────────────────────────────────

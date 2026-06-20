@@ -1,32 +1,64 @@
 # Voice Runtime
 
-Bu klasör browser voice ve ileride telefon entegrasyonu için gerçek zamanlı ses
-katmanını barındırır.
+M7 browser voice katmanı LiveKit üzerinde çalışan tek runtime olarak
+uygulanmıştır. Browser voice yalnızca Supervisor Panel içindeki test session'ları
+için kullanılır; müşteriye açık ayrı bir web arayüzü yoktur.
 
-- M7: İlk runtime ile browser microphone, streaming STT/TTS ve latency ölçümü
-- M8: VAD, turn-taking, interruption/barge-in ve playback cancellation
-- M9: Supervisor interrupt ve replacement cevabın TTS ile gönderilmesi
+## Akış
 
-İlk implementasyonda tek runtime seçilir. LiveKit önerilen başlangıçtır;
-Pipecat aynı anda kurulması gereken ikinci runtime değil, alternatif adapter'dır.
-
-## Adapter Olayları
-
-Agent backend, aşağıdaki event formatlarını kabul edecek şekilde tasarlanmıştır:
-
-```json
-{"event": "transcript_final",      "session_id": "session-123", "text": "Was kostet das?"}
-{"event": "customer_interruption", "session_id": "session-123", "partial_text": "Moment..."}
-{"event": "supervisor_interrupt",  "session_id": "session-123", "turn_id": 7}
+```text
+Supervisor Panel / Sessions microphone
+  → LiveKit WebRTC room
+  → 16 kHz PCM + energy-based turn boundary
+  → local Faster Whisper (German)
+  → transcript_final
+  → POST /agent-turn
+  → Fish Audio streaming PCM TTS
+  → LiveKit audio track
+  → browser playback
 ```
 
-## Adapter seçenekleri
+Room adı ile backend `external_session_id` aynıdır. Her turn için
+`stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms` ve konuşma sonundan
+ilk sese kadar geçen `total_voice_turn_ms` backend turn kaydına yazılır.
+Backend, kaydedilen final transcript ve agent cevabı ile voice runtime'ın
+bildirdiği transcript/duyulan cevap eşleşmezse metriği reddeder.
 
-- `adapters/livekit_adapter.md` — LiveKit WebRTC entegrasyon rehberi
-- `adapters/pipecat_adapter.md` — Pipecat pipeline entegrasyon rehberi
+## Servisler
 
-## Durum
+- `livekit-server`: WebRTC media server (`7880/TCP`, `7881/TCP`, `7882/UDP`)
+- `voice-runtime-worker`: LiveKit agent worker, STT/backend/TTS pipeline
+- `supervisor-panel`: authenticated token üretimi, senaryo seçimi ve test UI
 
-Şu anda tasarım dokümanları mevcuttur; çalışan browser voice runtime henüz
-implement edilmemiştir. Kanonik kapsam ve kabul kriterleri kökteki
-`MILESTONES.md` dosyasındadır.
+Test akışı:
+
+```text
+Supervisor Panel → Sessions → Start Voice Test
+  → scenario seç → Create Test Session
+  → Start Microphone → konuş → Stop / End Session & Review
+```
+
+## Gerekli ayarlar
+
+Gerçek ses testi için:
+
+```env
+LIVEKIT_PUBLIC_URL=ws://localhost:7880
+WHISPER_MODEL_PATH=/models/whisper/whisper-large-v3-turbo-german
+WHISPER_DEVICE=cuda
+WHISPER_COMPUTE_TYPE=float16
+TTS_MODE=fish
+FISH_API_KEY=...
+FISH_TTS_REFERENCE_ID=...
+```
+
+`TTS_MODE=mock` sadece transport ve backend smoke testleri içindir; gerçek M7
+kabul testi sayılmaz.
+
+## Kapsam sınırı
+
+M7'de konuşma sonu basit enerji/sessizlik sınırıyla belirlenir. Agent
+konuşurken barge-in, playback cancellation, backchannel ayrımı ve stale
+response koruması M8 kapsamıdır.
+
+Canlı kabul adımları için `LIVE_ACCEPTANCE.md` dosyasını kullan.
