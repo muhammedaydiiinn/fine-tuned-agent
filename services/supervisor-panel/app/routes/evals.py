@@ -57,7 +57,7 @@ def eval_jobs_data(db: DBSession = Depends(get_db)):
             "status": run.status,
             "progress_pct": progress_pct,
             "quality_score": score,
-            "started_at": run.started_at.isoformat() + "Z" if run.started_at else None,
+            "started_at": run.started_at.strftime("%Y-%m-%dT%H:%M:%SZ") if run.started_at else None,
             "duration": _duration(run),
             "error_message": (run.error_message or "")[:100],
         })
