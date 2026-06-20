@@ -35,6 +35,37 @@ def _headers() -> dict[str, str]:
 
 @router.get("/review", response_class=HTMLResponse)
 def review_queue(request: Request, db: DBSession = Depends(get_db)):
+    pending_count = (
+        db.query(func.count(SessionModel.id))
+        .outerjoin(SessionReview, SessionReview.session_id == SessionModel.id)
+        .filter(
+            SessionModel.status.in_(("closed", "reviewed")),
+            or_(
+                SessionModel.external_session_id.is_(None),
+                ~SessionModel.external_session_id.like("eval-%"),
+            ),
+            SessionReview.id.is_(None),
+        )
+        .scalar() or 0
+    )
+    reviewed_count = (
+        db.query(func.count(SessionReview.id)).scalar() or 0
+    )
+    jobs_count = db.query(func.count(TrainingJob.id)).scalar() or 0
+    return templates.TemplateResponse(
+        "review_queue.html",
+        {
+            "request": request,
+            "pending_count": pending_count,
+            "reviewed_count": reviewed_count,
+            "jobs_count": jobs_count,
+        },
+    )
+
+
+@router.get("/review/queue/data")
+def review_queue_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source — review queue."""
     sessions = (
         db.query(SessionModel)
         .filter(
@@ -49,31 +80,46 @@ def review_queue(request: Request, db: DBSession = Depends(get_db)):
         .all()
     )
     reviews = {
-        review.session_id: review
-        for review in db.query(SessionReview).all()
+        r.session_id: r
+        for r in db.query(SessionReview).all()
     }
     turn_counts = dict(
         db.query(Turn.session_id, func.count(Turn.id))
         .group_by(Turn.session_id)
         .all()
     )
-    jobs = (
-        db.query(TrainingJob)
-        .order_by(TrainingJob.created_at.desc())
-        .limit(10)
-        .all()
-    )
-    return templates.TemplateResponse(
-        "review_queue.html",
-        {
-            "request": request,
-            "sessions": sessions,
-            "reviews": reviews,
-            "turn_counts": turn_counts,
-            "jobs": jobs,
-            "pending_count": sum(session.id not in reviews for session in sessions),
-        },
-    )
+    rating_cls = {"good": "badge-approved", "bad": "badge-error"}
+    rows = []
+    for s in sessions:
+        review = reviews.get(s.id)
+        if review:
+            rcls = rating_cls.get(review.rating, "badge-pending")
+            review_badge = f'<span class="badge {rcls}">{review.rating}</span>'
+        else:
+            review_badge = '<span class="badge badge-running">waiting</span>'
+
+        if review and review.training_job_id:
+            training = f'<a href="/training-jobs/{review.training_job_id}">Job #{review.training_job_id}</a>'
+        elif review and review.candidate_ids_json:
+            training = f'{len(review.candidate_ids_json)} approved'
+        else:
+            training = "—"
+
+        has_review = review is not None
+        btn_cls = "btn-outline" if has_review else "btn-primary"
+        label = "View Review" if has_review else "Open Review"
+        action = f'<a class="btn btn-sm {btn_cls}" href="/review/{s.id}">{label}</a>'
+
+        rows.append({
+            "id": s.id,
+            "session": s.external_session_id or f"#{s.id}",
+            "turns": turn_counts.get(s.id, 0),
+            "status": s.status,
+            "review_badge": review_badge,
+            "training": training,
+            "action": action,
+        })
+    return {"data": rows}
 
 
 @router.get("/review/{session_id}", response_class=HTMLResponse)

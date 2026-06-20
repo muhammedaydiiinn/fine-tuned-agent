@@ -162,6 +162,7 @@ def training_jobs_data(db: DBSession = Depends(get_db)):
             "progress_pct": pct,
             "dataset_version": (j.input_json or {}).get("dataset_version", "—"),
             "started_at": j.started_at.strftime("%Y-%m-%dT%H:%M:%SZ") if j.started_at else None,
+            "input_session_id": (j.input_json or {}).get("session_id", "—"),
             "duration": _fmt_duration(j),
             "version_name": (j.output_json or {}).get("version_name", ""),
             "error_message": (j.error_message or "")[:80],

@@ -281,6 +281,12 @@
       );
     },
 
+    /** raw HTML — API'den gelen hazır HTML'i doğrudan render eder */
+    rawHtml: function (d, type) {
+      if (type !== "display") return d || "";
+      return d || "";
+    },
+
     // Yeni renderer eklemek için:
     //   RENDERERS.myRenderer = function(d, type, row) { ... };
     // ve <th data-dt-col-render="myRenderer"> ile kullan.

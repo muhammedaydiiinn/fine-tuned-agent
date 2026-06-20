@@ -11,68 +11,40 @@
 
 <div class="stats-row">
   <div class="stat-card"><div class="stat-label">Waiting for review</div><div class="stat-value">{{ pending_count }}</div></div>
-  <div class="stat-card"><div class="stat-label">Reviewed sessions</div><div class="stat-value">{{ reviews|length }}</div></div>
-  <div class="stat-card"><div class="stat-label">Recent training jobs</div><div class="stat-value">{{ jobs|length }}</div></div>
+  <div class="stat-card"><div class="stat-label">Reviewed sessions</div><div class="stat-value">{{ reviewed_count }}</div></div>
+  <div class="stat-card"><div class="stat-label">Training jobs</div><div class="stat-value">{{ jobs_count }}</div></div>
 </div>
 
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar"><span class="table-toolbar-title">Conversation Review Queue</span></div>
-  <table>
-    <thead><tr><th>Session</th><th>Turns</th><th>Status</th><th>Review</th><th>Training</th><th></th></tr></thead>
-    <tbody>
-    {% for session in sessions %}
-      {% set review = reviews.get(session.id) %}
+  <table data-dt-url="/review/queue/data" data-dt-order="0,desc">
+    <thead>
       <tr>
-        <td><code>{{ session.external_session_id or session.id }}</code></td>
-        <td>{{ turn_counts.get(session.id, 0) }}</td>
-        <td>
-          <span class="badge {% if session.status == 'active' %}badge-active{% elif session.status == 'reviewed' %}badge-info{% else %}badge-closed{% endif %}">
-            {{ session.status }}
-          </span>
-        </td>
-        <td>
-          {% if review %}
-            <span class="badge {% if review.rating == 'good' %}badge-approved{% elif review.rating == 'bad' %}badge-error{% else %}badge-pending{% endif %}">{{ review.rating }}</span>
-          {% else %}
-            <span class="badge badge-running">waiting</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if review and review.training_job_id %}
-            <a href="/training-jobs/{{ review.training_job_id }}">Job #{{ review.training_job_id }}</a>
-          {% elif review and review.candidate_ids_json %}
-            {{ review.candidate_ids_json|length }} approved turns
-          {% else %}—{% endif %}
-        </td>
-        <td><a class="btn btn-sm btn-primary" href="/review/{{ session.id }}">{{ 'Open Review' if not review else 'View Review' }}</a></td>
+        <th data-dt-col-field="session" data-dt-col-render="code">Session</th>
+        <th data-dt-col-field="turns" data-dt-col-class="td-center" data-dt-col-width="60px">Turns</th>
+        <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
+        <th data-dt-col-field="review_badge" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Review</th>
+        <th data-dt-col-field="training" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Training</th>
+        <th data-dt-col-field="action" data-dt-col-render="rawHtml" data-dt-col-orderable="false" data-dt-col-width="120px"></th>
       </tr>
-    {% else %}
-      <tr><td colspan="6"><div class="empty-state">End a session to review it here.</div></td></tr>
-    {% endfor %}
-    </tbody>
+    </thead>
+    <tbody></tbody>
   </table>
 </div>
 
 <details class="collapsible">
   <summary>Recent training activity</summary>
   <div class="table-wrap">
-    <table>
-      <thead><tr><th>Job</th><th>Session</th><th>Status</th><th>Progress</th><th>Model</th></tr></thead>
-      <tbody>
-      {% for job in jobs %}
+    <table data-dt-url="/training-jobs/data" data-dt-order="0,desc">
+      <thead>
         <tr>
-          <td><a href="/training-jobs/{{ job.id }}">#{{ job.id }}</a></td>
-          <td>{{ (job.input_json or {}).get('session_id', '—') }}</td>
-          <td>
-            <span class="badge {% if job.status == 'completed' %}badge-approved{% elif job.status == 'failed' %}badge-error{% elif job.status == 'running' %}badge-running{% else %}badge-pending{% endif %}">
-              {{ job.status }}
-            </span>
-          </td>
-          <td>{{ job.progress_current }}/{{ job.progress_total }}</td>
-          <td><code>{{ (job.output_json or {}).get('version_name', '—') }}</code></td>
+          <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">Job</th>
+          <th data-dt-col-field="input_session_id" data-dt-col-render="code">Session</th>
+          <th data-dt-col-field="status" data-dt-col-render="statusProgress">Status</th>
+          <th data-dt-col-field="status" data-dt-col-render="jobOutput" data-dt-col-orderable="false">Output</th>
         </tr>
-      {% endfor %}
-      </tbody>
+      </thead>
+      <tbody></tbody>
     </table>
   </div>
 </details>

@@ -26,7 +26,7 @@
       </button>
     </form>
   </div>
-  <table>
+  <table class="dt-table">
     <thead>
       <tr><th>Version</th><th>Training Source</th><th>Quality Check</th><th>Release Status</th><th>Action</th></tr>
     </thead>
@@ -110,29 +110,20 @@
 <details class="collapsible">
   <summary>Release history and technical audit</summary>
   <div class="table-wrap">
-  <table>
-    <thead><tr><th>#</th><th>Model</th><th>Environment</th><th>Status</th><th>Action</th><th>Actor</th><th>Rollback Target</th><th>Time</th></tr></thead>
-    <tbody>
-    {% for deployment in deployments %}
-      {% set dmeta = deployment.metadata_json or {} %}
+  <table data-dt-url="/model-registry/deployments/data" data-dt-order="0,desc">
+    <thead>
       <tr>
-        <td>{{ deployment.id }}</td>
-        <td><code>#{{ deployment.model_version_id }}</code></td>
-        <td>{{ deployment.environment }}</td>
-        <td>
-          <span class="badge {% if deployment.status == 'active' %}badge-approved{% elif deployment.status == 'rolled_back' %}badge-pending{% elif deployment.status == 'superseded' %}badge-closed{% else %}badge-info{% endif %}">
-            {{ deployment.status }}
-          </span>
-        </td>
-        <td>{{ dmeta.get('action', 'deploy') }}</td>
-        <td>{{ dmeta.get('actor') or '—' }}</td>
-        <td>{{ deployment.rollback_model_version_id or '—' }}</td>
-        <td>{{ deployment.deployed_at.strftime('%m-%d %H:%M') if deployment.deployed_at else '—' }}</td>
+        <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">#</th>
+        <th data-dt-col-field="model_version_id" data-dt-col-render="code">Model</th>
+        <th data-dt-col-field="environment">Environment</th>
+        <th data-dt-col-field="status_badge" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Status</th>
+        <th data-dt-col-field="action">Action</th>
+        <th data-dt-col-field="actor">Actor</th>
+        <th data-dt-col-field="rollback_target" data-dt-col-render="code">Rollback Target</th>
+        <th data-dt-col-field="deployed_at" data-dt-col-render="datetime">Time</th>
       </tr>
-    {% else %}
-      <tr><td colspan="8"><div class="empty-state">No deployments yet.</div></td></tr>
-    {% endfor %}
-    </tbody>
+    </thead>
+    <tbody></tbody>
   </table>
   </div>
 </details>
