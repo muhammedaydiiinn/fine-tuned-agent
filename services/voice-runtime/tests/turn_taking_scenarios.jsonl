@@ -1,0 +1,42 @@
+{"id":"backchannel_01","kind":"backchannel","transcript":"mhm","expect_interrupt":false}
+{"id":"backchannel_02","kind":"backchannel","transcript":"Mhm.","expect_interrupt":false}
+{"id":"backchannel_03","kind":"backchannel","transcript":"hm","expect_interrupt":false}
+{"id":"backchannel_04","kind":"backchannel","transcript":"Hm.","expect_interrupt":false}
+{"id":"backchannel_05","kind":"backchannel","transcript":"ja","expect_interrupt":false}
+{"id":"backchannel_06","kind":"backchannel","transcript":"Ja.","expect_interrupt":false}
+{"id":"backchannel_07","kind":"backchannel","transcript":"okay","expect_interrupt":false}
+{"id":"backchannel_08","kind":"backchannel","transcript":"Okay.","expect_interrupt":false}
+{"id":"backchannel_09","kind":"backchannel","transcript":"ok","expect_interrupt":false}
+{"id":"backchannel_10","kind":"backchannel","transcript":"OK.","expect_interrupt":false}
+{"id":"backchannel_11","kind":"backchannel","transcript":"alles klar","expect_interrupt":false}
+{"id":"backchannel_12","kind":"backchannel","transcript":"Alles klar.","expect_interrupt":false}
+{"id":"backchannel_13","kind":"backchannel","transcript":"verstehe","expect_interrupt":false}
+{"id":"backchannel_14","kind":"backchannel","transcript":"Verstehe.","expect_interrupt":false}
+{"id":"backchannel_15","kind":"backchannel","transcript":"genau","expect_interrupt":false}
+{"id":"backchannel_16","kind":"backchannel","transcript":"Genau.","expect_interrupt":false}
+{"id":"backchannel_17","kind":"backchannel","transcript":"aha","expect_interrupt":false}
+{"id":"backchannel_18","kind":"backchannel","transcript":"Aha.","expect_interrupt":false}
+{"id":"backchannel_19","kind":"backchannel","transcript":"  okay  ","expect_interrupt":false}
+{"id":"backchannel_20","kind":"backchannel","transcript":"ALLES KLAR","expect_interrupt":false}
+{"id":"interrupt_01","kind":"interruption","transcript":"Moment, was kostet das genau?","expect_interrupt":true}
+{"id":"interrupt_02","kind":"interruption","transcript":"Nein, bitte rufen Sie mich nicht mehr an.","expect_interrupt":true}
+{"id":"interrupt_03","kind":"interruption","transcript":"Das stimmt nicht, ich bin nicht der Vertragsinhaber.","expect_interrupt":true}
+{"id":"interrupt_04","kind":"interruption","transcript":"Warten Sie bitte kurz.","expect_interrupt":true}
+{"id":"interrupt_05","kind":"interruption","transcript":"Ich möchte das nicht.","expect_interrupt":true}
+{"id":"interrupt_06","kind":"interruption","transcript":"Bitte stoppen Sie.","expect_interrupt":true}
+{"id":"interrupt_07","kind":"interruption","transcript":"Wie lange läuft der Vertrag?","expect_interrupt":true}
+{"id":"interrupt_08","kind":"interruption","transcript":"Was passiert nach den vierzehn Tagen?","expect_interrupt":true}
+{"id":"interrupt_09","kind":"interruption","transcript":"Ich habe dazu noch eine Frage.","expect_interrupt":true}
+{"id":"interrupt_10","kind":"interruption","transcript":"Nein danke, ich habe kein Interesse.","expect_interrupt":true}
+{"id":"interrupt_11","kind":"interruption","transcript":"Ja, aber was kostet das?","expect_interrupt":true}
+{"id":"interrupt_12","kind":"interruption","transcript":"Okay, ich möchte kündigen.","expect_interrupt":true}
+{"id":"interrupt_13","kind":"interruption","transcript":"Aha, das wurde mir anders erklärt.","expect_interrupt":true}
+{"id":"interrupt_14","kind":"interruption","transcript":"Genau das ist mein Problem.","expect_interrupt":true}
+{"id":"interrupt_15","kind":"interruption","transcript":"Verstehe, aber ich lehne ab.","expect_interrupt":true}
+{"id":"interrupt_16","kind":"interruption","transcript":"Alles klar, senden Sie mir nichts zu.","expect_interrupt":true}
+{"id":"interrupt_17","kind":"interruption","transcript":"Ich bin gerade beschäftigt.","expect_interrupt":true}
+{"id":"interrupt_18","kind":"interruption","transcript":"Können Sie das bitte wiederholen?","expect_interrupt":true}
+{"id":"interrupt_19","kind":"interruption","transcript":"Das ist mir zu teuer.","expect_interrupt":true}
+{"id":"interrupt_20","kind":"interruption","transcript":"Beenden Sie das Gespräch bitte.","expect_interrupt":true}
+{"id":"duplicate_reconnect","kind":"duplicate","transcript":"Was kostet das nach der Testphase?","repeat_after_ms":500,"expect_second_turn":false}
+{"id":"repeat_after_window","kind":"duplicate","transcript":"Können Sie das wiederholen?","repeat_after_ms":3000,"expect_second_turn":true}

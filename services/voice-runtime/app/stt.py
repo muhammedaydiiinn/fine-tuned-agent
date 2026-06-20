@@ -61,6 +61,7 @@ class FasterWhisperSTT:
                     self.settings.whisper_model_path,
                     device=self.settings.whisper_device,
                     compute_type=self.settings.whisper_compute_type,
+                    local_files_only=True,
                 )
         return self._model
 

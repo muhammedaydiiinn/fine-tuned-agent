@@ -16,6 +16,8 @@ settings = get_settings()
 logging.getLogger().setLevel(
     getattr(logging, settings.log_level.upper(), logging.INFO)
 )
+logging.getLogger("faster_whisper").setLevel(logging.WARNING)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 # Validate required config before accepting any LiveKit jobs.

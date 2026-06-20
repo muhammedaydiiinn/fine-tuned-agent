@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from unittest import TestCase
 
 from app.turn_taking import BackchannelClassifier, TranscriptDeduplicator
@@ -34,3 +36,35 @@ class TranscriptDeduplicatorTests(TestCase):
 
         self.assertFalse(deduplicator.is_duplicate("Nein danke", now=10.0))
         self.assertFalse(deduplicator.is_duplicate("Nein danke", now=13.0))
+
+
+class TurnTakingScenarioCatalogTests(TestCase):
+    def test_backchannel_catalog_matches_expected_interruptions(self):
+        classifier = BackchannelClassifier()
+        catalog = Path(__file__).with_name("turn_taking_scenarios.jsonl")
+        rows = [
+            json.loads(line)
+            for line in catalog.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        classified = [
+            row
+            for row in rows
+            if row["kind"] in {"backchannel", "interruption"}
+        ]
+
+        self.assertEqual(
+            len([row for row in classified if row["kind"] == "backchannel"]),
+            20,
+        )
+        self.assertEqual(
+            len([row for row in classified if row["kind"] == "interruption"]),
+            20,
+        )
+        for row in classified:
+            with self.subTest(scenario=row["id"]):
+                decision = classifier.classify(row["transcript"])
+                self.assertEqual(
+                    not decision.is_backchannel,
+                    row["expect_interrupt"],
+                )
