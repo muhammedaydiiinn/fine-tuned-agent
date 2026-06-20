@@ -20,6 +20,7 @@
   <div class="page-header-right">
     {% if session.status == 'active' %}
     <form id="end-session-form" action="/sessions/{{ session.id }}/close" method="post">
+      <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <button class="btn btn-primary" type="submit">
         <i class="fa-solid fa-stop"></i> End Session & Review
       </button>

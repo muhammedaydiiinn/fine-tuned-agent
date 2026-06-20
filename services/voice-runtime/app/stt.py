@@ -27,12 +27,22 @@ class FasterWhisperSTT:
 
     async def transcribe(self, pcm: bytes, sample_rate: int = 16000) -> Transcript:
         started = time.perf_counter()
-        model = await self._get_model()
+        try:
+            model = await self._get_model()
+        except Exception:
+            logger.exception("Failed to load Whisper model")
+            raise
+
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
         if sample_rate != 16000:
             raise ValueError("FasterWhisperSTT expects 16 kHz mono PCM")
 
-        text = await asyncio.to_thread(self._transcribe_sync, model, audio)
+        try:
+            text = await asyncio.to_thread(self._transcribe_sync, model, audio)
+        except Exception:
+            logger.exception("Whisper transcription failed — pcm_bytes=%d", len(pcm))
+            raise
+
         return Transcript(
             text=text,
             stt_ms=(time.perf_counter() - started) * 1000,

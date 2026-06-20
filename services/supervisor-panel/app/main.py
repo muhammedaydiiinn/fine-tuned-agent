@@ -3,13 +3,15 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
-from app.auth import PUBLIC_PATHS, is_authenticated
+from app.auth import PUBLIC_PATHS, derive_csrf_token, is_authenticated
 from app.config import settings
 from app.routes import auth, corrections, evals, registry, review, sessions, training, turns
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Anrufblocker Supervisor Panel", version="1.0.0")
@@ -32,6 +34,8 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     if not is_authenticated(request):
         return RedirectResponse(url="/login", status_code=302)
+    # Make CSRF token available on request.state for templates and dependencies.
+    request.state.csrf_token = derive_csrf_token(request)
     return await call_next(request)
 
 

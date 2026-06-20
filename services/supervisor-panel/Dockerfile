@@ -9,15 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# HTMX'i CDN olmadan çalışabilmesi için build sırasında indir
-RUN mkdir -p app/static && \
-    curl -sL "https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" -o app/static/htmx.min.js
-
-# LiveKit browser client is vendored so the supervisor test flow has no runtime CDN dependency.
-RUN curl --fail --silent --show-error --location \
-    "https://cdn.jsdelivr.net/npm/livekit-client@2.15.6/dist/livekit-client.umd.min.js" \
-    -o app/static/livekit-client.umd.min.js
-
+# Static assets (htmx, livekit-client) are vendored in app/static/ so the build
+# has no runtime CDN dependency. If the files are missing, run:
+#   curl -sL "https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" \
+#        -o services/supervisor-panel/app/static/htmx.min.js
+#   curl -sL "https://cdn.jsdelivr.net/npm/livekit-client@2.15.6/dist/livekit-client.umd.min.js" \
+#        -o services/supervisor-panel/app/static/livekit-client.umd.min.js
 COPY app/ ./app/
 
 EXPOSE 8020

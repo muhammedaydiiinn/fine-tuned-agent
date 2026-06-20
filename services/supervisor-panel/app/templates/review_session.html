@@ -34,6 +34,7 @@
     <h2>Conversation feedback</h2>
     <p class="text-muted">This summary controls which reviewed turns become the next training batch.</p>
     <form action="/review/{{ session.id }}" method="post">
+      <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <div class="rating-options">
         <label><input type="radio" name="rating" value="good" required {% if review and review.rating == 'good' %}checked{% endif %}><span>Good</span></label>
         <label><input type="radio" name="rating" value="mixed" {% if review and review.rating == 'mixed' %}checked{% endif %}><span>Mixed</span></label>

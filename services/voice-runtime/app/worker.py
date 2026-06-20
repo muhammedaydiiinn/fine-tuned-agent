@@ -14,6 +14,11 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Validate required config before accepting any LiveKit jobs.
+# Raises RuntimeError with a clear message if something is missing.
+settings.validate_runtime()
+
 server = AgentServer(
     # The M7 target is one browser session on one GPU. More warm processes would
     # add idle overhead and can create competing Whisper model allocations.
@@ -48,6 +53,11 @@ async def anrufblocker_voice(ctx: agents.JobContext):
         if "disconnected" not in str(exc).lower():
             raise
         logger.info("Voice room disconnected — session=%s", session_id)
+    except Exception:
+        # Catch-all: log with full traceback so the failure is visible in logs
+        # rather than silently disappearing. The job process exits normally
+        # and the AgentServer starts a new idle process.
+        logger.exception("Unhandled error in voice pipeline — session=%s", session_id)
 
 
 if __name__ == "__main__":

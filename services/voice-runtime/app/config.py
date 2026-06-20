@@ -1,6 +1,9 @@
+import logging
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -16,6 +19,10 @@ class Settings(BaseSettings):
 
     agent_backend_url: str = "http://agent-backend:8010"
     api_key: str = ""
+
+    # Backend HTTP timeouts (seconds) — configurable for high-latency environments
+    backend_timeout_seconds: float = 120.0
+    backend_connect_timeout_seconds: float = 15.0
 
     whisper_model_path: str = "/models/whisper/whisper-large-v3-turbo-german"
     whisper_device: str = "cuda"
@@ -36,6 +43,35 @@ class Settings(BaseSettings):
     fish_tts_url: str = "https://api.fish.audio/v1/tts"
     tts_sample_rate: int = 24000
     tts_request_timeout_seconds: float = 45.0
+
+    def validate_runtime(self) -> None:
+        """Fail fast at startup if required runtime configuration is missing.
+
+        Raises RuntimeError with a clear message so the container exits immediately
+        rather than dying mid-session on the first real request.
+        """
+        errors: list[str] = []
+
+        if self.tts_mode == "fish":
+            if not self.fish_api_key:
+                errors.append("FISH_API_KEY is required when TTS_MODE=fish")
+            if not self.fish_tts_reference_id:
+                errors.append("FISH_TTS_REFERENCE_ID is required when TTS_MODE=fish")
+
+        if errors:
+            for msg in errors:
+                logger.error("Config validation failed: %s", msg)
+            raise RuntimeError(
+                "Voice-runtime configuration is incomplete:\n"
+                + "\n".join(f"  • {e}" for e in errors)
+            )
+
+        logger.info(
+            "Config validated — tts_mode=%s whisper_device=%s env=%s",
+            self.tts_mode,
+            self.whisper_device,
+            self.environment,
+        )
 
 
 @lru_cache

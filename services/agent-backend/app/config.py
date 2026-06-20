@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     api_key: str = ""
     eval_internal_token: str = ""
 
+    # CORS — comma-separated list of allowed origins.
+    # Leave empty to allow all origins (local dev only; not suitable for prod).
+    # Example: "https://panel.example.com,http://localhost:8020"
+    cors_origins: str = ""
+
     @property
     def database_url(self) -> str:
         return (

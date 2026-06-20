@@ -4,12 +4,38 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.config import settings
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
 
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
 from app.core import model_runtime
+
+
+def _safe_path(raw: str) -> Path:
+    """Resolve *raw* and ensure it falls within the configured data directory.
+
+    Raises HTTPException 400 if the resolved path escapes the data root, guarding
+    against path-traversal attacks if the DB value is ever manipulated.
+    """
+    data_root = Path(settings.data_dir).resolve()
+    resolved = Path(raw).resolve()
+    try:
+        resolved.relative_to(data_root)
+    except ValueError:
+        logger.warning(
+            "Path traversal attempt blocked: raw=%r resolved=%s data_root=%s",
+            raw,
+            resolved,
+            data_root,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Requested file path is outside the allowed data directory",
+        )
+    return resolved
 from app.schemas import CreateEvalRunRequest, EvalRunResponse
 from app.workers.queue import enqueue_eval_job
 
@@ -146,9 +172,11 @@ def get_eval_run_logs(
     logs = ""
     if run.logs_path:
         try:
-            path = Path(run.logs_path)
+            path = _safe_path(run.logs_path)
             if path.exists():
                 logs = "\n".join(path.read_text(encoding="utf-8").splitlines()[-tail:])
+        except HTTPException:
+            raise
         except OSError as exc:
             logger.warning("Could not read eval log %s: %s", run.logs_path, exc)
             logs = f"[log read error: {exc}]"
@@ -165,10 +193,12 @@ def get_eval_run_results(eval_run_id: int, db: DBSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Eval results are not available")
 
     try:
-        path = Path(run.results_path)
+        path = _safe_path(run.results_path)
         if not path.exists():
             raise HTTPException(status_code=404, detail="Eval results file not found")
         payload = json.loads(path.read_text(encoding="utf-8"))
+    except HTTPException:
+        raise
     except json.JSONDecodeError as exc:
         logger.error("Invalid eval results JSON for run id=%d: %s", eval_run_id, exc)
         raise HTTPException(status_code=500, detail="Eval results file is invalid") from exc
