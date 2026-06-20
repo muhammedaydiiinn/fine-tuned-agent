@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from app.schemas import VoiceEventRequest
+from app.schemas import VoiceEventRequest, VoiceTurnMetricsRequest
 
 
 class VoiceEventContractTests(TestCase):
@@ -25,3 +25,17 @@ class VoiceEventContractTests(TestCase):
                 sequence=-1,
                 event_type="voice_error",
             )
+
+    def test_speech_end_metric_is_backward_compatible(self):
+        metrics = VoiceTurnMetricsRequest(
+            session_id="voice-test-123",
+            stt_ms=500,
+            backend_ms=100,
+            llm_ms=80,
+            tts_first_audio_ms=200,
+            total_voice_turn_ms=1500,
+            transcript_final="Hallo",
+            heard_response="Guten Tag",
+        )
+
+        self.assertIsNone(metrics.speech_end_to_first_audio_ms)

@@ -71,7 +71,8 @@
       <div><span>Backend</span><strong data-voice-metric="backend_ms">—</strong></div>
       <div><span>LLM</span><strong data-voice-metric="llm_ms">—</strong></div>
       <div><span>TTS First Audio</span><strong data-voice-metric="tts_first_audio_ms">—</strong></div>
-      <div><span>End → First Audio</span><strong data-voice-metric="total_voice_turn_ms">—</strong></div>
+      <div><span>End → First Audio</span><strong data-voice-metric="speech_end_to_first_audio_ms">—</strong></div>
+      <div><span>Total Turn</span><strong data-voice-metric="total_voice_turn_ms">—</strong></div>
     </div>
   </div>
 
@@ -115,6 +116,6 @@
 {% block scripts %}
 {% if session.status == 'active' %}
 <script src="/static/livekit-client.umd.min.js"></script>
-<script src="/static/voice-session.js?v=2"></script>
+<script src="/static/voice-session.js?v=3"></script>
 {% endif %}
 {% endblock %}

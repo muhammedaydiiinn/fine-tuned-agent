@@ -122,15 +122,26 @@ def save_voice_turn_metrics(
             detail="Heard response does not match the persisted turn",
         )
 
+    speech_end_to_first_audio_ms = (
+        req.speech_end_to_first_audio_ms
+        if req.speech_end_to_first_audio_ms is not None
+        else req.stt_ms + req.backend_ms + req.tts_first_audio_ms
+    )
     voice_latency = {
         "stt_ms": req.stt_ms,
         "backend_ms": req.backend_ms,
         "llm_ms": req.llm_ms,
         "tts_first_audio_ms": req.tts_first_audio_ms,
+        "speech_end_to_first_audio_ms": speech_end_to_first_audio_ms,
         "total_voice_turn_ms": req.total_voice_turn_ms,
     }
     turn.latency_json = {**(turn.latency_json or {}), **voice_latency}
-    metric_names = {"stt_ms", "tts_first_audio_ms", "total_voice_turn_ms"}
+    metric_names = {
+        "stt_ms",
+        "tts_first_audio_ms",
+        "speech_end_to_first_audio_ms",
+        "total_voice_turn_ms",
+    }
     (
         db.query(LatencyMetric)
         .filter(

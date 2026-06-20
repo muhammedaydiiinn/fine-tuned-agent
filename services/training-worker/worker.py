@@ -14,7 +14,12 @@ from db import get_db
 from jobs import artifacts, build_dataset, merge_model, train_lora
 from models import EvalRun, ModelVersion, TrainingJob
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s — %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("redis").setLevel(logging.WARNING)
 logger = logging.getLogger("training-worker")
 
 QUEUE_NAME = "anruf:training_jobs"

@@ -103,6 +103,7 @@ class VoiceTurnMetricsRequest(BaseModel):
     backend_ms: float = Field(..., ge=0)
     llm_ms: float = Field(..., ge=0)
     tts_first_audio_ms: float = Field(..., ge=0)
+    speech_end_to_first_audio_ms: float | None = Field(default=None, ge=0)
     total_voice_turn_ms: float = Field(..., ge=0)
     transcript_final: str = Field(..., min_length=1)
     heard_response: str = Field(..., min_length=1)

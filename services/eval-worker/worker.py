@@ -12,7 +12,12 @@ from db import get_db
 from evals import gate, run_eval
 from models import EvalRun, ModelVersion
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s — %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("redis").setLevel(logging.WARNING)
 logger = logging.getLogger("eval-worker")
 
 QUEUE_NAME = "anruf:eval_jobs"

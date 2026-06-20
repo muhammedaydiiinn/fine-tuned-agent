@@ -27,3 +27,4 @@ class AccessNoiseFilter(logging.Filter):
 
 def configure_access_logging() -> None:
     logging.getLogger("uvicorn.access").addFilter(AccessNoiseFilter())
+    logging.getLogger("httpx").setLevel(logging.WARNING)
