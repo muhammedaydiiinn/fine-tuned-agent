@@ -44,3 +44,13 @@ class UtteranceSegmenterTests(TestCase):
 
         self.assertIsNone(segmenter.push(pcm(1000, 250)))
         self.assertIsNotNone(segmenter.push(pcm(1000, 250)))
+
+    def test_speech_started_is_emitted_once_per_utterance(self):
+        segmenter = UtteranceSegmenter(
+            SegmentationConfig(rms_threshold=300, preroll_ms=0)
+        )
+
+        segmenter.push(pcm(1000, 100))
+        self.assertTrue(segmenter.consume_speech_started())
+        self.assertFalse(segmenter.consume_speech_started())
+        self.assertTrue(segmenter.speech_active)

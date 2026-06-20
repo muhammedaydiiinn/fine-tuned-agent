@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.csrf import require_csrf
 from app.db import get_db
-from app.models import Session as SessionModel, Turn
+from app.models import Session as SessionModel, Turn, VoiceEvent
 from app.config import settings
 
 router = APIRouter()
@@ -283,6 +283,37 @@ def session_live_summary(
     return templates.TemplateResponse(
         "_session_summary.html",
         {"request": request, "session": session, "turn_count": turn_count},
+    )
+
+
+@router.get("/sessions/{session_id}/voice-events", response_class=HTMLResponse)
+def session_voice_events(
+    session_id: int,
+    request: Request,
+    db: DBSession = Depends(get_db),
+):
+    events = (
+        db.query(VoiceEvent)
+        .filter(VoiceEvent.session_id == session_id)
+        .order_by(VoiceEvent.sequence.desc(), VoiceEvent.id.desc())
+        .limit(12)
+        .all()
+    )
+    labels = {
+        "voice_session_ready": "Voice runtime ready",
+        "transcript_final": "Transcript final",
+        "agent_response": "Agent response ready",
+        "interruption_detected": "Customer interrupted",
+        "playback_cancelled": "Playback cancelled",
+        "backchannel_detected": "Backchannel detected",
+        "duplicate_transcript_ignored": "Duplicate ignored",
+        "stale_response_discarded": "Stale response discarded",
+        "voice_turn_complete": "Turn completed",
+        "voice_error": "Voice error",
+    }
+    return templates.TemplateResponse(
+        "_voice_events.html",
+        {"request": request, "events": events, "labels": labels},
     )
 
 

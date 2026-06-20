@@ -202,7 +202,7 @@ Kalan kabul kapısı:
 
 ## M8 — Realtime turn-taking ve interruption
 
-**Durum:** Bekliyor.
+**Durum:** Koşullu tamam.
 
 Kapsam:
 
@@ -221,6 +221,32 @@ Kabul kriteri:
 - Backchannel test seti kabul edilen false-interrupt eşiğini aşmaz.
 - Interruption, cancellation ve resumed turn event'leri panel/audit log'da
   görünür.
+
+Doğrulanan:
+
+- Overlap sırasında utterance düşürmek yerine sınırlı bir input queue kullanılıyor.
+- Sürekli müşteri konuşması agent playback'ini iptal ediyor ve yeni turn aynı
+  backend session state'i ile işleniyor.
+- Kısa Almanca backchannel seti gerçek interruption'dan ayrı sınıflanıyor.
+- Duplicate final transcript ve generation tabanlı stale response koruması
+  eklendi.
+- `speech_started`, `speech_ended`, `interruption_detected`,
+  `playback_cancelled`, `backchannel_detected`, `turn_cancelled` ve
+  `stale_response_discarded` event sözleşmeleri browser'a yayınlanıyor.
+- Kritik voice event'leri idempotent event ID ile `voice_events` tablosuna
+  yazılıyor ve Supervisor Panel timeline'ında izleniyor.
+- Panel microphone seviyesi, listening/hearing/processing/speaking/interrupted
+  durumlarını ayrı animasyon ve metinlerle gösteriyor.
+- Backchannel, duplicate ve segmenter test setleri repoda tutuluyor.
+
+Kalan kabul kapısı:
+
+- Gerçek browser/Fish Audio akışında interruption-to-cancel latency ölçülmeli.
+- En az 20 backchannel ve 20 gerçek interruption örneğiyle false-interrupt oranı
+  doğrulanmalı.
+- Streaming partial transcript hipotezleri mevcut Faster Whisper batch
+  segmenter'ına güvenli biçimde eklenmeli; şu anda speech boundary ve final
+  transcript event'leri vardır.
 
 ## M9 — Canlı supervisor control ve anlık düzeltme
 

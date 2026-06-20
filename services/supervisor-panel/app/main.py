@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.auth import PUBLIC_PATHS, derive_csrf_token, is_authenticated
 from app.config import settings
+from app.logging_config import configure_access_logging
 from app.routes import auth, corrections, evals, registry, review, sessions, training, turns
 
 logging.basicConfig(
@@ -13,6 +14,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+configure_access_logging()
 
 app = FastAPI(title="CallShield Supervisor Panel", version="1.0.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

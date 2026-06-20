@@ -9,9 +9,12 @@ from app.config import get_settings
 from app.pipeline import VoicePipeline
 
 settings = get_settings()
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+# LiveKit Agents installs a structured handler with job/room context. Adding a
+# second root handler here makes every app and SDK event appear two or three
+# times, especially in spawned job processes. Set only the level and let the
+# runtime own the handler.
+logging.getLogger().setLevel(
+    getattr(logging, settings.log_level.upper(), logging.INFO)
 )
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,10 @@ server = AgentServer(
     # The M7 target is one browser session on one GPU. More warm processes would
     # add idle overhead and can create competing Whisper model allocations.
     num_idle_processes=1,
+    # Faster Whisper CPU mode settles around 1.3–1.5 GB in current acceptance
+    # runs. Keep the warning above normal model residency so it signals growth.
+    job_memory_warn_mb=settings.job_memory_warn_mb,
+    shutdown_process_timeout=5.0,
 )
 
 

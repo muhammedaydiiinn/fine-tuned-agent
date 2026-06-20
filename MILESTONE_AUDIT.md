@@ -155,3 +155,26 @@ Limitation:
   `services/voice-runtime/LIVE_ACCEPTANCE.md`.
 
 The canonical scope and remaining milestones are defined in `MILESTONES.md`.
+
+## Milestone 8 — Realtime Turn-taking and Interruption
+
+Status: conditionally complete for the local/mock implementation.
+
+Implemented and verified:
+
+- Bounded utterance queue replaces the previous overlap-drop behavior.
+- Sustained customer speech cancels active agent playback.
+- Conservative German backchannel classification avoids treating short
+  acknowledgements as new agent turns.
+- Duplicate final transcript and stale response guards.
+- Durable, idempotent `voice_events` audit records and a live panel timeline.
+- Listening, hearing, processing, speaking and interrupted UI states with a
+  real microphone level meter.
+- Deterministic backchannel/interruption/reconnect test scenarios.
+
+Remaining live acceptance:
+
+- Browser/Fish Audio interruption latency and false-interrupt thresholds need
+  a real voice run.
+- Text partial hypotheses are not emitted yet; the runtime currently emits
+  speech-boundary and final-transcript events.

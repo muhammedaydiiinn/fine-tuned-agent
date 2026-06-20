@@ -62,6 +62,21 @@ class Turn(Base):
     corrections: Mapped[list["Correction"]] = relationship("Correction", back_populates="turn")
 
 
+class VoiceEvent(Base):
+    __tablename__ = "voice_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    turn_id: Mapped[int | None] = mapped_column(ForeignKey("turns.id"), index=True)
+    event_id: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    payload_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Correction(Base):
     __tablename__ = "corrections"
 
