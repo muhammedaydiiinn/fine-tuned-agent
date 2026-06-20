@@ -105,11 +105,6 @@ def review_queue_data(db: DBSession = Depends(get_db)):
         else:
             training = "—"
 
-        has_review = review is not None
-        btn_cls = "btn-outline" if has_review else "btn-primary"
-        label = "View Review" if has_review else "Open Review"
-        action = f'<a class="btn btn-sm {btn_cls}" href="/review/{s.id}">{label}</a>'
-
         rows.append({
             "id": s.id,
             "session": s.external_session_id or f"#{s.id}",
@@ -117,7 +112,7 @@ def review_queue_data(db: DBSession = Depends(get_db)):
             "status": s.status,
             "review_badge": review_badge,
             "training": training,
-            "action": action,
+            "action": s.id,
         })
     return {"data": rows}
 
