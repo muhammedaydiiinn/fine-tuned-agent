@@ -92,6 +92,7 @@ def run(
     *,
     eval_run_id: int | None = None,
     api_key: str = "",
+    eval_internal_token: str = "",
     timeout_seconds: float = 45.0,
     model_version_header: int | None = None,
 ) -> dict[str, Any]:
@@ -104,6 +105,8 @@ def run(
     headers = {"X-API-Key": api_key} if api_key else {}
     if model_version_header is not None:
         headers["X-Eval-Model-Version-ID"] = str(model_version_header)
+        if eval_internal_token:
+            headers["X-Eval-Token"] = eval_internal_token
     endpoint = f"{agent_backend_url.rstrip('/')}/agent-turn"
 
     with httpx.Client(timeout=timeout_seconds, headers=headers) as client:

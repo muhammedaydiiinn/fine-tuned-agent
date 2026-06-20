@@ -106,25 +106,29 @@ def handle_eval(
             progress_cb=progress_cb,
             eval_run_id=eval_run_id,
             api_key=settings.api_key,
+            eval_internal_token=settings.eval_internal_token,
             timeout_seconds=settings.eval_request_timeout_seconds,
             model_version_header=model_version_id,
         )
         _write_results(results_path, report)
 
+        run_metadata = dict(run.metrics_json or {})
+        deployment_evidence = run_metadata.get("deployment_evidence")
+        if not isinstance(deployment_evidence, dict):
+            raise ValueError("Eval run is missing its deployment evidence snapshot")
+
         metrics = dict(report["metrics"])
         metrics["quality_score"] = report["quality_score"]
+        metrics["deployment_evidence"] = deployment_evidence
         deployment_gate = gate.evaluate(
             metrics,
             settings.deployment_gate_thresholds,
         )
-        serving = (
-            (model_version.metadata_json or {}).get("serving")
-            if isinstance((model_version.metadata_json or {}).get("serving"), dict)
-            else {}
-        )
+        serving = deployment_evidence.get("serving_target")
+        if not isinstance(serving, dict):
+            raise ValueError("Eval run deployment evidence has no serving target")
         deployment_gate["evidence_mode"] = str(
             serving.get("mode")
-            or (model_version.metadata_json or {}).get("training_mode")
             or "unknown"
         )
         deployment_gate["model_version_id"] = model_version_id

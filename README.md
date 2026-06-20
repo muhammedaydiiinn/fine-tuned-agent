@@ -135,6 +135,7 @@ POSTGRES_PASSWORD=<güçlü_şifre>
 VLLM_MODE=real
 MODEL_MERGED_PATH=/opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14
 API_KEY=<openssl rand -hex 32 çıktısı>
+EVAL_INTERNAL_TOKEN=<openssl rand -hex 32 çıktısı>
 JWT_SECRET=<openssl rand -hex 32 çıktısı>
 ADMIN_PASSWORD=<güçlü_şifre>
 ```
@@ -356,6 +357,7 @@ Tüm değişkenler `.env.example`'da açıklamalı olarak tanımlıdır.
 |----------|----------|--------|
 | `VLLM_MODE` | `mock` (local) veya `real` (GPU sunucu) | ✅ |
 | `API_KEY` | Boşsa kontrol atlanır; prod'da doldur | ✅ |
+| `EVAL_INTERNAL_TOKEN` | Candidate eval routing için servisler arası gizli token | ✅ |
 | `POSTGRES_PASSWORD` | Prod'da güçlü şifre kullan | ✅ |
 | `MODEL_MERGED_PATH` | LLM model klasörü — `models/merged/fine-tuned-agent-v14` | ✅ |
 | `WHISPER_MODEL_PATH` | Whisper STT klasörü — Milestone 7'de kullanılır | — |

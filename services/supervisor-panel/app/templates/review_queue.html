@@ -25,7 +25,11 @@
       <tr>
         <td><code>{{ session.external_session_id or session.id }}</code></td>
         <td>{{ turn_counts.get(session.id, 0) }}</td>
-        <td><span class="badge">{{ session.status }}</span></td>
+        <td>
+          <span class="badge {% if session.status == 'active' %}badge-active{% elif session.status == 'reviewed' %}badge-info{% else %}badge-closed{% endif %}">
+            {{ session.status }}
+          </span>
+        </td>
         <td>
           {% if review %}
             <span class="badge {% if review.rating == 'good' %}badge-approved{% elif review.rating == 'bad' %}badge-error{% else %}badge-pending{% endif %}">{{ review.rating }}</span>
@@ -59,7 +63,11 @@
         <tr>
           <td><a href="/training-jobs/{{ job.id }}">#{{ job.id }}</a></td>
           <td>{{ (job.input_json or {}).get('session_id', '—') }}</td>
-          <td><span class="badge">{{ job.status }}</span></td>
+          <td>
+            <span class="badge {% if job.status == 'completed' %}badge-approved{% elif job.status == 'failed' %}badge-error{% elif job.status == 'running' %}badge-running{% else %}badge-pending{% endif %}">
+              {{ job.status }}
+            </span>
+          </td>
           <td>{{ job.progress_current }}/{{ job.progress_total }}</td>
           <td><code>{{ (job.output_json or {}).get('version_name', '—') }}</code></td>
         </tr>

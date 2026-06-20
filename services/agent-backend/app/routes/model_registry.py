@@ -5,9 +5,10 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
-from app.core import model_runtime
+from app.core import deployment_policy, model_runtime
 from app.config import settings
 from app.db import get_db
 from app.models import Deployment, EvalRun, ModelVersion
@@ -53,6 +54,48 @@ def _latest_gate_run(db: DBSession, model_id: int) -> EvalRun | None:
     )
 
 
+def _assert_evidence_matches(
+    model: ModelVersion,
+    run: EvalRun,
+    artifact: dict,
+) -> None:
+    try:
+        deployment_policy.validate_deployment_evidence(
+            run.metrics_json,
+            artifact,
+            model_runtime.serving_target(model),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def _sync_model_deployment_state(db: DBSession, model: ModelVersion) -> None:
+    environments = sorted(
+        environment
+        for environment, in (
+            db.query(Deployment.environment)
+            .filter(
+                Deployment.model_version_id == model.id,
+                Deployment.status == "active",
+            )
+            .all()
+        )
+    )
+    model.deployment_status, metadata = deployment_policy.deployment_state(
+        environments,
+        _metadata(model),
+    )
+    model.metadata_json = metadata
+
+
+def _lock_environment(db: DBSession, environment: str) -> None:
+    """Serialize deploy/rollback transactions for one environment."""
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+        {"lock_key": f"model-deployment:{environment}"},
+    )
+
+
 def _assert_deployable(
     db: DBSession,
     model: ModelVersion,
@@ -81,6 +124,10 @@ def _assert_deployable(
             status_code=409,
             detail="Production deployment requires a real candidate-serving evaluation",
         )
+    artifact = model_runtime.inspect_artifact(model.merged_path)
+    if not artifact["valid"]:
+        raise HTTPException(status_code=422, detail=artifact["error"])
+    _assert_evidence_matches(model, run, artifact)
     return run
 
 
@@ -173,6 +220,19 @@ def configure_serving_target(
             status_code=409,
             detail="Serving target of an active model cannot be changed",
         )
+    running_eval = (
+        db.query(EvalRun)
+        .filter(
+            EvalRun.model_version_id == model.id,
+            EvalRun.status.in_(("pending", "running")),
+        )
+        .first()
+    )
+    if running_eval:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Serving target cannot change while evaluation run {running_eval.id} is active",
+        )
     artifact = model_runtime.inspect_artifact(model.merged_path)
     if not artifact["valid"]:
         raise HTTPException(status_code=422, detail=artifact["error"])
@@ -224,6 +284,7 @@ def approve_model(version_name: str, db: DBSession = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Deployment gate has not passed")
     if gate.get("policy_version") != CURRENT_EVAL_POLICY_VERSION:
         raise HTTPException(status_code=409, detail="Evaluation gate policy is obsolete")
+    _assert_evidence_matches(model, run, artifact)
     metadata = _metadata(model)
     metadata["artifact_manifest"] = artifact
     metadata["lifecycle_status"] = "approved"
@@ -247,9 +308,6 @@ def deploy_model(
 ):
     model = _model_or_404(db, version_name)
     gate_run = _assert_deployable(db, model, body.environment)
-    artifact = model_runtime.inspect_artifact(model.merged_path)
-    if not artifact["valid"]:
-        raise HTTPException(status_code=422, detail=artifact["error"])
     target = model_runtime.serving_target(model)
     smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
     health = model_runtime.check_serving_target(target, smoke_messages=smoke)
@@ -259,6 +317,7 @@ def deploy_model(
             detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
         )
 
+    _lock_environment(db, body.environment)
     current = (
         db.query(Deployment)
         .filter(
@@ -297,20 +356,18 @@ def deploy_model(
             "deployed_at": now.isoformat(),
         },
     )
+    affected_models = [model]
     if current:
         current.status = "superseded"
-        current.model_version.deployment_status = "inactive"
-        current_metadata = _metadata(current.model_version)
-        current_metadata["lifecycle_status"] = "retired"
-        current.model_version.metadata_json = current_metadata
+        affected_models.append(current.model_version)
 
-    model.deployment_status = f"active_{body.environment}"
     metadata = _metadata(model)
-    metadata["lifecycle_status"] = "deployed"
     metadata["deployed_at"] = now.isoformat()
-    metadata["deployment_environment"] = body.environment
     model.metadata_json = metadata
     db.add(deployment)
+    db.flush()
+    for affected_model in {item.id: item for item in affected_models}.values():
+        _sync_model_deployment_state(db, affected_model)
     db.commit()
     db.refresh(deployment)
     logger.info(
@@ -330,6 +387,7 @@ def deploy_model(
 def rollback(environment: str, body: RollbackRequest | None = None, db: DBSession = Depends(get_db)):
     if environment not in {"staging", "production"}:
         raise HTTPException(status_code=422, detail="Invalid deployment environment")
+    _lock_environment(db, environment)
     current = (
         db.query(Deployment)
         .filter(Deployment.environment == environment, Deployment.status == "active")
@@ -372,17 +430,16 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
         },
     )
     current.status = "rolled_back"
-    current.model_version.deployment_status = "inactive"
-    current_metadata = _metadata(current.model_version)
-    current_metadata["lifecycle_status"] = "retired"
-    current.model_version.metadata_json = current_metadata
-    target_model.deployment_status = f"active_{environment}"
     target_metadata = _metadata(target_model)
-    target_metadata["lifecycle_status"] = "deployed"
     target_metadata["deployed_at"] = now.isoformat()
-    target_metadata["deployment_environment"] = environment
     target_model.metadata_json = target_metadata
     db.add(rollback_deployment)
+    db.flush()
+    for affected_model in {
+        current.model_version.id: current.model_version,
+        target_model.id: target_model,
+    }.values():
+        _sync_model_deployment_state(db, affected_model)
     db.commit()
     db.refresh(rollback_deployment)
     logger.warning(

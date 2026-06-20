@@ -1,6 +1,7 @@
 """Evaluation run API."""
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,6 +29,19 @@ def create_eval_run(
     )
     if not model_version:
         raise HTTPException(status_code=404, detail="Model version not found")
+    existing_run = (
+        db.query(EvalRun)
+        .filter(
+            EvalRun.model_version_id == body.model_version_id,
+            EvalRun.status.in_(("pending", "running")),
+        )
+        .first()
+    )
+    if existing_run:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Evaluation run {existing_run.id} is already in progress for this model",
+        )
     artifact = model_runtime.inspect_artifact(model_version.merged_path)
     if not artifact["valid"]:
         raise HTTPException(
@@ -62,6 +76,14 @@ def create_eval_run(
     run = EvalRun(
         model_version_id=body.model_version_id,
         status="pending",
+        metrics_json={
+            "deployment_evidence": {
+                "artifact_sha256": artifact["sha256"],
+                "artifact_root": artifact["root"],
+                "serving_target": target,
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+            },
+        },
         progress_current=0,
         progress_total=15,
     )
@@ -75,6 +97,7 @@ def create_eval_run(
     except Exception as exc:
         run.status = "failed"
         run.error_message = f"Failed to enqueue eval job: {exc}"[:1000]
+        model_version.eval_status = "failed"
         db.commit()
         logger.exception("Failed to enqueue eval run id=%d", run.id)
         raise HTTPException(status_code=503, detail="Eval queue is unavailable") from exc
