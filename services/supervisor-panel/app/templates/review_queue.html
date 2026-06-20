@@ -17,7 +17,7 @@
 
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar"><span class="table-toolbar-title">Conversation Review Queue</span></div>
-  <table data-dt-url="/review/queue/data" data-dt-order="0,desc">
+  <table data-dt-url="/review/queue/data" data-dt-order="5,desc">
     <thead>
       <tr>
         <th data-dt-col-field="session" data-dt-col-render="code">Session</th>
@@ -25,6 +25,7 @@
         <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
         <th data-dt-col-field="review_badge" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Review</th>
         <th data-dt-col-field="training" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Training</th>
+        <th data-dt-col-field="updated_at" data-dt-col-render="datetime">Date</th>
         <th data-dt-col-field="action" data-dt-col-render="openBtn" data-dt-col-link-base="/review/" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
       </tr>
     </thead>
@@ -35,12 +36,13 @@
 <details class="collapsible">
   <summary>Recent training activity</summary>
   <div class="table-wrap">
-    <table data-dt-url="/training-jobs/data" data-dt-order="0,desc">
+    <table data-dt-url="/training-jobs/data" data-dt-order="3,desc">
       <thead>
         <tr>
           <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">Job</th>
           <th data-dt-col-field="input_session_id" data-dt-col-render="code">Session</th>
           <th data-dt-col-field="status" data-dt-col-render="statusProgress">Status</th>
+          <th data-dt-col-field="started_at" data-dt-col-render="datetime">Started</th>
           <th data-dt-col-field="status" data-dt-col-render="jobOutput" data-dt-col-orderable="false">Output</th>
         </tr>
       </thead>

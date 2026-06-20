@@ -23,9 +23,55 @@
         {% if turn.intent %}<span class="badge badge-intent">{{ turn.intent }}</span>{% endif %}
         {% if correction_counts.get(turn.id) %}<span class="badge badge-approved">{{ correction_counts.get(turn.id) }} feedback</span>{% endif %}
       </div>
-      <div class="chat-bubble chat-customer"><div class="bubble-label">Customer</div>{{ turn.customer_text }}</div>
-      <div class="chat-bubble chat-agent"><div class="bubble-label">Agent</div>{{ turn.agent_response or '—' }}</div>
-      <a class="btn btn-sm btn-outline" href="/sessions/{{ session.id }}/turns/{{ turn.id }}">Correct turn</a>
+      <div class="chat-bubble chat-customer"><div class="bubble-label">Müşteri</div>{{ turn.customer_text }}</div>
+      <div class="chat-bubble chat-agent"><div class="bubble-label">Temsilci</div>{{ turn.agent_response or '—' }}</div>
+
+      <details class="collapsible turn-inline-edit">
+        <summary>Yanıtı Düzenle</summary>
+        <div class="correction-panel" style="margin-top:12px;">
+          <div id="inline-result-{{ turn.id }}"></div>
+          <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
+                hx-target="#inline-result-{{ turn.id }}"
+                hx-swap="innerHTML">
+            <div class="form-group">
+              <label>Mevcut Yanıt</label>
+              <textarea class="readonly-area" readonly rows="3">{{ turn.agent_response or "" }}</textarea>
+            </div>
+            <div class="form-group">
+              <label>Düzeltilmiş Yanıt</label>
+              <textarea name="corrected_response" rows="4">{{ turn.agent_response or "" }}</textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Mevcut Eylem</label>
+                <input type="text" readonly value="{{ turn.next_action or '' }}" class="readonly-input">
+              </div>
+              <div class="form-group">
+                <label>Düzeltilmiş Eylem</label>
+                <input type="text" name="corrected_next_action" value="{{ turn.next_action or '' }}">
+              </div>
+            </div>
+            <div class="form-check-row">
+              <label class="checkbox-label">
+                <input type="checkbox" name="apply_immediately" value="true">
+                <span>Correction memory'ye kaydet</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="send_to_training" value="true">
+                <span>Training'e gönder</span>
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button type="submit" name="mark_good" value="1" class="btn btn-sm btn-success">
+                <i class="fa-solid fa-check" style="font-size:11px;"></i> Doğru
+              </button>
+              <button type="submit" class="btn btn-sm btn-primary">
+                <i class="fa-solid fa-floppy-disk" style="font-size:11px;"></i> Kaydet
+              </button>
+            </div>
+          </form>
+        </div>
+      </details>
     </article>
     {% endfor %}
   </div>

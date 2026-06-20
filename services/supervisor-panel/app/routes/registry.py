@@ -68,6 +68,111 @@ def registry(request: Request, db: DBSession = Depends(get_db)):
     )
 
 
+@router.get("/model-registry/models/data")
+def models_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source — trained models."""
+    models = (
+        db.query(ModelVersion)
+        .order_by(ModelVersion.created_at.desc())
+        .all()
+    )
+    latest_runs: dict[int, EvalRun] = {}
+    for run in db.query(EvalRun).order_by(EvalRun.created_at.desc()).all():
+        latest_runs.setdefault(run.model_version_id, run)
+
+    rows = []
+    for model in models:
+        metadata = model.metadata_json or {}
+        artifact = metadata.get("artifact_manifest", {})
+        serving = metadata.get("serving", {})
+        latest_eval = latest_runs.get(model.id)
+        gate = (latest_eval.metrics_json or {}).get("deployment_gate", {}) if latest_eval else {}
+        lifecycle = metadata.get("lifecycle_status", "candidate")
+
+        # Training source
+        dataset_version = html.escape(model.dataset_version or "baseline")
+        candidate_ids = metadata.get("dataset_manifest", {}).get("candidate_ids", [])
+        training_source = f'<code>{dataset_version}</code>'
+        if candidate_ids:
+            training_source += f'<div class="text-muted" style="font-size:11px;">{len(candidate_ids)} reviewed turn(s)</div>'
+
+        # Quality check
+        if model.eval_status == "passed":
+            badge_cls, badge_text = "badge-approved", "Passed"
+        elif model.eval_status == "failed":
+            badge_cls, badge_text = "badge-error", "Failed"
+        else:
+            badge_cls, badge_text = "badge-running", "Waiting"
+        quality_check = f'<span class="badge {badge_cls}">{badge_text}</span>'
+        if latest_eval and latest_eval.metrics_json:
+            score = int(round((latest_eval.metrics_json or {}).get("quality_score", 0) * 100))
+            quality_check += f'<div class="text-muted" style="font-size:11px;">Score {score}%</div>'
+
+        # Release status
+        release_status = f'<span class="badge badge-info">{html.escape(lifecycle)}</span>'
+
+        # Actions — conditional HTMX forms mirroring the Jinja template logic
+        vn = html.escape(model.version_name)
+        action_parts: list[str] = []
+        if model.eval_status in ("pending", "failed"):
+            action_parts.append(
+                f'<form hx-post="/model-registry/{model.id}/quality-check" hx-target="#registry-result" hx-swap="innerHTML">'
+                f'<button class="btn btn-outline btn-sm" type="submit">Run Quality Check</button></form>'
+            )
+        if (
+            model.eval_status == "passed"
+            and gate.get("passed")
+            and artifact.get("valid")
+            and lifecycle not in ("approved", "deployed")
+        ):
+            action_parts.append(
+                f'<form hx-post="/model-registry/{vn}/approve" hx-target="#registry-result" hx-swap="innerHTML">'
+                f'<button class="btn btn-outline btn-sm" type="submit">Approve Release</button></form>'
+            )
+        if lifecycle == "approved" and gate.get("evidence_mode") == "real":
+            action_parts.append(
+                f'<form hx-post="/model-registry/{vn}/deploy" hx-target="#registry-result" hx-swap="innerHTML">'
+                f'<input type="hidden" name="environment" value="production">'
+                f'<button class="btn btn-primary btn-sm" type="submit">Make Live</button></form>'
+            )
+        elif lifecycle == "approved":
+            action_parts.append('<span class="badge badge-pending">GPU verification required</span>')
+
+        # Technical details collapsible
+        artifact_status = "verified" if artifact and artifact.get("valid", True) else "unverified"
+        eval_link = f'<a href="/eval-jobs/{latest_eval.id}">Open quality report #{latest_eval.id}</a>' if latest_eval else ""
+        serving_base_url = html.escape(serving.get("base_url", ""))
+        serving_model_name = html.escape(serving.get("model_name", model.version_name))
+        serving_mode = html.escape(serving.get("mode", "—"))
+        serving_slot = html.escape(serving.get("slot", "—"))
+        technical = (
+            f'<details class="registry-serving-form"><summary>Technical details</summary>'
+            f'<div class="technical-summary">Artifact: {artifact_status}<br>'
+            f'Runtime: {serving_mode} / {serving_slot}<br>{eval_link}</div>'
+            f'<form hx-post="/model-registry/{vn}/verify" hx-target="#registry-result" hx-swap="innerHTML">'
+            f'<button class="btn btn-outline btn-sm" type="submit">Verify Artifact</button></form>'
+            f'<form hx-post="/model-registry/{vn}/serving-target" hx-target="#registry-result" hx-swap="innerHTML">'
+            f'<select name="mode"><option value="real">real</option><option value="mock">mock</option></select>'
+            f'<input type="text" name="base_url" placeholder="http://vllm-candidate:8000/v1" value="{serving_base_url}">'
+            f'<input type="text" name="model_name" required placeholder="served model name" value="{serving_model_name}">'
+            f'<select name="slot"><option value="green">green</option><option value="blue">blue</option><option value="mock">mock</option></select>'
+            f'<button class="btn btn-outline btn-sm" type="submit">Verify target</button></form>'
+            f'</details>'
+        )
+        actions = f'<div class="registry-actions">{"".join(action_parts)}</div>{technical}'
+
+        rows.append({
+            "version_name": model.version_name,
+            "training_source": training_source,
+            "quality_check": quality_check,
+            "release_status": release_status,
+            "created_at": model.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if model.created_at else None,
+            "actions": actions,
+            "open_id": model.version_name,
+        })
+    return {"data": rows}
+
+
 @router.get("/model-registry/deployments/data")
 def deployments_data(db: DBSession = Depends(get_db)):
     """DataTables AJAX source — deployment history."""

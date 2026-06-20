@@ -112,6 +112,7 @@ def review_queue_data(db: DBSession = Depends(get_db)):
             "status": s.status,
             "review_badge": review_badge,
             "training": training,
+            "updated_at": s.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ") if s.updated_at else None,
             "action": s.id,
         })
     return {"data": rows}
