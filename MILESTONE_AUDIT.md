@@ -141,16 +141,21 @@ Verified locally:
 - Faster Whisper German STT, `/agent-turn`, Fish Audio streaming PCM TTS and
   LiveKit audio publication are connected in one runtime.
 - Voice and backend sessions share one external session ID.
-- A mock backend turn persisted `stt_ms`, `backend_ms`, `llm_ms`,
-  `tts_first_audio_ms` and `total_voice_turn_ms` against the same turn.
+- Voice turns persist `stt_ms`, `backend_ms`, `llm_ms`,
+  `tts_first_audio_ms`, `speech_end_to_first_audio_ms` and
+  `total_voice_turn_ms` against the same turn.
 - Metric persistence rejects mismatched final transcripts or heard responses.
 - Voice runtime unit tests and Docker imports passed.
 
+Current live evidence:
+
+- A real browser microphone → local Whisper → backend → Fish Audio turn was
+  persisted for session `voice-test-91f4c3b395` with matching transcript,
+  response and latency data.
+
 Limitation:
 
-- The local Whisper directory contains no model and Fish Audio is not
-  configured, so the real microphone-to-audio path was not accepted locally.
-- The target GPU host must pass the 10-turn browser test and p95
+- The target GPU host must still pass the 10-turn browser test and p95
   speech-end-to-first-audio threshold in
   `services/voice-runtime/LIVE_ACCEPTANCE.md`.
 
@@ -167,10 +172,13 @@ Implemented and verified:
 - Conservative German backchannel classification avoids treating short
   acknowledgements as new agent turns.
 - Duplicate final transcript and stale response guards.
+- In-flight backend responses are invalidated when sustained overlap begins;
+  playback that starts during the overlap debounce is cancelled as well.
 - Durable, idempotent `voice_events` audit records and a live panel timeline.
 - Listening, hearing, processing, speaking and interrupted UI states with a
   real microphone level meter.
-- Deterministic backchannel/interruption/reconnect test scenarios.
+- Pipeline-level cancellation/stale-response tests and a deterministic catalog
+  of 20 backchannels plus 20 true interruptions.
 
 Remaining live acceptance:
 

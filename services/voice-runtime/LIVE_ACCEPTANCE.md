@@ -45,7 +45,7 @@ SELECT
   count(*) AS turn_count
 FROM latency_metrics lm
 JOIN sessions s ON s.id = lm.session_id
-WHERE lm.metric_name = 'total_voice_turn_ms'
+WHERE lm.metric_name = 'speech_end_to_first_audio_ms'
   AND s.external_session_id = '<browser-session-id>';
 ```
 

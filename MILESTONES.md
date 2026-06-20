@@ -169,8 +169,8 @@ Kapsam:
 - transcript final → `/agent-turn`
 - streaming TTS ve browser playback
 - voice session ile backend session eşleştirmesi
-- turn bazında `stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms` ve
-  `total_voice_turn_ms`
+- turn bazında `stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms`,
+  `speech_end_to_first_audio_ms` ve `total_voice_turn_ms`
 
 Kabul kriteri:
 
@@ -190,7 +190,10 @@ Doğrulanan:
 - Voice session ile backend external session ID birebir eşlendi.
 - Final transcript ve duyulan cevap backend turn kaydıyla doğrulanmadan voice
   metrikleri kabul edilmiyor.
-- Beş M7 metriği turn bazında saklanıyor; backend persistence smoke testi geçti.
+- Altı voice metriği turn bazında saklanıyor; backend persistence smoke testi
+  geçti.
+- Konuşma sonu → first audio metriği tüm playback süresinden ayrıldı; p95 kabul
+  sorgusu `speech_end_to_first_audio_ms` kullanıyor.
 
 Kalan kabul kapısı:
 
@@ -230,6 +233,9 @@ Doğrulanan:
 - Kısa Almanca backchannel seti gerçek interruption'dan ayrı sınıflanıyor.
 - Duplicate final transcript ve generation tabanlı stale response koruması
   eklendi.
+- Sustained overlap backend yanıtı hazırlanırken başlasa bile generation hemen
+  ilerletiliyor; eski yanıt playback başlamadan düşürülüyor veya arada playback
+  başlamışsa iptal ediliyor.
 - `speech_started`, `speech_ended`, `interruption_detected`,
   `playback_cancelled`, `backchannel_detected`, `turn_cancelled` ve
   `stale_response_discarded` event sözleşmeleri browser'a yayınlanıyor.
@@ -237,13 +243,14 @@ Doğrulanan:
   yazılıyor ve Supervisor Panel timeline'ında izleniyor.
 - Panel microphone seviyesi, listening/hearing/processing/speaking/interrupted
   durumlarını ayrı animasyon ve metinlerle gösteriyor.
-- Backchannel, duplicate ve segmenter test setleri repoda tutuluyor.
+- Pipeline cancellation/stale-response testleri ile 20 backchannel ve 20 gerçek
+  interruption örneğinden oluşan deterministik test seti repoda tutuluyor.
 
 Kalan kabul kapısı:
 
 - Gerçek browser/Fish Audio akışında interruption-to-cancel latency ölçülmeli.
-- En az 20 backchannel ve 20 gerçek interruption örneğiyle false-interrupt oranı
-  doğrulanmalı.
+- Aynı 20+20 senaryo gerçek mikrofon/STT çıktılarıyla çalıştırılarak akustik
+  false-interrupt oranı doğrulanmalı. Metin sınıflandırma kapısı geçiyor.
 - Streaming partial transcript hipotezleri mevcut Faster Whisper batch
   segmenter'ına güvenli biçimde eklenmeli; şu anda speech boundary ve final
   transcript event'leri vardır.
