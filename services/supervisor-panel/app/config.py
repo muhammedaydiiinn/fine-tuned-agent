@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
+    log_level: str = "INFO"
+
     admin_user: str = "admin"
     admin_password: str = "change_me"
     jwt_secret: str = "change_me"

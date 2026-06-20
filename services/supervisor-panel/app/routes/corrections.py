@@ -51,7 +51,7 @@ def corrections_data(db: DBSession = Depends(get_db)):
             "next_action": c.corrected_next_action or "",
             "apply_immediately": c.apply_immediately,
             "send_to_training": c.send_to_training,
-            "created_at": c.created_at.strftime("%m-%d %H:%M"),
+            "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
             "session_id": c.session_id,
             "turn_id": c.turn_id,
         })

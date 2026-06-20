@@ -65,7 +65,7 @@ def candidates_data(db: DBSession = Depends(get_db)):
             "correction_type": correction_type,
             "approved": c.approved,
             "exported": c.exported,
-            "created_at": c.created_at.strftime("%m-%d %H:%M"),
+            "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
         })
     return {"data": rows}
 
@@ -161,7 +161,7 @@ def training_jobs_data(db: DBSession = Depends(get_db)):
             "status": j.status,
             "progress_pct": pct,
             "dataset_version": (j.input_json or {}).get("dataset_version", "—"),
-            "started_at": j.started_at.strftime("%m-%d %H:%M") if j.started_at else "—",
+            "started_at": j.started_at.isoformat() + "Z" if j.started_at else None,
             "duration": _fmt_duration(j),
             "version_name": (j.output_json or {}).get("version_name", ""),
             "error_message": (j.error_message or "")[:80],
