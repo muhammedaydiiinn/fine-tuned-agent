@@ -68,6 +68,38 @@ def registry(request: Request, db: DBSession = Depends(get_db)):
     )
 
 
+@router.get("/model-registry/deployments/data")
+def deployments_data(db: DBSession = Depends(get_db)):
+    """DataTables AJAX source — deployment history."""
+    deployments = (
+        db.query(Deployment)
+        .order_by(Deployment.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    status_cls = {
+        "active": "badge-approved",
+        "rolled_back": "badge-pending",
+        "superseded": "badge-closed",
+        "failed": "badge-error",
+    }
+    rows = []
+    for d in deployments:
+        meta = d.metadata_json or {}
+        cls = status_cls.get(d.status, "badge-info")
+        rows.append({
+            "id": d.id,
+            "model_version_id": d.model_version_id,
+            "environment": d.environment,
+            "status_badge": f'<span class="badge {cls}">{d.status}</span>',
+            "action": meta.get("action", "deploy"),
+            "actor": meta.get("actor") or "—",
+            "rollback_target": str(d.rollback_model_version_id) if d.rollback_model_version_id else "—",
+            "deployed_at": d.deployed_at.strftime("%Y-%m-%dT%H:%M:%SZ") if d.deployed_at else None,
+        })
+    return {"data": rows}
+
+
 @router.post("/model-registry/{version_name}/verify", response_class=HTMLResponse)
 def verify(version_name: str, _csrf: None = Depends(require_csrf)):
     return _action(f"/models/{version_name}/verify-artifact", "Artifact verified")
