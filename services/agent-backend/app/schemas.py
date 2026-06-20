@@ -114,6 +114,21 @@ class VoiceTurnMetricsResponse(BaseModel):
     latency: dict[str, float]
 
 
+class VoiceEventRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=128)
+    event_id: str = Field(..., min_length=1, max_length=160)
+    sequence: int = Field(..., ge=0)
+    event_type: str = Field(..., min_length=1, max_length=64)
+    turn_id: int | None = Field(default=None, gt=0)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class VoiceEventResponse(BaseModel):
+    id: int
+    event_id: str
+    created: bool
+
+
 # ── Correction ───────────────────────────────────────────────────────────────
 
 class CreateCorrectionRequest(BaseModel):

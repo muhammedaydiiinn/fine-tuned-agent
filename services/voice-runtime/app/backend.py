@@ -75,3 +75,14 @@ class AgentBackend:
                 "Voice metrics not saved for turn_id=%d — continuing without metrics",
                 turn_id,
             )
+
+    async def record_voice_event(self, payload: dict) -> None:
+        """Persist an M8 event best-effort without taking down the live session."""
+        try:
+            await self._request("POST", "/voice/events", json=payload)
+        except BackendError:
+            logger.warning(
+                "Voice event not persisted — event_id=%s type=%s",
+                payload.get("event_id"),
+                payload.get("event_type"),
+            )

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     speech_end_silence_ms: int = 700
     speech_max_ms: int = 20000
     speech_preroll_ms: int = 240
+    utterance_queue_size: int = 8
+    duplicate_transcript_window_seconds: float = 2.5
+    backchannel_phrases: str = "mhm,hm,ja,okay,ok,alles klar,verstehe,genau,aha"
+    barge_in_min_ms: int = 450
+    job_memory_warn_mb: int = 1800
 
     tts_mode: str = "fish"
     fish_api_key: str = ""

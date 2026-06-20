@@ -60,8 +60,10 @@ data/**
 lib/
 lib-*.zip
 
-# Test & geliştirme scriptleri
-tests/
+# Test artifacts (test source and deterministic seed scripts stay versioned)
+.pytest_cache/
+.coverage
+htmlcov/
 
 # macOS
 .DS_Store

@@ -24,6 +24,7 @@ class UtteranceSegmenter:
         self._speech_chunks: list[np.ndarray] = []
         self._speech_samples = 0
         self._silence_samples = 0
+        self._speech_started = False
 
     def push(self, pcm: bytes) -> bytes | None:
         samples = np.frombuffer(pcm, dtype=np.int16).copy()
@@ -38,6 +39,7 @@ class UtteranceSegmenter:
                 self._speech_chunks = [*self._preroll, samples]
                 self._speech_samples = sum(chunk.size for chunk in self._speech_chunks)
                 self._silence_samples = 0
+                self._speech_started = True
                 self._preroll.clear()
                 self._preroll_samples = 0
             else:
@@ -58,6 +60,15 @@ class UtteranceSegmenter:
         ):
             return self._flush(trim_silence_samples=self._silence_samples)
         return None
+
+    @property
+    def speech_active(self) -> bool:
+        return bool(self._speech_chunks)
+
+    def consume_speech_started(self) -> bool:
+        started = self._speech_started
+        self._speech_started = False
+        return started
 
     def flush(self) -> bytes | None:
         if not self._speech_chunks:
@@ -80,6 +91,7 @@ class UtteranceSegmenter:
         self._speech_chunks = []
         self._speech_samples = 0
         self._silence_samples = 0
+        self._speech_started = False
         self._preroll.clear()
         self._preroll_samples = 0
         return result

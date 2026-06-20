@@ -63,8 +63,6 @@ curl -X POST http://localhost:8010/agent-turn \
 # API dokümantasyonu
 open http://localhost:8010/docs
 
-# RedisInsight (kuyruk ve key izleme)
-open http://localhost:8001
 ```
 
 ---
@@ -324,7 +322,6 @@ docker compose up -d --build agent-backend   # Kod değişikliği sonrası
 | vLLM             | 8000             | İç ağ        | Sadece `real` modda            |
 | PostgreSQL       | 5432             | İç ağ        | —                              |
 | Redis Stack      | 6379             | İç ağ        | —                              |
-| RedisInsight     | 127.0.0.1:8001   | Sadece local | Kuyruk/key izleme paneli       |
 
 > Prod'da nginx dışındaki hiçbir port dışarıya açılmamalı.
 > agent-backend ve supervisor-panel portları geliştirme kolaylığı için açık;
@@ -436,7 +433,7 @@ docker compose down -v
 | 5 | Eval worker + kalite kapısı | 🟡 Koşullu tamam — gerçek vLLM kabulü bekliyor |
 | 6 | Model lifecycle + blue/green deploy/rollback | 🟡 Koşullu tamam — gerçek GPU kabulü bekliyor |
 | 7 | Browser voice foundation (streaming STT/TTS) | 🟡 Koşullu tamam — gerçek 10-turn/p95 kabulü bekliyor |
-| 8 | Realtime turn-taking + interruption/barge-in | ⏳ Bekliyor |
+| 8 | Realtime turn-taking + interruption/barge-in | 🟡 Koşullu tamam — canlı latency/backchannel kabulü bekliyor |
 | 9 | Canlı supervisor control + replacement audio | ⏳ Bekliyor |
 | 10 | Voice performansı + production hardening | ⏳ Bekliyor |
 | 11 | Telefon/pilot entegrasyonu | ⏳ Sonraki faz |
@@ -452,4 +449,3 @@ Kapsam, bağımlılıklar ve kabul kriterleri için
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ile yükseltiliyor; uzun vadede Alembic'e geçilmeli.
 - `training-worker` ve `eval-worker` `--profile workers` ile başlatılır.
 - vLLM GPU profili: `docker compose --profile gpu up -d`
-- RedisInsight sadece `127.0.0.1:8001`'e bind edilmiş — dışarıdan erişilemez.

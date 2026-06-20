@@ -41,9 +41,18 @@
 >
   <div class="voice-test-main">
     <div class="voice-test-heading">
-      <div>
-        <div class="voice-test-title">Voice Test</div>
-        <div id="voice-status" class="voice-status">Microphone is stopped</div>
+      <div class="voice-presence">
+        <div id="voice-orb" class="voice-orb" data-state="idle" aria-hidden="true">
+          <span class="voice-orb-ring"></span>
+          <i class="fa-solid fa-microphone"></i>
+        </div>
+        <div>
+          <div class="voice-test-title">Voice Test</div>
+          <div id="voice-status" class="voice-status" aria-live="polite">Microphone is stopped</div>
+          <div id="voice-level" class="voice-level" aria-hidden="true">
+            {% for _ in range(12) %}<span></span>{% endfor %}
+          </div>
+        </div>
       </div>
       <div class="voice-test-actions">
         <button id="voice-start" class="btn btn-success" type="button">
@@ -68,6 +77,13 @@
 
   <div id="voice-audio" hidden></div>
 </section>
+
+<section
+  id="voice-event-timeline"
+  hx-get="/sessions/{{ session.id }}/voice-events"
+  hx-trigger="load, every 2s, voice-event from:body"
+  hx-swap="innerHTML"
+></section>
 {% endif %}
 
 <div class="card-row"
@@ -99,6 +115,6 @@
 {% block scripts %}
 {% if session.status == 'active' %}
 <script src="/static/livekit-client.umd.min.js"></script>
-<script src="/static/voice-session.js?v=1"></script>
+<script src="/static/voice-session.js?v=2"></script>
 {% endif %}
 {% endblock %}

@@ -3,6 +3,16 @@
 # daily_plan 20-21 Haziran adımlarına karşılık gelir
 set -euo pipefail
 
+# LiveKit recommends a larger UDP receive buffer for production WebRTC.
+# This is a host-level setting; container sysctls cannot reliably raise it.
+if command -v sysctl >/dev/null 2>&1; then
+  cat >/etc/sysctl.d/99-anrufblocker-livekit.conf <<'EOF'
+net.core.rmem_max=5000000
+net.core.wmem_max=5000000
+EOF
+  sysctl --system
+fi
+
 echo "=== Sistem güncelleme ==="
 apt-get update && apt-get upgrade -y
 

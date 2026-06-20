@@ -1,0 +1,20 @@
+{% if events %}
+<div class="voice-event-card">
+  <div class="voice-event-header">
+    <span>Voice activity</span>
+    <span class="text-muted">latest {{ events|length }} events</span>
+  </div>
+  <div class="voice-event-list">
+    {% for item in events %}
+    <div class="voice-event-row">
+      <span class="voice-event-dot voice-event-dot-{{ item.event_type }}"></span>
+      <span class="voice-event-name">{{ labels.get(item.event_type, item.event_type.replace('_', ' ')|title) }}</span>
+      {% if item.payload_json and item.payload_json.get('text') %}
+      <span class="voice-event-detail">{{ item.payload_json.get('text') }}</span>
+      {% endif %}
+      <time>{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '—' }}</time>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

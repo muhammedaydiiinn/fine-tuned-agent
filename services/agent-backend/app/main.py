@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db import create_tables
+from app.logging_config import configure_access_logging
 from app.routes import (
     health,
     sessions,
@@ -24,6 +25,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+configure_access_logging()
 
 
 @asynccontextmanager
