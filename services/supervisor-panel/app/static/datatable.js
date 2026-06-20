@@ -316,6 +316,17 @@
           "</a>"
         );
       };
+    } else if (renderName === "openBtn") {
+      // openBtn renderer: base + field value → standart "Open →" butonu
+      var openBase = th.getAttribute("data-dt-col-link-base") || "#";
+      col.render = function (d, type) {
+        if (type !== "display") return d;
+        if (!d && d !== 0) return "";
+        return (
+          '<a href="' + esc(openBase) + esc(d) + '" class="btn btn-sm btn-outline">' +
+          'Open <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i></a>'
+        );
+      };
     } else if (renderName && RENDERERS[renderName]) {
       col.render = RENDERERS[renderName];
     }

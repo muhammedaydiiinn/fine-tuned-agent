@@ -44,15 +44,14 @@
          data-dt-reload-on="/eval-jobs/start">
     <thead>
       <tr>
-        <th data-dt-col-field="id" data-dt-col-render="link"
-            data-dt-col-link-base="/eval-jobs/" data-dt-col-width="60px">#</th>
+        <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">#</th>
         <th data-dt-col-field="model_version" data-dt-col-render="code">Model Version</th>
-        <th data-dt-col-field="status" data-dt-col-render="statusProgress"
-            data-dt-col-orderable="false" data-dt-col-width="160px">Status</th>
+        <th data-dt-col-field="status" data-dt-col-render="statusProgress" data-dt-col-orderable="false" data-dt-col-width="160px">Status</th>
         <th data-dt-col-field="quality_score" data-dt-col-render="evalScore">Score</th>
         <th data-dt-col-field="started_at" data-dt-col-render="datetime">Started</th>
         <th data-dt-col-field="duration" data-dt-col-class="td-mono">Duration</th>
         <th data-dt-col-field="error_message" data-dt-col-render="truncate">Error</th>
+        <th data-dt-col-field="id" data-dt-col-render="openBtn" data-dt-col-link-base="/eval-jobs/" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
       </tr>
     </thead>
     <tbody></tbody>
