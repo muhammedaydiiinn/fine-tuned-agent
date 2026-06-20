@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session as DBSession
 from app.db import get_db
 from app.models import Session as SessionModel, Turn
 from app.config import settings
-from app.test_scenarios import VOICE_TEST_SCENARIOS, get_voice_test_scenario
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -27,13 +26,9 @@ def _backend_headers() -> dict[str, str]:
 @router.post("/sessions/start")
 def start_session(
     external_session_id: str = Form(""),
-    scenario_id: str = Form("full_flow"),
     db: DBSession = Depends(get_db),
 ):
     external_id = external_session_id.strip() or f"voice-test-{uuid.uuid4().hex[:10]}"
-    if scenario_id not in VOICE_TEST_SCENARIOS:
-        scenario_id = "free_conversation"
-    scenario = get_voice_test_scenario(scenario_id)
     try:
         response = httpx.post(
             f"{settings.agent_backend_url}/sessions",
@@ -43,19 +38,6 @@ def start_session(
         )
         response.raise_for_status()
         session_id = int(response.json()["id"])
-        session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
-        if session is None:
-            raise RuntimeError("Created session was not found in the shared database")
-        session.state_json = {
-            **(session.state_json or {}),
-            "test_scenario": {
-                "id": scenario_id,
-                "label": scenario["label"],
-                "description": scenario["description"],
-                "turns": scenario["turns"],
-            },
-        }
-        db.commit()
     except Exception as exc:
         logger.exception("Could not start session")
         return HTMLResponse(f"Could not start session: {exc}", status_code=502)
@@ -95,7 +77,6 @@ def sessions_list(request: Request, db: DBSession = Depends(get_db)):
             "active_count": active_count,
             "total_turns": total_turns,
             "closed_count": total_count - active_count,
-            "voice_test_scenarios": VOICE_TEST_SCENARIOS,
         },
     )
 
@@ -130,7 +111,6 @@ def sessions_data(db: DBSession = Depends(get_db)):
             "stage": s.current_stage or state.get("stage", "") or "",
             "turns": turn_counts.get(s.id, 0),
             "hard_decline": state.get("hard_decline_count", 0),
-            "test_scenario": (state.get("test_scenario") or {}).get("label", ""),
             "created_at": s.created_at.strftime("%m-%d %H:%M"),
         })
     return {"data": rows}
@@ -148,10 +128,6 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
         .all()
     )
     state_pretty = json.dumps(session.state_json, indent=2, ensure_ascii=False)
-    test_scenario = (session.state_json or {}).get("test_scenario") or {
-        "id": "free_conversation",
-        **get_voice_test_scenario("free_conversation"),
-    }
     return templates.TemplateResponse(
         "session_detail.html",
         {
@@ -159,7 +135,6 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
             "session": session,
             "turns": turns,
             "state_pretty": state_pretty,
-            "test_scenario": test_scenario,
         },
     )
 

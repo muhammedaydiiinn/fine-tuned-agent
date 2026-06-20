@@ -11,27 +11,12 @@
   const statusElement = document.querySelector("#voice-status");
   const audioContainer = document.querySelector("#voice-audio");
   const endSessionForm = document.querySelector("#end-session-form");
-  const scenarioItems = Array.from(document.querySelectorAll("#scenario-turns li"));
-  const scenarioProgress = document.querySelector("#scenario-progress");
 
   let room = null;
-  let completedTurns = Number(consoleElement.dataset.completedTurns || 0);
 
   function setStatus(message, state) {
     statusElement.textContent = message;
     statusElement.dataset.state = state || "";
-  }
-
-  function updateScenarioProgress() {
-    if (!scenarioItems.length) return;
-    scenarioItems.forEach((item, index) => {
-      item.classList.toggle("complete", index < completedTurns);
-      item.classList.toggle("current", index === completedTurns);
-    });
-    if (scenarioProgress) {
-      scenarioProgress.textContent =
-        `${Math.min(completedTurns, scenarioItems.length)}/${scenarioItems.length}`;
-    }
   }
 
   function renderMetrics(metrics) {
@@ -65,14 +50,12 @@
         if (topic !== "voice.events") return;
         const event = JSON.parse(new TextDecoder().decode(payload));
         if (event.event === "voice_session_ready") {
-          setStatus("Ready — speak the highlighted scenario line", "ready");
+          setStatus("Ready — speak freely", "ready");
         } else if (event.event === "transcript_final") {
           setStatus(`Transcript: ${event.text}`, "working");
         } else if (event.event === "agent_response") {
           setStatus("Agent is speaking…", "speaking");
         } else if (event.event === "voice_turn_complete") {
-          completedTurns += 1;
-          updateScenarioProgress();
           renderMetrics(event.metrics || {});
           setStatus("Ready for the next turn", "ready");
           if (window.htmx) {
@@ -121,6 +104,4 @@
   window.addEventListener("beforeunload", () => {
     if (room) room.disconnect();
   });
-
-  updateScenarioProgress();
 })();

@@ -677,7 +677,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 /* ─── Supervisor voice testing ─────────────────────────────────────── */
 .voice-test-launcher {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(210px, 280px) minmax(190px, 240px) auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(210px, 380px) auto;
   align-items: end;
   gap: 14px;
   padding: 16px;
@@ -692,8 +692,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 
 .voice-test-launcher-title,
-.voice-test-title,
-.scenario-guide-title {
+.voice-test-title {
   font-size: 13px;
   font-weight: 600;
 }
@@ -706,9 +705,6 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 
 .voice-test-console {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
-  gap: 0;
   margin-bottom: 22px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -716,18 +712,11 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   overflow: hidden;
 }
 
-.voice-test-main,
-.scenario-guide {
+.voice-test-main {
   padding: 18px;
 }
 
-.scenario-guide {
-  border-left: 1px solid var(--border);
-  background: rgba(255,255,255,.012);
-}
-
-.voice-test-heading,
-.scenario-guide-header {
+.voice-test-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -778,44 +767,6 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   margin-top: 4px;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-}
-
-.scenario-guide-header {
-  margin-bottom: 12px;
-}
-
-.scenario-turns {
-  display: grid;
-  gap: 5px;
-  max-height: 250px;
-  padding-left: 24px;
-  overflow-y: auto;
-}
-
-.scenario-turns li {
-  padding: 6px 8px;
-  color: var(--text-3);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.scenario-turns li.current {
-  color: var(--text);
-  background: var(--accent-bg);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.scenario-turns li.complete {
-  color: var(--text-3);
-  text-decoration: line-through;
-  opacity: .7;
-}
-
-.scenario-free {
-  padding: 18px 0 4px;
-  color: var(--text-3);
-  font-size: 12.5px;
 }
 
 /* ─── Forms ──────────────────────────────────────────────────────────── */
@@ -912,14 +863,6 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
     grid-column: 1 / -1;
   }
 
-  .voice-test-console {
-    grid-template-columns: 1fr;
-  }
-
-  .scenario-guide {
-    border-top: 1px solid var(--border);
-    border-left: 0;
-  }
 }
 
 /* ─── Collapsible ────────────────────────────────────────────────────── */
