@@ -60,6 +60,9 @@ data/**
 lib/
 lib-*.zip
 
+# Test & geliştirme scriptleri
+tests/
+
 # macOS
 .DS_Store
 
