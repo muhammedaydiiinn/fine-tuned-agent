@@ -10,6 +10,7 @@
 </div>
 
 <form action="/sessions/start" method="post" class="voice-test-launcher">
+  <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
   <div class="voice-test-launcher-copy">
     <div class="voice-test-launcher-title">
       <i class="fa-solid fa-microphone"></i>

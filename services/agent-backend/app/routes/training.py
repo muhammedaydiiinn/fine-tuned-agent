@@ -1,6 +1,8 @@
 """Training candidate and job endpoints — Milestone 3."""
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -167,15 +169,40 @@ def export_jsonl(db: DBSession = Depends(get_db)):
     seq = existing_count + 1
     file_path = out_dir / f"dataset_{settings.model_active_version}_{seq:04d}.jsonl"
 
-    exported_ids: list[int] = []
-    with open(file_path, "w", encoding="utf-8") as fh:
-        for c in candidates:
-            line = json.dumps({"messages": c.messages_json}, ensure_ascii=False)
-            fh.write(line + "\n")
-            c.exported = True
-            exported_ids.append(c.id)
+    # Mark candidates exported in-transaction BEFORE writing the file.
+    # Write to a temp file first, then atomically rename into place so that
+    # a failed commit never leaves a partial file on disk.
+    exported_ids: list[int] = [c.id for c in candidates]
+    for c in candidates:
+        c.exported = True
 
-    db.commit()
+    tmp_path: str | None = None
+    try:
+        # Write JSONL to a sibling temp file, then atomically swap into final path.
+        fd, tmp_path = tempfile.mkstemp(dir=out_dir, prefix=".tmp_export_", suffix=".jsonl")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                for c in candidates:
+                    fh.write(json.dumps({"messages": c.messages_json}, ensure_ascii=False) + "\n")
+        except Exception:
+            os.unlink(tmp_path)
+            tmp_path = None
+            raise
+
+        # Commit the DB state (exported=True), then rename.
+        db.commit()
+        os.replace(tmp_path, file_path)
+        tmp_path = None
+    except Exception:
+        if tmp_path and Path(tmp_path).exists():
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        db.rollback()
+        logger.exception("JSONL export failed — transaction rolled back")
+        raise HTTPException(status_code=500, detail="Export failed")
+
     logger.info("JSONL export complete: file=%s rows=%d", file_path, len(exported_ids))
     return ExportResult(
         file_path=str(file_path),
@@ -222,6 +249,9 @@ def create_training_job(
             )
         input_data["candidate_ids"] = candidate_ids
 
+    # Stage the job first so we have a DB-generated id for the queue payload,
+    # then attempt to enqueue. If enqueueing fails the job is rolled back —
+    # no orphaned "pending" record stays in the DB.
     job = TrainingJob(
         job_type="train_pipeline",
         status="pending",
@@ -230,8 +260,7 @@ def create_training_job(
         progress_total=100,
     )
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    db.flush()  # assigns job.id without committing
 
     payload = {
         "job_id": job.id,
@@ -242,12 +271,12 @@ def create_training_job(
     try:
         enqueue_training_job("train_pipeline", payload)
     except Exception as exc:
-        job.status = "failed"
-        job.error_message = f"Failed to enqueue training job: {exc}"[:1000]
-        db.commit()
-        logger.exception("Failed to enqueue training job id=%d", job.id)
+        db.rollback()
+        logger.exception("Failed to enqueue training job — transaction rolled back")
         raise HTTPException(status_code=503, detail="Training queue is unavailable") from exc
 
+    db.commit()
+    db.refresh(job)
     logger.info("training_job created and enqueued: id=%d", job.id)
     return job
 
@@ -295,13 +324,26 @@ def get_job_logs(job_id: int, tail: int = 100, db: DBSession = Depends(get_db)):
 
     logs = ""
     if job.logs_path:
+        data_root = Path(settings.data_dir).resolve()
+        resolved = Path(job.logs_path).resolve()
         try:
-            from pathlib import Path
-            p = Path(job.logs_path)
-            if p.exists():
-                lines = p.read_text(encoding="utf-8").splitlines()
+            resolved.relative_to(data_root)
+        except ValueError:
+            logger.warning(
+                "Path traversal blocked for training log: raw=%r resolved=%s",
+                job.logs_path,
+                resolved,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Requested log path is outside the allowed data directory",
+            )
+        try:
+            if resolved.exists():
+                lines = resolved.read_text(encoding="utf-8").splitlines()
                 logs = "\n".join(lines[-tail:])
-        except Exception as exc:
+        except OSError as exc:
+            logger.warning("Could not read training log %s: %s", job.logs_path, exc)
             logs = f"[log read error: {exc}]"
 
     return {"job_id": job_id, "status": job.status, "logs": logs}

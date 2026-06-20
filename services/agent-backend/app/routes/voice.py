@@ -1,4 +1,6 @@
 """Voice-runtime integration endpoints."""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
@@ -7,6 +9,7 @@ from app.models import LatencyMetric, Session as SessionModel, Turn
 from app.schemas import VoiceTurnMetricsRequest, VoiceTurnMetricsResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -70,8 +73,21 @@ def save_voice_turn_metrics(
             if metric_name in metric_names
         ]
     )
-    db.commit()
 
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to save voice metrics — turn_id=%d session=%s", turn_id, req.session_id)
+        raise HTTPException(status_code=500, detail="Failed to save voice metrics")
+
+    logger.info(
+        "Voice metrics saved — turn_id=%d session=%s stt=%.0f total=%.0f",
+        turn_id,
+        req.session_id,
+        req.stt_ms,
+        req.total_voice_turn_ms,
+    )
     return VoiceTurnMetricsResponse(
         turn_id=turn.id,
         session_id=req.session_id,

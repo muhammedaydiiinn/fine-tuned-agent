@@ -45,65 +45,77 @@ def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_
         if req.session_id is not None and turn_check.session_id != req.session_id:
             raise HTTPException(status_code=400, detail="Turn does not belong to the given session")
 
-    # 1. Save correction
-    correction = Correction(
-        session_id=req.session_id,
-        turn_id=req.turn_id,
-        correction_type=req.correction_type,
-        old_agent_response=req.old_agent_response,
-        corrected_agent_response=req.corrected_agent_response,
-        old_next_action=req.old_next_action,
-        corrected_next_action=req.corrected_next_action,
-        notes=req.notes,
-        apply_immediately=req.apply_immediately,
-        send_to_training=req.send_to_training,
-        approved=True,
-        created_by="panel",
-    )
-    db.add(correction)
-    db.commit()
-    db.refresh(correction)
-    logger.info("Correction saved: id=%d type=%s", correction.id, correction.correction_type)
-
-    # 2. apply_immediately -> upsert correction_memory
-    if req.apply_immediately and req.corrected_agent_response:
-        trigger_key = _derive_trigger_key(req, db)
-        context_json = _derive_context(req, db)
-        existing = (
-            db.query(CorrectionMemory)
-            .filter(
-                CorrectionMemory.trigger_key == trigger_key,
-                CorrectionMemory.active == True,  # noqa: E712
-            )
-            .first()
+    try:
+        # 1. Save correction — flush only to obtain the generated id
+        correction = Correction(
+            session_id=req.session_id,
+            turn_id=req.turn_id,
+            correction_type=req.correction_type,
+            old_agent_response=req.old_agent_response,
+            corrected_agent_response=req.corrected_agent_response,
+            old_next_action=req.old_next_action,
+            corrected_next_action=req.corrected_next_action,
+            notes=req.notes,
+            apply_immediately=req.apply_immediately,
+            send_to_training=req.send_to_training,
+            approved=True,
+            created_by="panel",
         )
-        if existing:
-            existing.correct_response = req.corrected_agent_response
-            existing.correct_next_action = req.corrected_next_action
-            existing.source_correction_id = correction.id
-            existing.context_json = context_json
-            logger.info("correction_memory updated: trigger=%s", trigger_key)
-        else:
-            mem = CorrectionMemory(
-                trigger_key=trigger_key,
-                context_json=context_json,
-                correct_response=req.corrected_agent_response,
-                correct_next_action=req.corrected_next_action,
-                source_correction_id=correction.id,
-                active=True,
-                priority=10,
-            )
-            db.add(mem)
-            logger.info("correction_memory created: trigger=%s", trigger_key)
-        db.commit()
+        db.add(correction)
+        db.flush()  # assigns correction.id without committing
+        logger.info("Correction staged: id=%d type=%s", correction.id, correction.correction_type)
 
-    # 3. send_to_training -> create training_candidate
-    if req.send_to_training and req.turn_id:
-        candidate = _build_training_candidate(req, db)
-        if candidate:
-            db.add(candidate)
-            db.commit()
-            logger.info("training_candidate created: turn_id=%d", req.turn_id)
+        # 2. apply_immediately -> upsert correction_memory (same transaction)
+        if req.apply_immediately and req.corrected_agent_response:
+            trigger_key = _derive_trigger_key(req, db)
+            context_json = _derive_context(req, db)
+            existing = (
+                db.query(CorrectionMemory)
+                .filter(
+                    CorrectionMemory.trigger_key == trigger_key,
+                    CorrectionMemory.active == True,  # noqa: E712
+                )
+                .first()
+            )
+            if existing:
+                existing.correct_response = req.corrected_agent_response
+                existing.correct_next_action = req.corrected_next_action
+                existing.source_correction_id = correction.id
+                existing.context_json = context_json
+                logger.info("correction_memory updated: trigger=%s", trigger_key)
+            else:
+                mem = CorrectionMemory(
+                    trigger_key=trigger_key,
+                    context_json=context_json,
+                    correct_response=req.corrected_agent_response,
+                    correct_next_action=req.corrected_next_action,
+                    source_correction_id=correction.id,
+                    active=True,
+                    priority=10,
+                )
+                db.add(mem)
+                logger.info("correction_memory staged: trigger=%s", trigger_key)
+
+        # 3. send_to_training -> create training_candidate (same transaction)
+        if req.send_to_training and req.turn_id:
+            candidate = _build_training_candidate(req, db)
+            if candidate:
+                db.add(candidate)
+                logger.info("training_candidate staged: turn_id=%d", req.turn_id)
+
+        # Single commit — all three objects land atomically or none do.
+        db.commit()
+        db.refresh(correction)
+        logger.info(
+            "Correction committed: id=%d apply_immediately=%s send_to_training=%s",
+            correction.id,
+            req.apply_immediately,
+            req.send_to_training,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to persist correction — transaction rolled back")
+        raise HTTPException(status_code=500, detail="Failed to save correction")
 
     return correction
 

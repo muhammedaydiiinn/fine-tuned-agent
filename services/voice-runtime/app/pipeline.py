@@ -5,7 +5,7 @@ import time
 
 from livekit import rtc
 
-from app.backend import AgentBackend
+from app.backend import AgentBackend, BackendError
 from app.config import Settings
 from app.segmenter import SegmentationConfig, UtteranceSegmenter
 from app.stt import FasterWhisperSTT
@@ -36,7 +36,22 @@ class VoicePipeline:
         self._turn_lock = asyncio.Lock()
 
     async def run(self, room: rtc.Room, participant: rtc.RemoteParticipant) -> None:
-        await self.backend.create_session(self.session_id)
+        try:
+            await self.backend.create_session(self.session_id)
+        except BackendError:
+            logger.exception(
+                "Failed to create backend session — session=%s", self.session_id
+            )
+            await self._publish_event(
+                room,
+                {
+                    "event": "voice_error",
+                    "session_id": self.session_id,
+                    "detail": "Could not initialise session with agent backend",
+                },
+            )
+            return
+
         await self._publish_event(
             room,
             {"event": "voice_session_ready", "session_id": self.session_id},
@@ -62,7 +77,18 @@ class VoicePipeline:
             logger.info("Ignoring overlapping M7 utterance for session %s", self.session_id)
             return
         async with self._turn_lock:
-            voice_turn_started = time.perf_counter()
+            await self._run_turn(room, pcm)
+
+    async def _run_turn(self, room: rtc.Room, pcm: bytes) -> None:
+        """Execute a full STT → backend → TTS turn.
+
+        Any exception is caught here so the session stays alive for the next turn.
+        The error is logged with a full traceback and a voice_error event is
+        published to the supervisor panel.
+        """
+        voice_turn_started = time.perf_counter()
+        try:
+            # ── STT ──────────────────────────────────────────────────────────
             transcript = await self.stt.transcribe(pcm, sample_rate=INPUT_SAMPLE_RATE)
             if not transcript.text:
                 await self._publish_event(room, {"event": "empty_transcript"})
@@ -78,6 +104,7 @@ class VoicePipeline:
                 },
             )
 
+            # ── Backend ───────────────────────────────────────────────────────
             backend_started = time.perf_counter()
             turn = await self.backend.agent_turn(self.session_id, transcript.text)
             backend_roundtrip_ms = (time.perf_counter() - backend_started) * 1000
@@ -93,22 +120,24 @@ class VoicePipeline:
                 },
             )
 
+            # ── TTS ───────────────────────────────────────────────────────────
             tts_started = time.perf_counter()
-            first_audio_ms = None
-            total_voice_turn_ms = None
+            first_audio_ms: float | None = None
+            total_voice_turn_ms: float | None = None
             audio_source = rtc.AudioSource(self.settings.tts_sample_rate, 1)
             audio_track = rtc.LocalAudioTrack.create_audio_track(
                 f"agent-audio-{turn['turn_id']}",
                 audio_source,
             )
-            publication = await room.local_participant.publish_track(
-                audio_track,
-                rtc.TrackPublishOptions(
-                    source=rtc.TrackSource.SOURCE_MICROPHONE,
-                ),
-            )
-            pcm_buffer = bytearray()
+            publication = None
             try:
+                publication = await room.local_participant.publish_track(
+                    audio_track,
+                    rtc.TrackPublishOptions(
+                        source=rtc.TrackSource.SOURCE_MICROPHONE,
+                    ),
+                )
+                pcm_buffer = bytearray()
                 async for chunk in self.tts.stream(
                     turn["agent_response"],
                     turn.get("voice_style", {}),
@@ -148,8 +177,17 @@ class VoicePipeline:
                     )
                 await audio_source.wait_for_playout()
             finally:
-                await room.local_participant.unpublish_track(publication.sid)
+                if publication is not None:
+                    try:
+                        await room.local_participant.unpublish_track(publication.sid)
+                    except Exception:
+                        logger.exception(
+                            "Failed to unpublish audio track — session=%s turn=%s",
+                            self.session_id,
+                            turn.get("turn_id"),
+                        )
 
+            # ── Metrics ───────────────────────────────────────────────────────
             playout_complete_ms = (time.perf_counter() - voice_turn_started) * 1000
             metrics = {
                 "session_id": self.session_id,
@@ -161,7 +199,10 @@ class VoicePipeline:
                 "transcript_final": transcript.text,
                 "heard_response": turn["agent_response"],
             }
+
+            # save_voice_metrics is best-effort — BackendError is caught internally
             await self.backend.save_voice_metrics(turn["turn_id"], metrics)
+
             await self._publish_event(
                 room,
                 {
@@ -174,6 +215,34 @@ class VoicePipeline:
                     },
                 },
             )
+            logger.info(
+                "voice turn ok — session=%s turn=%s stt=%.0f backend=%.0f tts_first=%.0f total=%.0f",
+                self.session_id,
+                turn.get("turn_id"),
+                transcript.stt_ms,
+                turn["latency"]["backend_ms"],
+                first_audio_ms or 0.0,
+                total_voice_turn_ms or playout_complete_ms,
+            )
+
+        except Exception as exc:
+            logger.exception(
+                "voice turn failed — session=%s detail=%s", self.session_id, exc
+            )
+            try:
+                await self._publish_event(
+                    room,
+                    {
+                        "event": "voice_error",
+                        "session_id": self.session_id,
+                        "detail": str(exc),
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "Could not publish voice_error event — session=%s", self.session_id
+                )
+            # Return, not raise: session stays alive for the next utterance.
 
     async def _wait_for_audio_track(
         self,

@@ -10,6 +10,7 @@ from livekit import api
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
 
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Session as SessionModel, Turn
 from app.config import settings
@@ -27,6 +28,7 @@ def _backend_headers() -> dict[str, str]:
 def start_session(
     external_session_id: str = Form(""),
     db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
 ):
     external_id = external_session_id.strip() or f"voice-test-{uuid.uuid4().hex[:10]}"
     try:
@@ -143,6 +145,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
 def session_voice_token(
     session_id: int,
     db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if session is None:
@@ -239,7 +242,11 @@ def session_live_summary(
 
 
 @router.post("/sessions/{session_id}/close")
-def close_session(session_id: int, db: DBSession = Depends(get_db)):
+def close_session(
+    session_id: int,
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
         return HTMLResponse("Session not found", status_code=404)

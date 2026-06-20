@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Correction, CorrectionMemory, TrainingCandidate, Turn
 
@@ -70,6 +71,7 @@ async def save_correction(
     send_to_training: bool = Form(False),
     mark_good: str = Form(""),
     mark_bad: str = Form(""),
+    _csrf: None = Depends(require_csrf),
 ):
     turn = db.query(Turn).filter(Turn.id == turn_id).first()
     if not turn:

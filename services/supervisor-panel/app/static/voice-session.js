@@ -31,9 +31,10 @@
     setStatus("Connecting to voice runtime…", "working");
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
       const response = await fetch(`/sessions/${sessionId}/voice-token`, {
         method: "POST",
-        headers: { "Accept": "application/json" },
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrfToken },
       });
       const credentials = await response.json();
       if (!response.ok) {

@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import TrainingCandidate, TrainingJob
 
@@ -70,7 +71,7 @@ def candidates_data(db: DBSession = Depends(get_db)):
 
 
 @router.post("/training-candidates/{candidate_id}/approve", response_class=HTMLResponse)
-def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db)):
+def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
         return HTMLResponse('<span class="badge badge-error">Not found</span>')
@@ -81,7 +82,7 @@ def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db)):
 
 
 @router.post("/training-candidates/{candidate_id}/reject", response_class=HTMLResponse)
-def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db)):
+def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
         return HTMLResponse('<span class="badge badge-error">Not found</span>')
@@ -92,7 +93,7 @@ def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db)):
 
 
 @router.post("/training-candidates/export-jsonl")
-def export_jsonl(db: DBSession = Depends(get_db)):
+def export_jsonl(db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     candidates = (
         db.query(TrainingCandidate)
         .filter(TrainingCandidate.approved == True, TrainingCandidate.exported == False)  # noqa: E712
@@ -196,7 +197,7 @@ def training_jobs_list(request: Request, db: DBSession = Depends(get_db)):
 
 
 @router.post("/training-jobs/start", response_class=HTMLResponse)
-def start_training(request: Request, db: DBSession = Depends(get_db)):
+def start_training(request: Request, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     """Trigger a new training pipeline job via agent-backend."""
     approved_count = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()  # noqa: E712
     if approved_count == 0:

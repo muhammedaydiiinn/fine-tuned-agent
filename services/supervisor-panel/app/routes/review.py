@@ -12,6 +12,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import (
     Correction,
@@ -121,6 +122,7 @@ def save_review(
     add_to_training: bool = Form(False),
     start_training: bool = Form(False),
     db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
 ):
     if rating not in {"good", "mixed", "bad"}:
         return HTMLResponse("Invalid rating", status_code=422)

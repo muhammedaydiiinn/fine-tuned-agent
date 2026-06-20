@@ -97,8 +97,16 @@ def agent_turn(
     try:
         raw_output = vllm_client.chat(messages, runtime_target)
     except Exception as exc:
-        logger.error("vLLM call failed: %s", exc)
-        raw_output = ""
+        llm_ms = (time.perf_counter() - llm_start) * 1000
+        logger.exception(
+            "vLLM call failed — session=%s llm=%.0fms",
+            req.session_id,
+            llm_ms,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="LLM upstream unavailable",
+        ) from exc
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
     # 7. Extract JSON

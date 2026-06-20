@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
 
@@ -88,7 +89,7 @@ def eval_jobs_list(request: Request, db: DBSession = Depends(get_db)):
 
 
 @router.post("/eval-jobs/start", response_class=HTMLResponse)
-def start_eval(model_version_id: int = Form(...)):
+def start_eval(model_version_id: int = Form(...), _csrf: None = Depends(require_csrf)):
     try:
         response = httpx.post(
             f"{settings.agent_backend_url}/eval-runs",

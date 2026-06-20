@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Deployment, EvalRun, ModelVersion
 
@@ -68,17 +69,17 @@ def registry(request: Request, db: DBSession = Depends(get_db)):
 
 
 @router.post("/model-registry/{version_name}/verify", response_class=HTMLResponse)
-def verify(version_name: str):
+def verify(version_name: str, _csrf: None = Depends(require_csrf)):
     return _action(f"/models/{version_name}/verify-artifact", "Artifact verified")
 
 
 @router.post("/model-registry/{version_name}/approve", response_class=HTMLResponse)
-def approve(version_name: str):
+def approve(version_name: str, _csrf: None = Depends(require_csrf)):
     return _action(f"/models/{version_name}/approve", "Model approved")
 
 
 @router.post("/model-registry/{model_version_id}/quality-check", response_class=HTMLResponse)
-def quality_check(model_version_id: int):
+def quality_check(model_version_id: int, _csrf: None = Depends(require_csrf)):
     try:
         result = _backend_post("/eval-runs", {"model_version_id": model_version_id})
         return HTMLResponse(
@@ -132,7 +133,7 @@ def model_detail(version_name: str, request: Request, db: DBSession = Depends(ge
 
 
 @router.post("/model-registry/{version_name}/deploy", response_class=HTMLResponse)
-def deploy(version_name: str, environment: str = Form("production")):
+def deploy(version_name: str, environment: str = Form("production"), _csrf: None = Depends(require_csrf)):
     return _action(
         f"/models/{version_name}/deploy",
         f"Model deployed to {environment}",
@@ -147,6 +148,7 @@ def serving_target(
     base_url: str = Form(""),
     model_name: str = Form(...),
     slot: str = Form("candidate"),
+    _csrf: None = Depends(require_csrf),
 ):
     return _action(
         f"/models/{version_name}/serving-target",
@@ -161,7 +163,7 @@ def serving_target(
 
 
 @router.post("/model-registry/rollback/{environment}", response_class=HTMLResponse)
-def rollback(environment: str):
+def rollback(environment: str, _csrf: None = Depends(require_csrf)):
     return _action(
         f"/deployments/{environment}/rollback",
         f"{environment.title()} rolled back",
