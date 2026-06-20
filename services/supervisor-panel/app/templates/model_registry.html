@@ -28,7 +28,7 @@
   </div>
   <table class="dt-table">
     <thead>
-      <tr><th>Version</th><th>Training Source</th><th>Quality Check</th><th>Release Status</th><th>Action</th></tr>
+      <tr><th>Version</th><th>Training Source</th><th>Quality Check</th><th>Release Status</th><th>Actions</th><th style="width:90px;"></th></tr>
     </thead>
     <tbody>
     {% for model in models %}
@@ -39,9 +39,7 @@
       {% set gate = (latest_eval.metrics_json or {}).get('deployment_gate', {}) if latest_eval else {} %}
       <tr>
         <td>
-          <a href="/model-registry/{{ model.version_name }}" style="text-decoration:none;">
-            <code>{{ model.version_name }}</code>
-          </a>
+          <code>{{ model.version_name }}</code>
           <div class="text-muted" style="font-size:11px;">Created {{ model.created_at.strftime('%d.%m %H:%M') }}</div>
         </td>
         <td>
@@ -99,9 +97,14 @@
             </form>
           </details>
         </td>
+        <td>
+          <a class="btn btn-sm btn-outline" href="/model-registry/{{ model.version_name }}">
+            Open <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
+          </a>
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="5"><div class="empty-state">No trained models yet.</div></td></tr>
+      <tr><td colspan="6"><div class="empty-state">No trained models yet.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>
