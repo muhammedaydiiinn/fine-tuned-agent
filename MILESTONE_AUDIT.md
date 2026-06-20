@@ -1,4 +1,4 @@
-# Milestone 1–6 Audit — 2026-06-19
+# Milestone 1–7 Audit — 2026-06-20
 
 ## Result
 
@@ -124,5 +124,34 @@ Limitation:
 
 - Blue/green vLLM serving and rollback require final verification on the target
   NVIDIA host.
+
+## Milestone 7 — Browser Voice Foundation
+
+Status: conditionally complete.
+
+Verified locally:
+
+- LiveKit 1.9.12 server and LiveKit Agents 1.6.2 worker started in Docker.
+- The named worker registered and accepted an explicit room dispatch created by
+  a browser token.
+- Supervisor Sessions UI now owns scenario selection, microphone start/stop,
+  transcript/response events, remote audio and latency display.
+- The authenticated panel creates the LiveKit room token. The temporary
+  standalone voice UI/API and port 8030 were removed.
+- Faster Whisper German STT, `/agent-turn`, Fish Audio streaming PCM TTS and
+  LiveKit audio publication are connected in one runtime.
+- Voice and backend sessions share one external session ID.
+- A mock backend turn persisted `stt_ms`, `backend_ms`, `llm_ms`,
+  `tts_first_audio_ms` and `total_voice_turn_ms` against the same turn.
+- Metric persistence rejects mismatched final transcripts or heard responses.
+- Voice runtime unit tests and Docker imports passed.
+
+Limitation:
+
+- The local Whisper directory contains no model and Fish Audio is not
+  configured, so the real microphone-to-audio path was not accepted locally.
+- The target GPU host must pass the 10-turn browser test and p95
+  speech-end-to-first-audio threshold in
+  `services/voice-runtime/LIVE_ACCEPTANCE.md`.
 
 The canonical scope and remaining milestones are defined in `MILESTONES.md`.

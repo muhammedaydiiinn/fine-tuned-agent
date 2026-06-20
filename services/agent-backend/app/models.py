@@ -75,6 +75,7 @@ class Turn(Base):
     state_after_json: Mapped[dict | None] = mapped_column(JSONB)
     raw_model_json: Mapped[dict | None] = mapped_column(JSONB)
     repaired_model_json: Mapped[dict | None] = mapped_column(JSONB)
+    final_policy_json: Mapped[dict | None] = mapped_column(JSONB)
     latency_json: Mapped[dict | None] = mapped_column(JSONB)
     model_version: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

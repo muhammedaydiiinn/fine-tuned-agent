@@ -45,11 +45,16 @@ def create_tables() -> None:
         "ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE",
         "ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP WITH TIME ZONE",
     )
+    turn_columns = (
+        "ADD COLUMN IF NOT EXISTS final_policy_json JSONB",
+    )
     with engine.begin() as connection:
         for clause in eval_run_columns:
             connection.execute(text(f"ALTER TABLE eval_runs {clause}"))
         for clause in training_job_columns:
             connection.execute(text(f"ALTER TABLE training_jobs {clause}"))
+        for clause in turn_columns:
+            connection.execute(text(f"ALTER TABLE turns {clause}"))
         for clause in (
             "ADD COLUMN IF NOT EXISTS metadata_json JSONB DEFAULT '{}'::jsonb NOT NULL",
             "ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",

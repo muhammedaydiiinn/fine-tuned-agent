@@ -19,7 +19,7 @@
   </div>
   <div class="page-header-right">
     {% if session.status == 'active' %}
-    <form action="/sessions/{{ session.id }}/close" method="post">
+    <form id="end-session-form" action="/sessions/{{ session.id }}/close" method="post">
       <button class="btn btn-primary" type="submit">
         <i class="fa-solid fa-stop"></i> End Session & Review
       </button>
@@ -32,9 +32,72 @@
   </div>
 </div>
 
+{% if session.status == 'active' %}
+<section
+  id="voice-test-console"
+  class="voice-test-console"
+  data-session-id="{{ session.id }}"
+  data-completed-turns="{{ turns|length }}"
+>
+  <div class="voice-test-main">
+    <div class="voice-test-heading">
+      <div>
+        <div class="voice-test-title">Voice Test</div>
+        <div id="voice-status" class="voice-status">Microphone is stopped</div>
+      </div>
+      <div class="voice-test-actions">
+        <button id="voice-start" class="btn btn-success" type="button">
+          <i class="fa-solid fa-microphone"></i>
+          Start Microphone
+        </button>
+        <button id="voice-stop" class="btn btn-danger" type="button" disabled>
+          <i class="fa-solid fa-microphone-slash"></i>
+          Stop
+        </button>
+      </div>
+    </div>
+
+    <div class="voice-latency" aria-label="Latest voice latency">
+      <div><span>STT</span><strong data-voice-metric="stt_ms">—</strong></div>
+      <div><span>Backend</span><strong data-voice-metric="backend_ms">—</strong></div>
+      <div><span>LLM</span><strong data-voice-metric="llm_ms">—</strong></div>
+      <div><span>TTS First Audio</span><strong data-voice-metric="tts_first_audio_ms">—</strong></div>
+      <div><span>End → First Audio</span><strong data-voice-metric="total_voice_turn_ms">—</strong></div>
+    </div>
+  </div>
+
+  <aside class="scenario-guide">
+    <div class="scenario-guide-header">
+      <div>
+        <div class="scenario-guide-title">{{ test_scenario.label }}</div>
+        <div class="text-muted">{{ test_scenario.description }}</div>
+      </div>
+      {% if test_scenario.turns %}
+      <span id="scenario-progress" class="badge badge-info">
+        {{ [turns|length, test_scenario.turns|length]|min }}/{{ test_scenario.turns|length }}
+      </span>
+      {% endif %}
+    </div>
+    {% if test_scenario.turns %}
+    <ol id="scenario-turns" class="scenario-turns">
+      {% for prompt in test_scenario.turns %}
+      <li class="{% if loop.index0 < turns|length %}complete{% elif loop.index0 == turns|length %}current{% endif %}">
+        <span>{{ prompt }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="scenario-free">Speak freely and inspect each resulting turn below.</div>
+    {% endif %}
+  </aside>
+
+  <div id="voice-audio" hidden></div>
+</section>
+{% endif %}
+
 <div class="card-row"
      hx-get="/sessions/{{ session.id }}/live-summary"
-     hx-trigger="{% if session.status == 'active' %}every 2s{% else %}load{% endif %}"
+     hx-trigger="{% if session.status == 'active' %}every 2s, voice-turn-complete from:body{% else %}load{% endif %}"
      hx-swap="innerHTML">
   {% include "_session_summary.html" %}
 </div>
@@ -51,9 +114,16 @@
 
 <div id="session-conversation"
      hx-get="/sessions/{{ session.id }}/conversation"
-     hx-trigger="load{% if session.status == 'active' %}, every 2s{% endif %}"
+     hx-trigger="load{% if session.status == 'active' %}, every 2s, voice-turn-complete from:body{% endif %}"
      hx-swap="innerHTML">
   {% include "_session_conversation.html" %}
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+{% if session.status == 'active' %}
+<script src="/static/livekit-client.umd.min.js"></script>
+<script src="/static/voice-session.js?v=1"></script>
+{% endif %}
 {% endblock %}

@@ -6,7 +6,16 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db import create_tables
-from app.routes import health, sessions, agent_turn, corrections, training, model_registry, evals
+from app.routes import (
+    health,
+    sessions,
+    agent_turn,
+    corrections,
+    training,
+    model_registry,
+    evals,
+    voice,
+)
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -64,3 +73,4 @@ app.include_router(corrections.router, tags=["corrections"])
 app.include_router(training.router, tags=["training"])
 app.include_router(model_registry.router, tags=["models"])
 app.include_router(evals.router, tags=["evals"])
+app.include_router(voice.router, tags=["voice"])

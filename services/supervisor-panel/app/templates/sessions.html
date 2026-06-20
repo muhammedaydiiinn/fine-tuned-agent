@@ -7,15 +7,33 @@
   <div class="page-header-left">
     <h1>Sessions</h1>
   </div>
-  <div class="page-header-right">
-    <form action="/sessions/start" method="post" class="session-start-form">
-      <input type="text" name="external_session_id" placeholder="Optional session name">
-      <button class="btn btn-primary" type="submit">
-        <i class="fa-solid fa-plus"></i> Start Session
-      </button>
-    </form>
-  </div>
 </div>
+
+<form action="/sessions/start" method="post" class="voice-test-launcher">
+  <div class="voice-test-launcher-copy">
+    <div class="voice-test-launcher-title">
+      <i class="fa-solid fa-microphone"></i>
+      Start Voice Test
+    </div>
+    <div class="text-muted">Create a supervisor test session, then speak through this panel.</div>
+  </div>
+  <div class="form-group">
+    <label for="scenario-id">Scenario</label>
+    <select id="scenario-id" name="scenario_id">
+      {% for scenario_id, scenario in voice_test_scenarios.items() %}
+      <option value="{{ scenario_id }}">{{ scenario.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="external-session-id">Session name</label>
+    <input id="external-session-id" type="text" name="external_session_id" placeholder="Generated automatically">
+  </div>
+  <button class="btn btn-primary" type="submit">
+    <i class="fa-solid fa-plus"></i>
+    Create Test Session
+  </button>
+</form>
 
 <div class="stats-row">
   <div class="stat-card blue">
@@ -46,6 +64,7 @@
         <th data-dt-col-field="external_session_id" data-dt-col-render="sessionId">Session</th>
         <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
         <th data-dt-col-field="stage" data-dt-col-render="badge">Stage</th>
+        <th data-dt-col-field="test_scenario">Scenario</th>
         <th data-dt-col-field="turns" data-dt-col-class="td-center">Turns</th>
         <th data-dt-col-field="hard_decline" data-dt-col-render="hardDecline" data-dt-col-class="td-center">Hard Decline</th>
         <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>

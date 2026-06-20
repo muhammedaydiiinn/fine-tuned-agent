@@ -4,14 +4,16 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from livekit import api
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
 
 from app.db import get_db
 from app.models import Session as SessionModel, Turn
 from app.config import settings
+from app.test_scenarios import VOICE_TEST_SCENARIOS, get_voice_test_scenario
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -23,8 +25,15 @@ def _backend_headers() -> dict[str, str]:
 
 
 @router.post("/sessions/start")
-def start_session(external_session_id: str = Form("")):
-    external_id = external_session_id.strip() or f"session-{uuid.uuid4().hex[:10]}"
+def start_session(
+    external_session_id: str = Form(""),
+    scenario_id: str = Form("full_flow"),
+    db: DBSession = Depends(get_db),
+):
+    external_id = external_session_id.strip() or f"voice-test-{uuid.uuid4().hex[:10]}"
+    if scenario_id not in VOICE_TEST_SCENARIOS:
+        scenario_id = "free_conversation"
+    scenario = get_voice_test_scenario(scenario_id)
     try:
         response = httpx.post(
             f"{settings.agent_backend_url}/sessions",
@@ -34,6 +43,19 @@ def start_session(external_session_id: str = Form("")):
         )
         response.raise_for_status()
         session_id = int(response.json()["id"])
+        session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+        if session is None:
+            raise RuntimeError("Created session was not found in the shared database")
+        session.state_json = {
+            **(session.state_json or {}),
+            "test_scenario": {
+                "id": scenario_id,
+                "label": scenario["label"],
+                "description": scenario["description"],
+                "turns": scenario["turns"],
+            },
+        }
+        db.commit()
     except Exception as exc:
         logger.exception("Could not start session")
         return HTMLResponse(f"Could not start session: {exc}", status_code=502)
@@ -73,6 +95,7 @@ def sessions_list(request: Request, db: DBSession = Depends(get_db)):
             "active_count": active_count,
             "total_turns": total_turns,
             "closed_count": total_count - active_count,
+            "voice_test_scenarios": VOICE_TEST_SCENARIOS,
         },
     )
 
@@ -107,6 +130,7 @@ def sessions_data(db: DBSession = Depends(get_db)):
             "stage": s.current_stage or state.get("stage", "") or "",
             "turns": turn_counts.get(s.id, 0),
             "hard_decline": state.get("hard_decline_count", 0),
+            "test_scenario": (state.get("test_scenario") or {}).get("label", ""),
             "created_at": s.created_at.strftime("%m-%d %H:%M"),
         })
     return {"data": rows}
@@ -124,10 +148,77 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
         .all()
     )
     state_pretty = json.dumps(session.state_json, indent=2, ensure_ascii=False)
+    test_scenario = (session.state_json or {}).get("test_scenario") or {
+        "id": "free_conversation",
+        **get_voice_test_scenario("free_conversation"),
+    }
     return templates.TemplateResponse(
         "session_detail.html",
-        {"request": request, "session": session, "turns": turns, "state_pretty": state_pretty},
+        {
+            "request": request,
+            "session": session,
+            "turns": turns,
+            "state_pretty": state_pretty,
+            "test_scenario": test_scenario,
+        },
     )
+
+
+@router.post("/sessions/{session_id}/voice-token")
+def session_voice_token(
+    session_id: int,
+    db: DBSession = Depends(get_db),
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if session is None:
+        return JSONResponse({"detail": "Session not found"}, status_code=404)
+    if session.status != "active":
+        return JSONResponse(
+            {"detail": "Voice can only be started for an active session"},
+            status_code=409,
+        )
+    if not session.external_session_id:
+        return JSONResponse(
+            {"detail": "Session has no external session ID"},
+            status_code=409,
+        )
+
+    participant_identity = f"supervisor-{uuid.uuid4().hex[:10]}"
+    metadata = json.dumps(
+        {"session_id": session.external_session_id},
+        separators=(",", ":"),
+    )
+    token = (
+        api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
+        .with_identity(participant_identity)
+        .with_name("Supervisor voice test")
+        .with_grants(
+            api.VideoGrants(
+                room_join=True,
+                room=session.external_session_id,
+                can_publish=True,
+                can_subscribe=True,
+                can_publish_data=True,
+            )
+        )
+        .with_room_config(
+            api.RoomConfiguration(
+                agents=[
+                    api.RoomAgentDispatch(
+                        agent_name=settings.livekit_agent_name,
+                        metadata=metadata,
+                    )
+                ]
+            )
+        )
+        .to_jwt()
+    )
+    return {
+        "token": token,
+        "server_url": settings.livekit_public_url,
+        "session_id": session.external_session_id,
+        "participant_identity": participant_identity,
+    }
 
 
 @router.get("/sessions/{session_id}/conversation", response_class=HTMLResponse)
