@@ -119,7 +119,10 @@ services:
     command: --bind 0.0.0.0 --udp-port 7882 --node-ip 127.0.0.1
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}"
-      LIVEKIT_LOGGING_LEVEL: ${LIVEKIT_LOGGING_LEVEL:-warn}
+      # LiveKit reports normal WebRTC disconnect teardown as WARN. Product
+      # lifecycle events are recorded by voice-runtime; use warn temporarily
+      # when diagnosing transport issues.
+      LIVEKIT_LOGGING_LEVEL: ${LIVEKIT_LOGGING_LEVEL:-error}
     networks:
       - agent-net
     ports:
