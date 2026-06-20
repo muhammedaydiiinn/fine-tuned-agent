@@ -92,8 +92,8 @@
             </form>
             <form hx-post="/model-registry/{{ model.version_name }}/serving-target" hx-target="#registry-result" hx-swap="innerHTML">
               <select name="mode"><option value="real">real</option><option value="mock">mock</option></select>
-              <input name="base_url" placeholder="http://vllm-candidate:8000/v1" value="{{ serving.get('base_url', '') }}">
-              <input name="model_name" required placeholder="served model name" value="{{ serving.get('model_name', model.version_name) }}">
+              <input type="text" name="base_url" placeholder="http://vllm-candidate:8000/v1" value="{{ serving.get('base_url', '') }}">
+              <input type="text" name="model_name" required placeholder="served model name" value="{{ serving.get('model_name', model.version_name) }}">
               <select name="slot"><option value="green">green</option><option value="blue">blue</option><option value="mock">mock</option></select>
               <button class="btn btn-outline btn-sm" type="submit">Verify target</button>
             </form>
@@ -119,7 +119,11 @@
         <td>{{ deployment.id }}</td>
         <td><code>#{{ deployment.model_version_id }}</code></td>
         <td>{{ deployment.environment }}</td>
-        <td><span class="badge">{{ deployment.status }}</span></td>
+        <td>
+          <span class="badge {% if deployment.status == 'active' %}badge-approved{% elif deployment.status == 'rolled_back' %}badge-pending{% elif deployment.status == 'superseded' %}badge-closed{% else %}badge-info{% endif %}">
+            {{ deployment.status }}
+          </span>
+        </td>
         <td>{{ dmeta.get('action', 'deploy') }}</td>
         <td>{{ dmeta.get('actor') or '—' }}</td>
         <td>{{ deployment.rollback_model_version_id or '—' }}</td>

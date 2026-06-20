@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     model_dir: str = "/models"
     agent_backend_url: str = "http://agent-backend:8010"
     api_key: str = ""
+    eval_internal_token: str = ""
     eval_request_timeout_seconds: float = 45.0
     eval_pass_threshold: float = 0.80
     eval_json_validity_min: float = 1.0

@@ -19,7 +19,7 @@
       {% if turn.next_action %}<span class="badge badge-action">{{ turn.next_action }}</span>{% endif %}
       {% if turn.risk %}<span class="badge badge-risk-{{ turn.risk }}">{{ turn.risk }}</span>{% endif %}
       {% if not turn.allowed_to_continue %}
-        <span class="badge" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-bdr);">Blocked</span>
+        <span class="badge badge-error">Blocked</span>
       {% endif %}
     </div>
   </div>

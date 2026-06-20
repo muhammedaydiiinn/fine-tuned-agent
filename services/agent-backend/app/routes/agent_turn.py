@@ -1,6 +1,7 @@
 """POST /agent-turn — 12-step stateful agent flow."""
-import time
 import logging
+import secrets
+import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session as DBSession
@@ -32,8 +33,19 @@ def agent_turn(
         default=None,
         alias="X-Eval-Model-Version-ID",
     ),
+    eval_token: str = Header(default="", alias="X-Eval-Token"),
 ):
     backend_start = time.perf_counter()
+
+    if eval_model_version_id is not None:
+        if settings.eval_internal_token:
+            if not secrets.compare_digest(eval_token, settings.eval_internal_token):
+                raise HTTPException(status_code=403, detail="Invalid evaluation token")
+        elif settings.environment == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="Isolated evaluation routing is not configured",
+            )
 
     # 1. Load or create session
     session = db.query(SessionModel).filter(

@@ -8,7 +8,7 @@
     <a href="/training-jobs" class="btn btn-outline" style="margin-right:12px;">
       <i class="fa-solid fa-arrow-left"></i>
     </a>
-    <h1>Training Job <span style="opacity:.5;">#{{ job.id }}</span></h1>
+    <h1>Training Job <span class="text-muted">#{{ job.id }}</span></h1>
   </div>
 </div>
 
@@ -63,19 +63,19 @@
 {% endif %}
 
 {# ── Input / Output / Error ──────────────────────────────────────────────── #}
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-  <div class="table-container" style="padding:16px;">
+<div class="detail-grid">
+  <div class="table-container detail-card">
     <div class="table-toolbar"><span class="table-toolbar-title">Input</span></div>
-    <pre style="font-size:.8rem;opacity:.8;white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
+    <pre class="detail-code">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
   </div>
-  <div class="table-container" style="padding:16px;">
+  <div class="table-container detail-card">
     <div class="table-toolbar"><span class="table-toolbar-title">Output</span></div>
     {% if job.status == 'failed' and job.error_message %}
       <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.error_message }}</pre>
     {% elif job.output_json %}
-      <pre style="font-size:.8rem;opacity:.8;white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.output_json | tojson(indent=2) }}</pre>
+      <pre class="detail-code">{{ job.output_json | tojson(indent=2) }}</pre>
     {% else %}
-      <span style="opacity:.4;">—</span>
+      <span class="text-muted">—</span>
     {% endif %}
   </div>
 </div>

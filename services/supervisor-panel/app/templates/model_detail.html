@@ -47,27 +47,27 @@
 </div>
 
 {# ── Info + Serving config ───────────────────────────────────────────────── #}
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-  <div class="table-container" style="padding:16px;">
+<div class="detail-grid">
+  <div class="table-container detail-card">
     <div class="table-toolbar"><span class="table-toolbar-title">Model Info</span></div>
-    <table style="width:100%;font-size:.85rem;">
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Base model</td><td><code>{{ model.base_model or '—' }}</code></td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Dataset version</td><td><code>{{ model.dataset_version or '—' }}</code></td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">LoRA path</td><td style="word-break:break-all;font-size:.78rem;opacity:.7;">{{ model.lora_path or '—' }}</td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Merged path</td><td style="word-break:break-all;font-size:.78rem;opacity:.7;">{{ model.merged_path or '—' }}</td></tr>
+    <table class="detail-table">
+      <tr><td>Base model</td><td><code>{{ model.base_model or '—' }}</code></td></tr>
+      <tr><td>Dataset version</td><td><code>{{ model.dataset_version or '—' }}</code></td></tr>
+      <tr><td>LoRA path</td><td class="detail-path">{{ model.lora_path or '—' }}</td></tr>
+      <tr><td>Merged path</td><td class="detail-path">{{ model.merged_path or '—' }}</td></tr>
     </table>
   </div>
-  <div class="table-container" style="padding:16px;">
+  <div class="table-container detail-card">
     <div class="table-toolbar"><span class="table-toolbar-title">Serving Config</span></div>
     {% if serving %}
-    <table style="width:100%;font-size:.85rem;">
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Mode</td><td><code>{{ serving.get('mode', '—') }}</code></td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Slot</td><td><code>{{ serving.get('slot', '—') }}</code></td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Model name</td><td><code>{{ serving.get('model_name', '—') }}</code></td></tr>
-      <tr><td style="opacity:.5;padding:4px 8px 4px 0;white-space:nowrap;">Base URL</td><td style="word-break:break-all;font-size:.78rem;opacity:.7;">{{ serving.get('base_url') or '—' }}</td></tr>
+    <table class="detail-table">
+      <tr><td>Mode</td><td><code>{{ serving.get('mode', '—') }}</code></td></tr>
+      <tr><td>Slot</td><td><code>{{ serving.get('slot', '—') }}</code></td></tr>
+      <tr><td>Model name</td><td><code>{{ serving.get('model_name', '—') }}</code></td></tr>
+      <tr><td>Base URL</td><td class="detail-path">{{ serving.get('base_url') or '—' }}</td></tr>
     </table>
     {% else %}
-      <span style="opacity:.4;">No serving config yet.</span>
+      <span class="text-muted">No serving config yet.</span>
     {% endif %}
   </div>
 </div>
@@ -163,7 +163,11 @@
       <tr>
         <td>{{ dep.id }}</td>
         <td>{{ dep.environment }}</td>
-        <td><span class="badge">{{ dep.status }}</span></td>
+        <td>
+          <span class="badge {% if dep.status == 'active' %}badge-approved{% elif dep.status == 'rolled_back' %}badge-pending{% elif dep.status == 'superseded' %}badge-closed{% else %}badge-info{% endif %}">
+            {{ dep.status }}
+          </span>
+        </td>
         <td>{{ dmeta.get('action', '—') }}</td>
         <td>{{ dmeta.get('actor') or '—' }}</td>
         <td>{{ dep.rollback_model_version_id or '—' }}</td>

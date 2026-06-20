@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # API key guard — skip check if empty (local dev)
     # Production: set with openssl rand -hex 32
     api_key: str = ""
+    eval_internal_token: str = ""
 
     @property
     def database_url(self) -> str:
