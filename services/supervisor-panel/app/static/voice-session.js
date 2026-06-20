@@ -13,6 +13,7 @@
   const endSessionForm = document.querySelector("#end-session-form");
 
   let room = null;
+  let hasConnectedBefore = false;
 
   function setStatus(message, state) {
     statusElement.textContent = message;
@@ -30,9 +31,14 @@
     startButton.disabled = true;
     setStatus("Connecting to voice runtime…", "working");
 
+    const isResume = hasConnectedBefore;
+    const tokenPath = isResume
+      ? `/sessions/${sessionId}/voice-token-resume`
+      : `/sessions/${sessionId}/voice-token`;
+
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
-      const response = await fetch(`/sessions/${sessionId}/voice-token`, {
+      const response = await fetch(tokenPath, {
         method: "POST",
         headers: { "Accept": "application/json", "X-CSRF-Token": csrfToken },
       });
@@ -72,8 +78,9 @@
         noiseSuppression: true,
         autoGainControl: true,
       });
+      hasConnectedBefore = true;
       stopButton.disabled = false;
-      setStatus("Waiting for voice agent…", "working");
+      setStatus(isResume ? "Resumed — speak freely" : "Waiting for voice agent…", isResume ? "ready" : "working");
     } catch (error) {
       console.error(error);
       setStatus(error.message, "error");
@@ -92,6 +99,9 @@
     startButton.disabled = false;
     stopButton.disabled = true;
     audioContainer.replaceChildren();
+    if (hasConnectedBefore) {
+      startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
+    }
     if (showStopped !== false) setStatus("Microphone is stopped", "");
   }
 

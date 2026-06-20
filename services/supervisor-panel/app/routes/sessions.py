@@ -113,7 +113,7 @@ def sessions_data(db: DBSession = Depends(get_db)):
             "stage": s.current_stage or state.get("stage", "") or "",
             "turns": turn_counts.get(s.id, 0),
             "hard_decline": state.get("hard_decline_count", 0),
-            "created_at": s.created_at.strftime("%m-%d %H:%M"),
+            "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
         })
     return {"data": rows}
 
@@ -187,6 +187,51 @@ def session_voice_token(
                         metadata=metadata,
                     )
                 ]
+            )
+        )
+        .to_jwt()
+    )
+    return {
+        "token": token,
+        "server_url": settings.livekit_public_url,
+        "session_id": session.external_session_id,
+        "participant_identity": participant_identity,
+    }
+
+
+@router.post("/sessions/{session_id}/voice-token-resume")
+def session_voice_token_resume(
+    session_id: int,
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    """Token without agent dispatch — used when rejoining an existing room."""
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if session is None:
+        return JSONResponse({"detail": "Session not found"}, status_code=404)
+    if session.status != "active":
+        return JSONResponse(
+            {"detail": "Voice can only be started for an active session"},
+            status_code=409,
+        )
+    if not session.external_session_id:
+        return JSONResponse(
+            {"detail": "Session has no external session ID"},
+            status_code=409,
+        )
+
+    participant_identity = f"supervisor-{uuid.uuid4().hex[:10]}"
+    token = (
+        api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
+        .with_identity(participant_identity)
+        .with_name("Supervisor voice test")
+        .with_grants(
+            api.VideoGrants(
+                room_join=True,
+                room=session.external_session_id,
+                can_publish=True,
+                can_subscribe=True,
+                can_publish_data=True,
             )
         )
         .to_jwt()

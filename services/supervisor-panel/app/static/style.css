@@ -293,26 +293,29 @@ div.dt-container > div.dt-layout-row:last-child > .dt-layout-cell.dt-end {
 .dt-info { font-size: 12px; color: var(--text-3); }
 
 /* Pagination buttons */
-div.dt-container .dt-paging { display: flex; gap: 5px; align-items: center; }
+div.dt-container .dt-paging { display: flex; gap: 4px; align-items: center; }
 
-div.dt-container .dt-paging .dt-paging-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 30px;
-  height: 30px;
-  margin: 0;
-  padding: 0 8px !important;
+div.dt-container .dt-paging .dt-paging-button,
+div.dt-container .dt-paging .dt-paging-button.current,
+div.dt-container .dt-paging button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+  padding: 0 7px !important;
   background: var(--surface-2) !important;
   border: 1px solid var(--border) !important;
-  color: var(--text-2) !important;
-  border-radius: var(--radius-sm);
-  padding: 3px 9px;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-family: var(--font);
-  transition: all .1s;
-  line-height: 1.5;
+  color: var(--text-3) !important;
+  border-radius: var(--radius-sm) !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  font-family: var(--font) !important;
+  font-weight: 400 !important;
+  transition: background .1s, color .1s, border-color .1s !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
 }
 
 div.dt-container .dt-paging .dt-paging-button:hover:not(.disabled):not(.current) {
@@ -322,15 +325,19 @@ div.dt-container .dt-paging .dt-paging-button:hover:not(.disabled):not(.current)
 }
 
 div.dt-container .dt-paging .dt-paging-button.current {
-  background: var(--accent) !important;
-  color: #fff !important;
-  border-color: var(--accent) !important;
-  box-shadow: 0 4px 12px rgba(37,99,235,.24);
+  background: var(--accent-bg) !important;
+  color: var(--accent-2) !important;
+  border-color: rgba(37,99,235,.35) !important;
+  font-weight: 600 !important;
 }
 
-div.dt-container .dt-paging .dt-paging-button.disabled {
-  opacity: .28 !important;
-  cursor: not-allowed;
+div.dt-container .dt-paging .dt-paging-button.disabled,
+div.dt-container .dt-paging .dt-paging-button.disabled:hover {
+  opacity: .3 !important;
+  cursor: not-allowed !important;
+  background: var(--surface-2) !important;
+  color: var(--text-3) !important;
+  border-color: var(--border) !important;
 }
 
 /* Sorting arrows */
