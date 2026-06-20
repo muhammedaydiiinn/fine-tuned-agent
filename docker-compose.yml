@@ -93,7 +93,7 @@ services:
   # ── LiveKit WebRTC media server (Milestone 7) ──────────────────────────────
   livekit-server:
     image: livekit/livekit-server:v1.9
-    command: --bind 0.0.0.0 --udp-port 7882
+    command: --bind 0.0.0.0 --udp-port 7882 --node-ip 127.0.0.1
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}"
       LIVEKIT_LOGGING_LEVEL: info
