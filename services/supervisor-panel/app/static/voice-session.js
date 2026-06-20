@@ -13,7 +13,12 @@
   const endSessionForm = document.querySelector("#end-session-form");
 
   let room = null;
-  let hasConnectedBefore = false;
+  const storageKey = `voice_connected_${sessionId}`;
+  let hasConnectedBefore = localStorage.getItem(storageKey) === "1";
+
+  if (hasConnectedBefore) {
+    startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
+  }
 
   function setStatus(message, state) {
     statusElement.textContent = message;
@@ -100,6 +105,7 @@
     stopButton.disabled = true;
     audioContainer.replaceChildren();
     if (hasConnectedBefore) {
+      localStorage.setItem(storageKey, "1");
       startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
     }
     if (showStopped !== false) setStatus("Microphone is stopped", "");

@@ -1088,6 +1088,43 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   margin-top: 10px;
 }
 
+.turn-inline-edit {
+  margin-top: 10px;
+  background: transparent;
+  border: none;
+  overflow: visible;
+}
+.turn-inline-edit > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: var(--surface-2);
+  transition: border-color .15s, color .15s;
+}
+.turn-inline-edit > summary::-webkit-details-marker { display: none; }
+.turn-inline-edit > summary::before {
+  content: '';
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 5px;
+  border-color: transparent transparent transparent currentColor;
+  opacity: .5;
+  transition: transform .12s;
+  flex-shrink: 0;
+}
+.turn-inline-edit[open] > summary::before { transform: rotate(90deg); }
+.turn-inline-edit > summary:hover { border-color: var(--accent-2); color: var(--text); }
+.turn-inline-edit .correction-panel { margin-top: 0; }
+
 .review-layout {
   align-items: start;
   display: grid;

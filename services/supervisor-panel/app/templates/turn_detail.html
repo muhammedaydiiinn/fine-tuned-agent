@@ -62,27 +62,6 @@
   </div>
 </div>
 
-<!-- Model Output -->
-<div class="section-title">Model Output</div>
-<div class="json-grid">
-  <details class="collapsible" open>
-    <summary>Raw Model JSON</summary>
-    <pre class="json-block">{{ raw_json }}</pre>
-  </details>
-  <details class="collapsible" open>
-    <summary>Repaired JSON</summary>
-    <pre class="json-block">{{ repaired_json }}</pre>
-  </details>
-  <details class="collapsible">
-    <summary>State — Before</summary>
-    <pre class="json-block">{{ state_before }}</pre>
-  </details>
-  <details class="collapsible">
-    <summary>State — After</summary>
-    <pre class="json-block">{{ state_after }}</pre>
-  </details>
-</div>
-
 <!-- Existing Corrections -->
 {% if corrections %}
 <div class="section-title">Previous Corrections ({{ corrections|length }})</div>

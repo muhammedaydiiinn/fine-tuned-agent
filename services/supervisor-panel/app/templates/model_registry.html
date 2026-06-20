@@ -26,94 +26,26 @@
       </button>
     </form>
   </div>
-  <table class="dt-table">
+  <table data-dt-url="/model-registry/models/data" data-dt-order="4,desc">
     <thead>
-      <tr><th>Version</th><th>Training Source</th><th>Quality Check</th><th>Release Status</th><th>Actions</th><th style="width:90px;"></th></tr>
-    </thead>
-    <tbody>
-    {% for model in models %}
-      {% set metadata = model.metadata_json or {} %}
-      {% set artifact = metadata.get('artifact_manifest', {}) %}
-      {% set serving = metadata.get('serving', {}) %}
-      {% set latest_eval = latest_runs.get(model.id) %}
-      {% set gate = (latest_eval.metrics_json or {}).get('deployment_gate', {}) if latest_eval else {} %}
       <tr>
-        <td>
-          <code>{{ model.version_name }}</code>
-          <div class="text-muted" style="font-size:11px;">Created {{ model.created_at.strftime('%d.%m %H:%M') }}</div>
-        </td>
-        <td>
-          <code>{{ model.dataset_version or 'baseline' }}</code>
-          {% if metadata.get('dataset_manifest', {}).get('candidate_ids') %}
-            <div class="text-muted" style="font-size:11px;">{{ metadata.get('dataset_manifest', {}).get('candidate_ids')|length }} reviewed turn(s)</div>
-          {% endif %}
-        </td>
-        <td>
-          <span class="badge {% if model.eval_status == 'passed' %}badge-approved{% elif model.eval_status == 'failed' %}badge-error{% else %}badge-running{% endif %}">
-            {{ 'Passed' if model.eval_status == 'passed' else ('Failed' if model.eval_status == 'failed' else 'Waiting') }}
-          </span>
-          {% if latest_eval and latest_eval.metrics_json %}
-            <div class="text-muted" style="font-size:11px;">Score {{ ((latest_eval.metrics_json or {}).get('quality_score', 0) * 100)|round|int }}%</div>
-          {% endif %}
-        </td>
-        <td><span class="badge badge-info">{{ metadata.get('lifecycle_status', 'candidate') }}</span></td>
-        <td>
-          <div class="registry-actions">
-            {% if model.eval_status in ('pending', 'failed') %}
-            <form hx-post="/model-registry/{{ model.id }}/quality-check" hx-target="#registry-result" hx-swap="innerHTML">
-              <button class="btn btn-outline btn-sm" type="submit">Run Quality Check</button>
-            </form>
-            {% endif %}
-            {% if model.eval_status == 'passed' and gate.get('passed') and artifact.get('valid') and metadata.get('lifecycle_status') != 'approved' and metadata.get('lifecycle_status') != 'deployed' %}
-            <form hx-post="/model-registry/{{ model.version_name }}/approve" hx-target="#registry-result" hx-swap="innerHTML">
-              <button class="btn btn-outline btn-sm" type="submit">Approve Release</button>
-            </form>
-            {% endif %}
-            {% if metadata.get('lifecycle_status') == 'approved' and gate.get('evidence_mode') == 'real' %}
-            <form hx-post="/model-registry/{{ model.version_name }}/deploy" hx-target="#registry-result" hx-swap="innerHTML">
-              <input type="hidden" name="environment" value="production">
-              <button class="btn btn-primary btn-sm" type="submit">Make Live</button>
-            </form>
-            {% elif metadata.get('lifecycle_status') == 'approved' %}
-              <span class="badge badge-pending">GPU verification required</span>
-            {% endif %}
-          </div>
-          <details class="registry-serving-form">
-            <summary>Technical details</summary>
-            <div class="technical-summary">
-              Artifact: {{ 'verified' if artifact and artifact.get('valid', true) else 'unverified' }}<br>
-              Runtime: {{ serving.get('mode', '—') }} / {{ serving.get('slot', '—') }}<br>
-              {% if latest_eval %}<a href="/eval-jobs/{{ latest_eval.id }}">Open quality report #{{ latest_eval.id }}</a>{% endif %}
-            </div>
-            <form hx-post="/model-registry/{{ model.version_name }}/verify" hx-target="#registry-result" hx-swap="innerHTML">
-              <button class="btn btn-outline btn-sm" type="submit">Verify Artifact</button>
-            </form>
-            <form hx-post="/model-registry/{{ model.version_name }}/serving-target" hx-target="#registry-result" hx-swap="innerHTML">
-              <select name="mode"><option value="real">real</option><option value="mock">mock</option></select>
-              <input type="text" name="base_url" placeholder="http://vllm-candidate:8000/v1" value="{{ serving.get('base_url', '') }}">
-              <input type="text" name="model_name" required placeholder="served model name" value="{{ serving.get('model_name', model.version_name) }}">
-              <select name="slot"><option value="green">green</option><option value="blue">blue</option><option value="mock">mock</option></select>
-              <button class="btn btn-outline btn-sm" type="submit">Verify target</button>
-            </form>
-          </details>
-        </td>
-        <td>
-          <a class="btn btn-sm btn-outline" href="/model-registry/{{ model.version_name }}">
-            Open <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
-          </a>
-        </td>
+        <th data-dt-col-field="version_name" data-dt-col-render="code">Version</th>
+        <th data-dt-col-field="training_source" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Training Source</th>
+        <th data-dt-col-field="quality_check" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Quality Check</th>
+        <th data-dt-col-field="release_status" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Release Status</th>
+        <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>
+        <th data-dt-col-field="actions" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Actions</th>
+        <th data-dt-col-field="open_id" data-dt-col-render="openBtn" data-dt-col-link-base="/model-registry/" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
       </tr>
-    {% else %}
-      <tr><td colspan="6"><div class="empty-state">No trained models yet.</div></td></tr>
-    {% endfor %}
-    </tbody>
+    </thead>
+    <tbody></tbody>
   </table>
 </div>
 
 <details class="collapsible">
   <summary>Release history and technical audit</summary>
   <div class="table-wrap">
-  <table data-dt-url="/model-registry/deployments/data" data-dt-order="0,desc">
+  <table data-dt-url="/model-registry/deployments/data" data-dt-order="7,desc">
     <thead>
       <tr>
         <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">#</th>

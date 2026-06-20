@@ -57,6 +57,29 @@ class VoicePipeline:
             {"event": "voice_session_ready", "session_id": self.session_id},
         )
         track = await self._wait_for_audio_track(room, participant)
+
+        if self.settings.greeting_mock and self.settings.greeting_text:
+            greeting = self.settings.greeting_text
+            await self._publish_event(
+                room,
+                {
+                    "event": "agent_response",
+                    "turn_id": None,
+                    "turn_index": 0,
+                    "text": greeting,
+                    "policy": None,
+                    "latency": {},
+                },
+            )
+            await self._speak(room, greeting, {}, "agent-greeting")
+            await self._publish_event(
+                room,
+                {"event": "voice_turn_complete", "turn_id": None, "metrics": {}},
+            )
+        else:
+            # TODO: real-mode opening turn — requires a /agent-turn/opening endpoint on the backend
+            pass
+
         stream = rtc.AudioStream(
             track,
             sample_rate=INPUT_SAMPLE_RATE,
@@ -121,71 +144,13 @@ class VoicePipeline:
             )
 
             # ── TTS ───────────────────────────────────────────────────────────
-            tts_started = time.perf_counter()
-            first_audio_ms: float | None = None
-            total_voice_turn_ms: float | None = None
-            audio_source = rtc.AudioSource(self.settings.tts_sample_rate, 1)
-            audio_track = rtc.LocalAudioTrack.create_audio_track(
+            first_audio_ms = await self._speak(
+                room,
+                turn["agent_response"],
+                turn.get("voice_style", {}),
                 f"agent-audio-{turn['turn_id']}",
-                audio_source,
             )
-            publication = None
-            try:
-                publication = await room.local_participant.publish_track(
-                    audio_track,
-                    rtc.TrackPublishOptions(
-                        source=rtc.TrackSource.SOURCE_MICROPHONE,
-                    ),
-                )
-                pcm_buffer = bytearray()
-                async for chunk in self.tts.stream(
-                    turn["agent_response"],
-                    turn.get("voice_style", {}),
-                ):
-                    pcm_buffer.extend(chunk)
-                    frame_bytes = self.settings.tts_sample_rate // 50 * 2
-                    while len(pcm_buffer) >= frame_bytes:
-                        packet = bytes(pcm_buffer[:frame_bytes])
-                        del pcm_buffer[:frame_bytes]
-                        if first_audio_ms is None:
-                            first_audio_ms = (time.perf_counter() - tts_started) * 1000
-                            total_voice_turn_ms = (
-                                time.perf_counter() - voice_turn_started
-                            ) * 1000
-                        await audio_source.capture_frame(
-                            rtc.AudioFrame(
-                                data=packet,
-                                sample_rate=self.settings.tts_sample_rate,
-                                num_channels=1,
-                                samples_per_channel=len(packet) // 2,
-                            )
-                        )
-                if pcm_buffer:
-                    pcm_buffer.extend(b"\x00" * (-len(pcm_buffer) % 2))
-                    if first_audio_ms is None:
-                        first_audio_ms = (time.perf_counter() - tts_started) * 1000
-                        total_voice_turn_ms = (
-                            time.perf_counter() - voice_turn_started
-                        ) * 1000
-                    await audio_source.capture_frame(
-                        rtc.AudioFrame(
-                            data=bytes(pcm_buffer),
-                            sample_rate=self.settings.tts_sample_rate,
-                            num_channels=1,
-                            samples_per_channel=len(pcm_buffer) // 2,
-                        )
-                    )
-                await audio_source.wait_for_playout()
-            finally:
-                if publication is not None:
-                    try:
-                        await room.local_participant.unpublish_track(publication.sid)
-                    except Exception:
-                        logger.exception(
-                            "Failed to unpublish audio track — session=%s turn=%s",
-                            self.session_id,
-                            turn.get("turn_id"),
-                        )
+            total_voice_turn_ms = (time.perf_counter() - voice_turn_started) * 1000
 
             # ── Metrics ───────────────────────────────────────────────────────
             playout_complete_ms = (time.perf_counter() - voice_turn_started) * 1000
@@ -243,6 +208,68 @@ class VoicePipeline:
                     "Could not publish voice_error event — session=%s", self.session_id
                 )
             # Return, not raise: session stays alive for the next utterance.
+
+    async def _speak(
+        self,
+        room: rtc.Room,
+        text: str,
+        voice_style: dict,
+        track_label: str,
+    ) -> float | None:
+        """Synthesise *text* via TTS and publish it as an audio track.
+
+        Returns the time-to-first-audio in milliseconds, or None if no audio
+        was produced (e.g. empty mock stream).
+        """
+        tts_started = time.perf_counter()
+        first_audio_ms: float | None = None
+        audio_source = rtc.AudioSource(self.settings.tts_sample_rate, 1)
+        audio_track = rtc.LocalAudioTrack.create_audio_track(track_label, audio_source)
+        publication = None
+        try:
+            publication = await room.local_participant.publish_track(
+                audio_track,
+                rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
+            )
+            pcm_buffer = bytearray()
+            async for chunk in self.tts.stream(text, voice_style):
+                pcm_buffer.extend(chunk)
+                frame_bytes = self.settings.tts_sample_rate // 50 * 2
+                while len(pcm_buffer) >= frame_bytes:
+                    packet = bytes(pcm_buffer[:frame_bytes])
+                    del pcm_buffer[:frame_bytes]
+                    if first_audio_ms is None:
+                        first_audio_ms = (time.perf_counter() - tts_started) * 1000
+                    await audio_source.capture_frame(
+                        rtc.AudioFrame(
+                            data=packet,
+                            sample_rate=self.settings.tts_sample_rate,
+                            num_channels=1,
+                            samples_per_channel=len(packet) // 2,
+                        )
+                    )
+            if pcm_buffer:
+                pcm_buffer.extend(b"\x00" * (-len(pcm_buffer) % 2))
+                if first_audio_ms is None:
+                    first_audio_ms = (time.perf_counter() - tts_started) * 1000
+                await audio_source.capture_frame(
+                    rtc.AudioFrame(
+                        data=bytes(pcm_buffer),
+                        sample_rate=self.settings.tts_sample_rate,
+                        num_channels=1,
+                        samples_per_channel=len(pcm_buffer) // 2,
+                    )
+                )
+            await audio_source.wait_for_playout()
+        finally:
+            if publication is not None:
+                try:
+                    await room.local_participant.unpublish_track(publication.sid)
+                except Exception:
+                    logger.exception(
+                        "Failed to unpublish audio track — label=%s", track_label
+                    )
+        return first_audio_ms
 
     async def _wait_for_audio_track(
         self,
