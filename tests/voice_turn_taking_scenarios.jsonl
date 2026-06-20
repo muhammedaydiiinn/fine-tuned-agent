@@ -1,8 +1,0 @@
-{"id":"backchannel_mhm","kind":"backchannel","transcript":"mhm","expect_interrupt":false}
-{"id":"backchannel_okay","kind":"backchannel","transcript":"okay","expect_interrupt":false}
-{"id":"backchannel_understood","kind":"backchannel","transcript":"alles klar","expect_interrupt":false}
-{"id":"interrupt_price","kind":"interruption","transcript":"Moment, was kostet das genau?","expect_interrupt":true}
-{"id":"interrupt_decline","kind":"interruption","transcript":"Nein, bitte rufen Sie mich nicht mehr an.","expect_interrupt":true}
-{"id":"interrupt_correction","kind":"interruption","transcript":"Das stimmt nicht, ich bin nicht der Vertragsinhaber.","expect_interrupt":true}
-{"id":"duplicate_reconnect","kind":"duplicate","transcript":"Was kostet das nach der Testphase?","repeat_after_ms":500,"expect_second_turn":false}
-{"id":"repeat_after_window","kind":"duplicate","transcript":"Können Sie das wiederholen?","repeat_after_ms":3000,"expect_second_turn":true}

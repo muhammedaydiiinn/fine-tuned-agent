@@ -232,6 +232,7 @@ def seed(conn):
                         "stt_ms": random.randint(150, 600),
                         "llm_ms": random.randint(300, 1200),
                         "tts_first_audio_ms": random.randint(200, 800),
+                        "speech_end_to_first_audio_ms": random.randint(700, 1800),
                         "total_voice_turn_ms": random.randint(900, 2500),
                     }),
                     turn_created,

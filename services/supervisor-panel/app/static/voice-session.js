@@ -138,6 +138,8 @@
           setVoiceState("listening", "Acknowledgement detected — continuing");
         } else if (event.event === "duplicate_transcript_ignored") {
           setVoiceState("listening", "Duplicate audio ignored");
+        } else if (event.event === "empty_transcript") {
+          setVoiceState("listening", "No speech detected — still listening");
         } else if (event.event === "voice_error") {
           setVoiceState("error", event.detail);
         } else if (event.event === "voice_turn_complete") {
