@@ -113,7 +113,7 @@ def sessions_data(db: DBSession = Depends(get_db)):
             "stage": s.current_stage or state.get("stage", "") or "",
             "turns": turn_counts.get(s.id, 0),
             "hard_decline": state.get("hard_decline_count", 0),
-            "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
+            "created_at": s.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if s.created_at else None,
         })
     return {"data": rows}
 
