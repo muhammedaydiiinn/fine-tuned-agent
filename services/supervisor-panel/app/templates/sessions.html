@@ -18,14 +18,6 @@
     <div class="text-muted">Create a supervisor test session, then speak through this panel.</div>
   </div>
   <div class="form-group">
-    <label for="scenario-id">Scenario</label>
-    <select id="scenario-id" name="scenario_id">
-      {% for scenario_id, scenario in voice_test_scenarios.items() %}
-      <option value="{{ scenario_id }}">{{ scenario.label }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="form-group">
     <label for="external-session-id">Session name</label>
     <input id="external-session-id" type="text" name="external_session_id" placeholder="Generated automatically">
   </div>
@@ -64,7 +56,6 @@
         <th data-dt-col-field="external_session_id" data-dt-col-render="sessionId">Session</th>
         <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
         <th data-dt-col-field="stage" data-dt-col-render="badge">Stage</th>
-        <th data-dt-col-field="test_scenario">Scenario</th>
         <th data-dt-col-field="turns" data-dt-col-class="td-center">Turns</th>
         <th data-dt-col-field="hard_decline" data-dt-col-render="hardDecline" data-dt-col-class="td-center">Hard Decline</th>
         <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>
