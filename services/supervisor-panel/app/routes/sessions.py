@@ -302,6 +302,7 @@ def session_voice_events(
     labels = {
         "voice_session_ready": "Voice runtime ready",
         "transcript_final": "Transcript final",
+        "partial_transcript": "Partial transcript",
         "agent_response": "Agent response ready",
         "interruption_detected": "Customer interrupted",
         "playback_cancelled": "Playback cancelled",
@@ -311,9 +312,22 @@ def session_voice_events(
         "voice_turn_complete": "Turn completed",
         "voice_error": "Voice error",
     }
+    barge_in_count = (
+        db.query(func.count(VoiceEvent.id))
+        .filter(
+            VoiceEvent.session_id == session_id,
+            VoiceEvent.event_type == "interruption_detected",
+        )
+        .scalar()
+    ) or 0
     return templates.TemplateResponse(
         "_voice_events.html",
-        {"request": request, "events": events, "labels": labels},
+        {
+            "request": request,
+            "events": events,
+            "labels": labels,
+            "barge_in_count": barge_in_count,
+        },
     )
 
 

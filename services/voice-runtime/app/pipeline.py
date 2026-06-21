@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import json
 import logging
 import time
 import uuid
+from typing import TYPE_CHECKING
 
-from livekit import rtc
+if TYPE_CHECKING:
+    from livekit import rtc
 
 from app.backend import AgentBackend, BackendError
 from app.config import Settings
@@ -17,6 +21,12 @@ from app.turn_taking import BackchannelClassifier, TranscriptDeduplicator
 logger = logging.getLogger(__name__)
 EVENT_TOPIC = "voice.events"
 INPUT_SAMPLE_RATE = 16000
+
+
+def _rtc():
+    """Lazy livekit.rtc accessor — lets pipeline.py be imported without livekit installed."""
+    from livekit import rtc  # noqa: PLC0415
+    return rtc
 
 
 class VoicePipeline:
@@ -34,6 +44,11 @@ class VoicePipeline:
                 end_silence_ms=settings.speech_end_silence_ms,
                 max_speech_ms=settings.speech_max_ms,
                 preroll_ms=settings.speech_preroll_ms,
+                adaptive_threshold=settings.speech_adaptive_vad,
+                noise_floor_margin=settings.speech_noise_floor_margin,
+                noise_ema_alpha=settings.speech_noise_ema_alpha,
+                absolute_floor_rms=settings.speech_rms_threshold,
+                exit_threshold_ratio=settings.speech_exit_threshold_ratio,
             )
         )
         phrases = {
@@ -41,7 +56,9 @@ class VoicePipeline:
             for phrase in settings.backchannel_phrases.split(",")
             if phrase.strip()
         }
-        self.backchannels = BackchannelClassifier(phrases)
+        self.backchannels = BackchannelClassifier(
+            phrases, max_tokens=settings.backchannel_max_tokens
+        )
         self.deduplicator = TranscriptDeduplicator(
             settings.duplicate_transcript_window_seconds
         )
@@ -50,6 +67,7 @@ class VoicePipeline:
         )
         self._active_turn_task: asyncio.Task | None = None
         self._playback_task: asyncio.Task | None = None
+        self._partial_task: asyncio.Task | None = None
         self._playback_cancel: asyncio.Event | None = None
         self._agent_speaking = False
         self._pending_interruption: str | None = None
@@ -59,6 +77,7 @@ class VoicePipeline:
         self._generation = 0
         self._speech_started_at: float | None = None
         self._interruption_latency_ms: float | None = None
+        self._last_partial_text: str = ""
         self._event_tasks: set[asyncio.Task] = set()
 
     async def run(self, room: rtc.Room, participant: rtc.RemoteParticipant) -> None:
@@ -124,7 +143,7 @@ class VoicePipeline:
                     state="listening",
                 )
 
-            stream = rtc.AudioStream(
+            stream = _rtc().AudioStream(
                 track,
                 sample_rate=INPUT_SAMPLE_RATE,
                 num_channels=1,
@@ -169,6 +188,7 @@ class VoicePipeline:
             utterance = self.segmenter.push(bytes(event.frame.data))
             if self.segmenter.consume_speech_started():
                 self._speech_started_at = time.perf_counter()
+                self._last_partial_text = ""
                 if self._agent_speaking:
                     self._speech_overlap_kind = "playback"
                 elif self._active_turn_task and not self._active_turn_task.done():
@@ -185,10 +205,23 @@ class VoicePipeline:
                     # A short acknowledgement should not stop playback. Wait
                     # for sustained customer speech before cancelling.
                     self._schedule_barge_in_probe()
+                # Start partial transcript loop if enabled (default OFF)
+                if self.settings.enable_partial_transcripts:
+                    if self._partial_task is None or self._partial_task.done():
+                        self._partial_task = asyncio.create_task(
+                            self._emit_partials(room)
+                        )
             if utterance:
                 await self._enqueue_utterance(room, utterance)
 
     async def _enqueue_utterance(self, room: rtc.Room, pcm: bytes) -> None:
+        # Cancel partial task — final transcript takes over
+        if self._partial_task and not self._partial_task.done():
+            self._partial_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._partial_task
+        self._partial_task = None
+
         overlap_kind = self._speech_overlap_kind
         self._speech_overlap_kind = None
         if self._utterances.full():
@@ -401,14 +434,14 @@ class VoicePipeline:
         first_audio_ms: float | None = None
         self._playback_cancel = asyncio.Event()
         self._agent_speaking = True
-        audio_source = rtc.AudioSource(self.settings.tts_sample_rate, 1)
-        audio_track = rtc.LocalAudioTrack.create_audio_track(track_label, audio_source)
+        audio_source = _rtc().AudioSource(self.settings.tts_sample_rate, 1)
+        audio_track = _rtc().LocalAudioTrack.create_audio_track(track_label, audio_source)
         publication = None
         cancelled = False
         try:
             publication = await room.local_participant.publish_track(
                 audio_track,
-                rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
+                _rtc().TrackPublishOptions(source=_rtc().TrackSource.SOURCE_MICROPHONE),
             )
             pcm_buffer = bytearray()
             async for chunk in self.tts.stream(text, voice_style):
@@ -426,7 +459,7 @@ class VoicePipeline:
                     if first_audio_ms is None:
                         first_audio_ms = (time.perf_counter() - tts_started) * 1000
                     await audio_source.capture_frame(
-                        rtc.AudioFrame(
+                        _rtc().AudioFrame(
                             data=packet,
                             sample_rate=self.settings.tts_sample_rate,
                             num_channels=1,
@@ -440,7 +473,7 @@ class VoicePipeline:
                 if first_audio_ms is None:
                     first_audio_ms = (time.perf_counter() - tts_started) * 1000
                 await audio_source.capture_frame(
-                    rtc.AudioFrame(
+                    _rtc().AudioFrame(
                         data=bytes(pcm_buffer),
                         sample_rate=self.settings.tts_sample_rate,
                         num_channels=1,
@@ -460,18 +493,52 @@ class VoicePipeline:
         if self._playback_cancel is not None:
             self._playback_cancel.set()
 
+    def _trigger_barge_in(self, overlap_kind: str, *, source: str = "probe") -> None:
+        """Increment generation and cancel playback — idempotent within one speech episode.
+
+        Both the partial-transcript fast-path and the 450ms probe call this.
+        The _pending_interruption guard ensures only one fires per episode.
+        """
+        if self._pending_interruption is not None:
+            # Already fired this episode — no-op (idempotency)
+            return
+        if self._speech_started_at is not None:
+            self._interruption_latency_ms = (
+                time.perf_counter() - self._speech_started_at
+            ) * 1000
+        self._pending_interruption = overlap_kind
+        self._generation += 1
+        logger.info(
+            "barge-in triggered — session=%s overlap=%s source=%s new_generation=%d",
+            self.session_id,
+            overlap_kind,
+            source,
+            self._generation,
+        )
+        self._request_playback_cancel()
+
+    def _probe_delay_ms(self, overlap_kind: str) -> int:
+        """Return the probe sleep duration for the given overlap kind.
+
+        Per-overlap windows are optional (None = fall back to barge_in_min_ms).
+        """
+        if overlap_kind == "playback":
+            return self.settings.backchannel_window_ms or self.settings.barge_in_min_ms
+        return self.settings.interrupt_confirm_ms or self.settings.barge_in_min_ms
+
     def _schedule_barge_in_probe(self) -> None:
         if self._barge_in_probe_task and not self._barge_in_probe_task.done():
             return
 
+        # Capture overlap kind BEFORE the sleep so the delay matches the kind
+        overlap_kind = self._speech_overlap_kind
+
         async def probe() -> None:
-            await asyncio.sleep(self.settings.barge_in_min_ms / 1000)
-            overlap_kind = self._speech_overlap_kind
-            if overlap_kind and self.segmenter.speech_active:
-                if self._speech_started_at is not None:
-                    self._interruption_latency_ms = (
-                        time.perf_counter() - self._speech_started_at
-                    ) * 1000
+            delay = self._probe_delay_ms(overlap_kind) / 1000
+            await asyncio.sleep(delay)
+            # Re-read live state after sleep
+            current_overlap = self._speech_overlap_kind
+            if (current_overlap or overlap_kind) and self.segmenter.speech_active:
                 # Only cancel playback and invalidate the in-flight backend
                 # response when audio is actually audible. A pure
                 # "active_turn" overlap (backend busy but agent not yet
@@ -480,22 +547,73 @@ class VoicePipeline:
                 # stale_response_discarded. In that case the new utterance
                 # is already queued and will run naturally after the current
                 # turn completes.
-                if overlap_kind == "playback" or self._agent_speaking:
-                    self._pending_interruption = overlap_kind
-                    self._generation += 1
-                    logger.info(
-                        "barge-in probe fired — session=%s overlap=%s"
-                        " new_generation=%d",
-                        self.session_id,
-                        overlap_kind,
-                        self._generation,
-                    )
-                    self._request_playback_cancel()
+                effective = current_overlap or overlap_kind
+                if effective == "playback" or self._agent_speaking:
+                    self._trigger_barge_in(effective, source="probe")
+                else:
+                    # active_turn only, not yet speaking — record latency only
+                    if self._speech_started_at is not None:
+                        self._interruption_latency_ms = (
+                            time.perf_counter() - self._speech_started_at
+                        ) * 1000
 
         self._barge_in_probe_task = asyncio.create_task(probe())
 
+    async def _emit_partials(self, room: rtc.Room) -> None:
+        """Emit partial transcript events at regular intervals during speech.
+
+        Only active when settings.enable_partial_transcripts=True (default OFF).
+        Does NOT persist to backend — browser-only for live UI feedback and
+        early barge-in detection.
+        """
+        interval = self.settings.partial_interval_ms / 1000
+        min_speech_ms = self.settings.partial_min_speech_ms
+        early_cancel_ms = self.settings.early_interrupt_min_speech_ms
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                if not self.segmenter.speech_active:
+                    break
+                if self.segmenter.speech_ms < min_speech_ms:
+                    continue
+                pcm = self.segmenter.snapshot()
+                if pcm is None:
+                    continue
+                try:
+                    partial = await self.stt.transcribe_partial(
+                        pcm, sample_rate=INPUT_SAMPLE_RATE
+                    )
+                except Exception:
+                    logger.debug(
+                        "Partial transcription failed — session=%s", self.session_id
+                    )
+                    continue
+                if not partial.text or partial.text == self._last_partial_text:
+                    continue
+                self._last_partial_text = partial.text
+                await self._emit(
+                    room,
+                    "partial_transcript",
+                    text=partial.text,
+                    stt_ms=partial.stt_ms,
+                    is_final=False,
+                    state="hearing",
+                )
+                # Early barge-in: non-backchannel partial during active playback
+                if (
+                    self._agent_speaking
+                    and self._speech_overlap_kind == "playback"
+                    and not self.backchannels.classify(partial.text).is_backchannel
+                    and self.segmenter.speech_ms >= early_cancel_ms
+                ):
+                    self._trigger_barge_in("playback", source="partial")
+        except asyncio.CancelledError:
+            pass
+
     async def _cancel_active_work(self, room: rtc.Room, reason: str) -> None:
         self._request_playback_cancel()
+        if self._partial_task and not self._partial_task.done():
+            self._partial_task.cancel()
         if self._barge_in_probe_task and not self._barge_in_probe_task.done():
             self._barge_in_probe_task.cancel()
         if self._active_turn_task and not self._active_turn_task.done():
@@ -513,7 +631,10 @@ class VoicePipeline:
         participant: rtc.RemoteParticipant,
     ) -> rtc.RemoteAudioTrack:
         for publication in participant.track_publications.values():
-            if publication.track and publication.kind == rtc.TrackKind.KIND_AUDIO:
+            if (
+                publication.track
+                and publication.kind == _rtc().TrackKind.KIND_AUDIO
+            ):
                 return publication.track
 
         loop = asyncio.get_running_loop()
@@ -523,7 +644,7 @@ class VoicePipeline:
         def on_track_subscribed(track, publication, remote_participant):
             if (
                 remote_participant.sid == participant.sid
-                and track.kind == rtc.TrackKind.KIND_AUDIO
+                and track.kind == _rtc().TrackKind.KIND_AUDIO
                 and not future.done()
             ):
                 future.set_result(track)
@@ -582,7 +703,9 @@ class VoicePipeline:
             reliable=True,
             topic=EVENT_TOPIC,
         )
-        if event_type not in {"speech_started", "speech_ended"}:
+        # High-frequency / non-authoritative events: browser only, not persisted
+        _browser_only = {"speech_started", "speech_ended", "partial_transcript"}
+        if event_type not in _browser_only:
             task = asyncio.create_task(
                 self.backend.record_voice_event(
                     {

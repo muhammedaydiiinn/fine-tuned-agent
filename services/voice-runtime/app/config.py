@@ -39,6 +39,21 @@ class Settings(BaseSettings):
     duplicate_transcript_window_seconds: float = 2.5
     backchannel_phrases: str = "mhm,hm,ja,okay,ok,alles klar,verstehe,genau,aha"
     barge_in_min_ms: int = 450
+    # Per-overlap barge-in windows (None = fall back to barge_in_min_ms)
+    backchannel_window_ms: int | None = None
+    interrupt_confirm_ms: int | None = None
+    # Partial transcript settings (master switch default OFF)
+    enable_partial_transcripts: bool = False
+    partial_interval_ms: int = 300
+    partial_min_speech_ms: int = 400
+    early_interrupt_min_speech_ms: int = 500
+    # Adaptive VAD settings (default OFF — legacy fixed-threshold when False)
+    speech_adaptive_vad: bool = False
+    speech_noise_floor_margin: float = 2.5
+    speech_noise_ema_alpha: float = 0.05
+    speech_exit_threshold_ratio: float = 0.6
+    # Multi-token backchannel
+    backchannel_max_tokens: int = 6
     job_memory_warn_mb: int = 1800
 
     tts_mode: str = "fish"

@@ -22,6 +22,9 @@ class FakeSTT:
     async def transcribe(self, pcm: bytes, sample_rate: int = 16000):
         return Transcript(text=self.text, stt_ms=25.0)
 
+    async def transcribe_partial(self, pcm: bytes, sample_rate: int = 16000):
+        return Transcript(text=self.text, stt_ms=10.0)
+
 
 class FakeBackend:
     def __init__(self, pipeline=None, mutate_generation: bool = False):
@@ -53,8 +56,36 @@ class FakeBackend:
 
 
 class FakeSegmenter:
+    """Minimal segmenter stub for pipeline unit tests."""
     speech_active = True
+    speech_ms = 600.0
 
+    def snapshot(self) -> bytes:
+        return b"\x00" * 320
+
+    def consume_speech_started(self) -> bool:
+        return False
+
+    def flush(self) -> bytes | None:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Sanity: Phase 0 — pipeline must import without livekit
+# ---------------------------------------------------------------------------
+
+class ImportSanityTests(unittest.TestCase):
+    def test_module_imports_without_livekit(self):
+        """VoicePipeline must be importable even when livekit is not installed."""
+        self.assertIsNotNone(
+            VoicePipeline,
+            "VoicePipeline should not be None — the livekit import must be lazy",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline turn-taking logic (Phase 0 gate: runs only when import succeeds)
+# ---------------------------------------------------------------------------
 
 @unittest.skipIf(VoicePipeline is None, "LiveKit runtime is not installed")
 class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
@@ -197,3 +228,99 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._pending_interruption, "active_turn")
+
+    # -----------------------------------------------------------------------
+    # _trigger_barge_in — idempotency and latency recording (M8 Aşama 3)
+    # -----------------------------------------------------------------------
+
+    async def test_trigger_barge_in_sets_pending_and_bumps_generation(self):
+        pipeline = self.make_pipeline()
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._trigger_barge_in("playback", source="test")
+
+        self.assertEqual(pipeline._pending_interruption, "playback")
+        self.assertEqual(pipeline._generation, 1)
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertIsNotNone(pipeline._interruption_latency_ms)
+
+    async def test_trigger_barge_in_is_idempotent(self):
+        """Second call within the same speech episode must not increment generation
+        again — only the first barge-in wins."""
+        pipeline = self.make_pipeline()
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._trigger_barge_in("playback", source="partial")
+        pipeline._trigger_barge_in("playback", source="probe")
+
+        self.assertEqual(pipeline._generation, 1)
+
+    # -----------------------------------------------------------------------
+    # Per-overlap probe windows (M8 Aşama 4)
+    # -----------------------------------------------------------------------
+
+    async def test_probe_delay_uses_backchannel_window_for_playback(self):
+        """When backchannel_window_ms is set, playback overlap uses it."""
+        settings = Settings(
+            tts_mode="mock",
+            whisper_device="cpu",
+            greeting_mock=False,
+            barge_in_min_ms=450,
+            backchannel_window_ms=200,
+            interrupt_confirm_ms=600,
+        )
+        pipeline = VoicePipeline(settings, "window-test")
+        self.assertEqual(pipeline._probe_delay_ms("playback"), 200)
+
+    async def test_probe_delay_uses_interrupt_confirm_for_active_turn(self):
+        settings = Settings(
+            tts_mode="mock",
+            whisper_device="cpu",
+            greeting_mock=False,
+            barge_in_min_ms=450,
+            backchannel_window_ms=200,
+            interrupt_confirm_ms=600,
+        )
+        pipeline = VoicePipeline(settings, "window-test")
+        self.assertEqual(pipeline._probe_delay_ms("active_turn"), 600)
+
+    async def test_probe_delay_falls_back_to_barge_in_min_ms_when_none(self):
+        """None windows fall back to the global barge_in_min_ms default."""
+        settings = Settings(
+            tts_mode="mock",
+            whisper_device="cpu",
+            greeting_mock=False,
+            barge_in_min_ms=450,
+            backchannel_window_ms=None,
+            interrupt_confirm_ms=None,
+        )
+        pipeline = VoicePipeline(settings, "fallback-test")
+        self.assertEqual(pipeline._probe_delay_ms("playback"), 450)
+        self.assertEqual(pipeline._probe_delay_ms("active_turn"), 450)
+
+    # -----------------------------------------------------------------------
+    # Multi-token backchannel (M8 Aşama 2 — pipeline integration)
+    # -----------------------------------------------------------------------
+
+    async def test_multi_token_backchannel_during_playback_does_not_create_turn(self):
+        """'ja ja' must be classified as backchannel and not hit the backend."""
+        pipeline = self.make_pipeline("ja ja")
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind="playback")
+
+        self.assertEqual(pipeline.backend.turn_calls, [])
+        events = [e["event"] for e in pipeline.events]
+        self.assertIn("backchannel_detected", events)
+
+    async def test_ack_plus_content_during_playback_is_interruption(self):
+        """'ja aber nein' has a content word and must create a real turn."""
+        pipeline = self.make_pipeline("ja aber nein")
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind="playback")
+
+        self.assertEqual(
+            pipeline.backend.turn_calls,
+            [("pipeline-test", "ja aber nein")],
+        )

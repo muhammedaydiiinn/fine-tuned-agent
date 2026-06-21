@@ -861,7 +861,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .voice-event-dot-voice_turn_complete,
 .voice-event-dot-voice_session_ready { background: var(--green); }
 .voice-event-dot-agent_response,
-.voice-event-dot-transcript_final { background: var(--accent-2); }
+.voice-event-dot-transcript_final,
+.voice-event-dot-partial_transcript { background: var(--accent-2); }
 .voice-event-name { min-width: 145px; color: var(--text); }
 .voice-event-detail {
   min-width: 0;
