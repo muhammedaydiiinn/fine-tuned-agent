@@ -2,6 +2,11 @@ import asyncio
 import json
 import logging
 
+# Must run before livekit is imported so the patch is in place when the CLI
+# calls setup_logging() during the `start` sub-command.
+from app import logging_config as _lc
+_lc._install()
+
 from livekit import agents
 from livekit.agents import AgentServer
 
@@ -9,13 +14,6 @@ from app.config import get_settings
 from app.pipeline import VoicePipeline
 
 settings = get_settings()
-# LiveKit Agents installs a structured handler with job/room context. Adding a
-# second root handler here makes every app and SDK event appear two or three
-# times, especially in spawned job processes. Set only the level and let the
-# runtime own the handler.
-logging.getLogger().setLevel(
-    getattr(logging, settings.log_level.upper(), logging.INFO)
-)
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
