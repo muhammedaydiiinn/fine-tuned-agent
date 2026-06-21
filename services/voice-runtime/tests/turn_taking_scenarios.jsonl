@@ -18,6 +18,16 @@
 {"id":"backchannel_18","kind":"backchannel","transcript":"Aha.","expect_interrupt":false}
 {"id":"backchannel_19","kind":"backchannel","transcript":"  okay  ","expect_interrupt":false}
 {"id":"backchannel_20","kind":"backchannel","transcript":"ALLES KLAR","expect_interrupt":false}
+{"id":"backchannel_21","kind":"backchannel","transcript":"ja ja","expect_interrupt":false}
+{"id":"backchannel_22","kind":"backchannel","transcript":"mhm okay","expect_interrupt":false}
+{"id":"backchannel_23","kind":"backchannel","transcript":"ja genau","expect_interrupt":false}
+{"id":"backchannel_24","kind":"backchannel","transcript":"mhm ja","expect_interrupt":false}
+{"id":"backchannel_25","kind":"backchannel","transcript":"ja okay","expect_interrupt":false}
+{"id":"backchannel_26","kind":"backchannel","transcript":"aha ja","expect_interrupt":false}
+{"id":"backchannel_27","kind":"backchannel","transcript":"hm mhm","expect_interrupt":false}
+{"id":"backchannel_28","kind":"backchannel","transcript":"okay okay","expect_interrupt":false}
+{"id":"backchannel_29","kind":"backchannel","transcript":"alles klar ja","expect_interrupt":false}
+{"id":"backchannel_30","kind":"backchannel","transcript":"mhm alles klar","expect_interrupt":false}
 {"id":"interrupt_01","kind":"interruption","transcript":"Moment, was kostet das genau?","expect_interrupt":true}
 {"id":"interrupt_02","kind":"interruption","transcript":"Nein, bitte rufen Sie mich nicht mehr an.","expect_interrupt":true}
 {"id":"interrupt_03","kind":"interruption","transcript":"Das stimmt nicht, ich bin nicht der Vertragsinhaber.","expect_interrupt":true}
@@ -38,5 +48,13 @@
 {"id":"interrupt_18","kind":"interruption","transcript":"Können Sie das bitte wiederholen?","expect_interrupt":true}
 {"id":"interrupt_19","kind":"interruption","transcript":"Das ist mir zu teuer.","expect_interrupt":true}
 {"id":"interrupt_20","kind":"interruption","transcript":"Beenden Sie das Gespräch bitte.","expect_interrupt":true}
+{"id":"interrupt_21","kind":"interruption","transcript":"ja aber nein","expect_interrupt":true}
+{"id":"interrupt_22","kind":"interruption","transcript":"okay aber warum","expect_interrupt":true}
+{"id":"interrupt_23","kind":"interruption","transcript":"genau aber wie viel kostet das","expect_interrupt":true}
+{"id":"interrupt_24","kind":"interruption","transcript":"alles klar aber ich lehne ab","expect_interrupt":true}
+{"id":"interrupt_25","kind":"interruption","transcript":"mhm das stimmt nicht","expect_interrupt":true}
+{"id":"interrupt_26","kind":"interruption","transcript":"ja ich verstehe nicht","expect_interrupt":true}
+{"id":"interrupt_27","kind":"interruption","transcript":"okay ich will kaufen","expect_interrupt":true}
+{"id":"interrupt_28","kind":"interruption","transcript":"aha das ist falsch","expect_interrupt":true}
 {"id":"duplicate_reconnect","kind":"duplicate","transcript":"Was kostet das nach der Testphase?","repeat_after_ms":500,"expect_second_turn":false}
 {"id":"repeat_after_window","kind":"duplicate","transcript":"Können Sie das wiederholen?","repeat_after_ms":3000,"expect_second_turn":true}

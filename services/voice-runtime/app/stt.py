@@ -48,6 +48,37 @@ class FasterWhisperSTT:
             stt_ms=(time.perf_counter() - started) * 1000,
         )
 
+    async def transcribe_partial(self, pcm: bytes, sample_rate: int = 16000) -> Transcript:
+        """Transcribe an in-progress speech buffer for partial hypothesis generation.
+
+        Uses the same model and decode settings as ``transcribe()``. The result
+        is non-authoritative; the final transcript from ``transcribe()`` is
+        always used for turn logic and backend persistence.
+        """
+        started = time.perf_counter()
+        try:
+            model = await self._get_model()
+        except Exception:
+            logger.exception("Failed to load Whisper model for partial transcription")
+            raise
+
+        audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+        if sample_rate != 16000:
+            raise ValueError("FasterWhisperSTT expects 16 kHz mono PCM")
+
+        try:
+            text = await asyncio.to_thread(self._transcribe_sync, model, audio)
+        except Exception:
+            logger.exception(
+                "Whisper partial transcription failed — pcm_bytes=%d", len(pcm)
+            )
+            raise
+
+        return Transcript(
+            text=text,
+            stt_ms=(time.perf_counter() - started) * 1000,
+        )
+
     async def _get_model(self):
         if self._model is not None:
             return self._model

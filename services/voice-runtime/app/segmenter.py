@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -12,10 +14,25 @@ class SegmentationConfig:
     end_silence_ms: int = 700
     max_speech_ms: int = 20000
     preroll_ms: int = 240
+    # Adaptive VAD (default False = legacy fixed-threshold, bit-for-bit identical)
+    adaptive_threshold: bool = False
+    noise_floor_margin: float = 2.5
+    noise_ema_alpha: float = 0.05
+    absolute_floor_rms: int = 350
+    exit_threshold_ratio: float = 0.6
+    noise_init_rms: float | None = None
 
 
 class UtteranceSegmenter:
-    """Energy-based utterance boundary detector for M7 supervisor voice tests."""
+    """Energy-based utterance boundary detector.
+
+    When ``adaptive_threshold=False`` (default) the detector is identical to
+    the original M7 implementation: ``is_speech = rms >= rms_threshold``.
+
+    When ``adaptive_threshold=True`` an EMA noise floor tracks ambient energy
+    and enter/exit hysteresis thresholds are computed from it. The noise floor
+    is updated only during non-voiced frames to avoid rising with speech energy.
+    """
 
     def __init__(self, config: SegmentationConfig):
         self.config = config
@@ -25,6 +42,13 @@ class UtteranceSegmenter:
         self._speech_samples = 0
         self._silence_samples = 0
         self._speech_started = False
+        # Adaptive VAD state
+        self._noise_floor: float | None = config.noise_init_rms
+        self._in_speech_region: bool = False
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def push(self, pcm: bytes) -> bytes | None:
         samples = np.frombuffer(pcm, dtype=np.int16).copy()
@@ -32,7 +56,7 @@ class UtteranceSegmenter:
             return None
 
         rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
-        is_speech = rms >= self.config.rms_threshold
+        is_speech = self._frame_is_speech(rms)
 
         if not self._speech_chunks:
             if is_speech:
@@ -65,6 +89,11 @@ class UtteranceSegmenter:
     def speech_active(self) -> bool:
         return bool(self._speech_chunks)
 
+    @property
+    def speech_ms(self) -> float:
+        """Elapsed milliseconds of accumulated speech in the current segment."""
+        return self._speech_samples * 1000 / self.config.sample_rate
+
     def consume_speech_started(self) -> bool:
         started = self._speech_started
         self._speech_started = False
@@ -74,6 +103,55 @@ class UtteranceSegmenter:
         if not self._speech_chunks:
             return None
         return self._flush()
+
+    def snapshot(self) -> bytes | None:
+        """Return in-progress speech buffer without flushing (for partial transcription).
+
+        Concatenates the accumulated speech chunks non-destructively. Returns
+        ``None`` when no speech is being tracked.
+        """
+        if not self._speech_chunks:
+            return None
+        return np.concatenate(self._speech_chunks).astype(np.int16, copy=False).tobytes()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _frame_is_speech(self, rms: float) -> bool:
+        """Classify a single audio frame as speech or non-speech.
+
+        In legacy mode (``adaptive_threshold=False``) this is a simple
+        threshold comparison. In adaptive mode the threshold tracks ambient
+        RMS via an EMA with enter/exit hysteresis to reduce chatter.
+        """
+        if not self.config.adaptive_threshold:
+            return rms >= self.config.rms_threshold
+
+        # Seed the noise floor from the very first frame if not pre-configured
+        if self._noise_floor is None:
+            self._noise_floor = max(rms, 1.0)
+
+        enter = max(
+            float(self.config.absolute_floor_rms),
+            self._noise_floor * self.config.noise_floor_margin,
+        )
+        exit_ = enter * self.config.exit_threshold_ratio
+
+        if not self._in_speech_region:
+            if rms >= enter:
+                self._in_speech_region = True
+        else:
+            if rms < exit_:
+                self._in_speech_region = False
+
+        # Update noise floor only during non-voiced frames so speech energy
+        # does not corrupt the ambient estimate
+        if not self._in_speech_region:
+            alpha = self.config.noise_ema_alpha
+            self._noise_floor = max(1.0, (1 - alpha) * self._noise_floor + alpha * rms)
+
+        return self._in_speech_region
 
     def _append_preroll(self, samples: np.ndarray) -> None:
         self._preroll.append(samples)
@@ -94,4 +172,7 @@ class UtteranceSegmenter:
         self._speech_started = False
         self._preroll.clear()
         self._preroll_samples = 0
+        # Reset adaptive VAD hysteresis state so each utterance starts fresh
+        self._in_speech_region = False
+        self._noise_floor = self.config.noise_init_rms
         return result

@@ -126,9 +126,11 @@
           setVoiceState("hearing");
         } else if (event.event === "speech_ended") {
           setVoiceState("processing");
-        } else if (event.event === "transcript_final") {
-          setVoiceState("processing", `Heard: “${event.text}”`);
-        } else if (event.event === "agent_response") {
+        } else if (event.event === “partial_transcript”) {
+          setVoiceState(“hearing”, `Hearing: “${event.text}”`);
+        } else if (event.event === “transcript_final”) {
+          setVoiceState(“processing”, `Heard: “${event.text}”`);
+        } else if (event.event === “agent_response”) {
           setVoiceState("speaking");
         } else if (event.event === "interruption_detected") {
           setVoiceState("interrupted");
@@ -149,7 +151,7 @@
             window.htmx.trigger(document.body, "voice-turn-complete");
           }
         }
-        if (window.htmx && !["speech_started", "speech_ended"].includes(event.event)) {
+        if (window.htmx && !["speech_started", "speech_ended", "partial_transcript"].includes(event.event)) {
           window.htmx.trigger(document.body, "voice-event");
         }
       });
