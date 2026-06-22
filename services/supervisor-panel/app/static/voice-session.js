@@ -51,7 +51,9 @@
     if (levelFrame) cancelAnimationFrame(levelFrame);
     levelFrame = null;
     levelElement.dataset.active = "false";
-    levelBars.forEach((bar) => { bar.style.height = "3px"; });
+    levelBars.forEach((bar) => {
+      bar.style.height = "3px";
+    });
     if (audioContext) audioContext.close().catch(() => {});
     audioContext = null;
   }
@@ -63,7 +65,9 @@
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.72;
-    const source = audioContext.createMediaStreamSource(new MediaStream([mediaTrack]));
+    const source = audioContext.createMediaStreamSource(
+      new MediaStream([mediaTrack]),
+    );
     source.connect(analyser);
     const samples = new Uint8Array(analyser.frequencyBinCount);
     levelElement.dataset.active = "true";
@@ -87,7 +91,9 @@
   function renderMetrics(metrics) {
     document.querySelectorAll("[data-voice-metric]").forEach((element) => {
       const value = metrics[element.dataset.voiceMetric];
-      element.textContent = Number.isFinite(value) ? `${Math.round(value)} ms` : "—";
+      element.textContent = Number.isFinite(value)
+        ? `${Math.round(value)} ms`
+        : "—";
     });
   }
 
@@ -101,10 +107,11 @@
       : `/sessions/${sessionId}/voice-token`;
 
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+      const csrfToken =
+        document.querySelector('meta[name="csrf-token"]')?.content || "";
       const response = await fetch(tokenPath, {
         method: "POST",
-        headers: { "Accept": "application/json", "X-CSRF-Token": csrfToken },
+        headers: { Accept: "application/json", "X-CSRF-Token": csrfToken },
       });
       const credentials = await response.json();
       if (!response.ok) {
@@ -126,16 +133,19 @@
           setVoiceState("hearing");
         } else if (event.event === "speech_ended") {
           setVoiceState("processing");
-        } else if (event.event === “partial_transcript”) {
-          setVoiceState(“hearing”, “Hearing: “ + (event.text || “”));
-        } else if (event.event === “transcript_final”) {
-          setVoiceState(“processing”, `Heard: “${event.text}”`);
-        } else if (event.event === “agent_response”) {
+        } else if (event.event === "partial_transcript") {
+          setVoiceState("hearing", "Hearing: " + (event.text || ""));
+        } else if (event.event === "transcript_final") {
+          setVoiceState("processing", `Heard: "${event.text}"`);
+        } else if (event.event === "agent_response") {
           setVoiceState("speaking");
         } else if (event.event === "interruption_detected") {
           setVoiceState("interrupted");
         } else if (event.event === "playback_cancelled") {
-          setVoiceState("processing", "Agent stopped — processing your interruption");
+          setVoiceState(
+            "processing",
+            "Agent stopped — processing your interruption",
+          );
         } else if (event.event === "backchannel_detected") {
           setVoiceState("listening", "Acknowledgement detected — continuing");
         } else if (event.event === "duplicate_transcript_ignored") {
@@ -151,12 +161,19 @@
             window.htmx.trigger(document.body, "voice-turn-complete");
           }
         }
-        if (window.htmx && !["speech_started", "speech_ended", "partial_transcript"].includes(event.event)) {
+        if (
+          window.htmx &&
+          !["speech_started", "speech_ended", "partial_transcript"].includes(
+            event.event,
+          )
+        ) {
           window.htmx.trigger(document.body, "voice-event");
         }
       });
       room.on(RoomEvent.Reconnecting, () => setVoiceState("reconnecting"));
-      room.on(RoomEvent.Reconnected, () => setVoiceState("listening", "Reconnected — listening"));
+      room.on(RoomEvent.Reconnected, () =>
+        setVoiceState("listening", "Reconnected — listening"),
+      );
       room.on(RoomEvent.Disconnected, () => resetVoiceControls());
 
       await room.connect(credentials.server_url, credentials.token);
@@ -165,11 +182,16 @@
         noiseSuppression: true,
         autoGainControl: true,
       });
-      const microphone = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const microphone = room.localParticipant.getTrackPublication(
+        Track.Source.Microphone,
+      );
       startLevelMeter(microphone?.track?.mediaStreamTrack);
       hasConnectedBefore = true;
       stopButton.disabled = false;
-      setVoiceState(isResume ? "listening" : "processing", isResume ? "Resumed — listening" : "Waiting for voice agent…");
+      setVoiceState(
+        isResume ? "listening" : "processing",
+        isResume ? "Resumed — listening" : "Waiting for voice agent…",
+      );
     } catch (error) {
       console.error(error);
       setStatus(error.message, "error");
