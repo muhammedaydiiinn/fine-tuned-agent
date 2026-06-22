@@ -127,7 +127,7 @@
         } else if (event.event === "speech_ended") {
           setVoiceState("processing");
         } else if (event.event === “partial_transcript”) {
-          setVoiceState(“hearing”, `Hearing: “${event.text}”`);
+          setVoiceState(“hearing”, “Hearing: “ + (event.text || “”));
         } else if (event.event === “transcript_final”) {
           setVoiceState(“processing”, `Heard: “${event.text}”`);
         } else if (event.event === “agent_response”) {
