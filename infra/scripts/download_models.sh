@@ -106,14 +106,22 @@ items = os.listdir(tmp_dir)
 subdirs = [x for x in items if os.path.isdir(os.path.join(tmp_dir, x))]
 files   = [x for x in items if os.path.isfile(os.path.join(tmp_dir, x))]
 
-if subdirs:
-    # gdown tek bir subfolder oluşturduysa onu hedef konuma taşı
-    src = os.path.join(tmp_dir, subdirs[0])
-    print(f"Subfolder bulundu: {subdirs[0]}  ->  {target_dir}")
-elif files:
-    # gdown dosyaları direkt tmp_dir'e döktüyse tmp_dir'in kendisini taşı
+# config.json direkt tmp_dir'deyse model dosyaları burada — subfolder'a bakma
+if os.path.isfile(os.path.join(tmp_dir, "config.json")):
     src = tmp_dir
-    print(f"Dosyalar doğrudan indirildi, klasör olarak taşınıyor -> {target_dir}")
+    print(f"Dosyalar doğrudan indirildi -> {target_dir}")
+elif subdirs:
+    # Hangi subfolder'da config.json var bul
+    src = None
+    for sd in subdirs:
+        if os.path.isfile(os.path.join(tmp_dir, sd, "config.json")):
+            src = os.path.join(tmp_dir, sd)
+            print(f"Subfolder bulundu: {sd}  ->  {target_dir}")
+            break
+    if src is None:
+        # config.json bulunamadı, ilk subfolder'ı dene
+        src = os.path.join(tmp_dir, subdirs[0])
+        print(f"config.json subfolder'da bulunamadı, deneniyor: {subdirs[0]}")
 else:
     shutil.rmtree(tmp_dir, ignore_errors=True)
     print("İndirilen içerik bulunamadı.", file=sys.stderr)
