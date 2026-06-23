@@ -195,6 +195,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  window.addEventListener("pageshow", function (event) {
+    const navigationEntries = window.performance?.getEntriesByType?.("navigation") || [];
+    const restoredFromHistory = event.persisted || navigationEntries.some(function (entry) {
+      return entry.type === "back_forward";
+    });
+    if (restoredFromHistory) {
+      window.location.reload();
+    }
+  });
+</script>
 {% if session.status == 'active' %}
 <script src="/static/livekit-client.umd.min.js"></script>
 <script src="/static/voice-session.js?v=5"></script>

@@ -25,6 +25,13 @@ def _backend_headers() -> dict[str, str]:
     return {"X-API-Key": settings.api_key} if settings.api_key else {}
 
 
+def _set_no_store(response: HTMLResponse) -> HTMLResponse:
+    response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @router.post("/sessions/start")
 def start_session(
     external_session_id: str = Form(""),
@@ -141,7 +148,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
     )
     latest_turn = turns[-1] if turns else None
     state_pretty = json.dumps(session.state_json, indent=2, ensure_ascii=False)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "session_detail.html",
         {
             "request": request,
@@ -151,6 +158,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
             "state_pretty": state_pretty,
         },
     )
+    return _set_no_store(response)
 
 
 @router.post("/sessions/{session_id}/voice-token")
