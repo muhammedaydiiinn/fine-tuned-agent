@@ -20,6 +20,7 @@ from app.turn_taking import BackchannelClassifier, TranscriptDeduplicator
 
 logger = logging.getLogger(__name__)
 EVENT_TOPIC = "voice.events"
+CONTROL_TOPIC = "voice.control"
 INPUT_SAMPLE_RATE = 16000
 
 
@@ -79,6 +80,7 @@ class VoicePipeline:
         self._interruption_latency_ms: float | None = None
         self._last_partial_text: str = ""
         self._event_tasks: set[asyncio.Task] = set()
+        self._supervisor_lock = asyncio.Lock()
 
     async def run(self, room: rtc.Room, participant: rtc.RemoteParticipant) -> None:
         try:
@@ -110,8 +112,22 @@ class VoicePipeline:
             if remote_participant.sid == participant.sid:
                 disconnected.set()
 
+        def on_data_received(payload, remote_participant, *_args) -> None:
+            topic = _args[-1] if _args else None
+            task = asyncio.create_task(
+                self._handle_room_data(
+                    room,
+                    payload,
+                    remote_participant,
+                    topic,
+                )
+            )
+            self._event_tasks.add(task)
+            task.add_done_callback(self._event_tasks.discard)
+
         room.on("disconnected", on_disconnected)
         room.on("participant_disconnected", on_participant_disconnected)
+        room.on("data_received", on_data_received)
         stream_task: asyncio.Task | None = None
         disconnect_task: asyncio.Task | None = None
         graceful_audio_end = False
@@ -164,6 +180,7 @@ class VoicePipeline:
         finally:
             room.off("disconnected", on_disconnected)
             room.off("participant_disconnected", on_participant_disconnected)
+            room.off("data_received", on_data_received)
             for task in (stream_task, disconnect_task):
                 if task and not task.done():
                     task.cancel()
@@ -624,6 +641,149 @@ class VoicePipeline:
             await self._emit(room, "voice_session_closed", reason=reason)
         if self._event_tasks:
             await asyncio.gather(*tuple(self._event_tasks), return_exceptions=True)
+
+    async def _handle_room_data(
+        self,
+        room: rtc.Room,
+        payload: bytes,
+        participant,
+        topic: str | None,
+    ) -> None:
+        if topic != CONTROL_TOPIC:
+            return
+
+        identity = getattr(participant, "identity", "")
+        if identity and not str(identity).startswith("supervisor-"):
+            logger.warning(
+                "Ignoring control payload from unexpected participant — session=%s identity=%s",
+                self.session_id,
+                identity,
+            )
+            return
+
+        try:
+            command = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            logger.warning("Ignoring malformed control payload — session=%s", self.session_id)
+            await self._emit(
+                room,
+                "supervisor_action_ignored",
+                action="invalid_payload",
+                state="listening",
+            )
+            return
+
+        await self._apply_supervisor_command(room, command, actor=identity or "supervisor")
+
+    async def _apply_supervisor_command(
+        self,
+        room: rtc.Room,
+        command: dict,
+        *,
+        actor: str,
+    ) -> None:
+        action = str(command.get("action") or "").strip()
+        action_id = str(command.get("action_id") or uuid.uuid4().hex)
+        async with self._supervisor_lock:
+            if action == "stop_agent":
+                await self._stop_active_agent_turn(room, action_id=action_id, actor=actor)
+                return
+            if action == "replace_answer":
+                text = str(command.get("text") or "").strip()
+                if not text:
+                    await self._emit(
+                        room,
+                        "supervisor_action_ignored",
+                        action=action,
+                        action_id=action_id,
+                        actor=actor,
+                        reason="empty_replacement",
+                        state="listening",
+                    )
+                    return
+                await self._replace_active_answer(
+                    room,
+                    text,
+                    action_id=action_id,
+                    actor=actor,
+                )
+                return
+
+            await self._emit(
+                room,
+                "supervisor_action_ignored",
+                action=action or "unknown",
+                action_id=action_id,
+                actor=actor,
+                reason="unsupported_action",
+                state="listening",
+            )
+
+    async def _stop_active_agent_turn(
+        self,
+        room: rtc.Room,
+        *,
+        action_id: str,
+        actor: str,
+    ) -> None:
+        self._generation += 1
+        self._request_playback_cancel()
+        await self._emit(
+            room,
+            "supervisor_stop_applied",
+            action="stop_agent",
+            action_id=action_id,
+            actor=actor,
+            generation=self._generation,
+            state="processing" if self._active_turn_task and not self._active_turn_task.done() else "listening",
+        )
+
+    async def _replace_active_answer(
+        self,
+        room: rtc.Room,
+        text: str,
+        *,
+        action_id: str,
+        actor: str,
+    ) -> None:
+        self._generation += 1
+        self._request_playback_cancel()
+        await self._emit(
+            room,
+            "supervisor_replacement_started",
+            action="replace_answer",
+            action_id=action_id,
+            actor=actor,
+            text=text,
+            generation=self._generation,
+            state="speaking",
+        )
+        first_audio_ms, cancelled = await self._speak(
+            room,
+            text,
+            {},
+            f"supervisor-replacement-{action_id}",
+        )
+        if cancelled:
+            await self._emit(
+                room,
+                "supervisor_replacement_cancelled",
+                action="replace_answer",
+                action_id=action_id,
+                actor=actor,
+                state="processing",
+            )
+            return
+        await self._emit(
+            room,
+            "supervisor_replacement_completed",
+            action="replace_answer",
+            action_id=action_id,
+            actor=actor,
+            text=text,
+            tts_first_audio_ms=first_audio_ms or 0.0,
+            state="listening",
+        )
 
     async def _wait_for_audio_track(
         self,

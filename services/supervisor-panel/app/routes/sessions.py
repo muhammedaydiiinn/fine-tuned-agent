@@ -6,15 +6,16 @@ import httpx
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from livekit import api
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
 
 from app.csrf import require_csrf
 from app.db import get_db
+from app.livekit_tokens import build_voice_token
 from app.models import Session as SessionModel, Turn, VoiceEvent
 from app.ui_feedback import toast_redirect
 from app.config import settings
+from app.voice_actions import prepare_voice_action
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -182,34 +183,10 @@ def session_voice_token(
         )
 
     participant_identity = f"supervisor-{uuid.uuid4().hex[:10]}"
-    metadata = json.dumps(
-        {"session_id": session.external_session_id},
-        separators=(",", ":"),
-    )
-    token = (
-        api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
-        .with_identity(participant_identity)
-        .with_name("Supervisor voice test")
-        .with_grants(
-            api.VideoGrants(
-                room_join=True,
-                room=session.external_session_id,
-                can_publish=True,
-                can_subscribe=True,
-                can_publish_data=True,
-            )
-        )
-        .with_room_config(
-            api.RoomConfiguration(
-                agents=[
-                    api.RoomAgentDispatch(
-                        agent_name=settings.livekit_agent_name,
-                        metadata=metadata,
-                    )
-                ]
-            )
-        )
-        .to_jwt()
+    token = build_voice_token(
+        participant_identity=participant_identity,
+        room_name=session.external_session_id,
+        dispatch_agent=True,
     )
     return {
         "token": token,
@@ -241,20 +218,10 @@ def session_voice_token_resume(
         )
 
     participant_identity = f"supervisor-{uuid.uuid4().hex[:10]}"
-    token = (
-        api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
-        .with_identity(participant_identity)
-        .with_name("Supervisor voice test")
-        .with_grants(
-            api.VideoGrants(
-                room_join=True,
-                room=session.external_session_id,
-                can_publish=True,
-                can_subscribe=True,
-                can_publish_data=True,
-            )
-        )
-        .to_jwt()
+    token = build_voice_token(
+        participant_identity=participant_identity,
+        room_name=session.external_session_id,
+        dispatch_agent=False,
     )
     return {
         "token": token,
@@ -324,6 +291,11 @@ def session_voice_events(
         "transcript_final": "Transcript final",
         "partial_transcript": "Partial transcript",
         "agent_response": "Agent response ready",
+        "supervisor_action_requested": "Supervisor action requested",
+        "supervisor_stop_applied": "Supervisor stop applied",
+        "supervisor_replacement_started": "Supervisor replacement started",
+        "supervisor_replacement_completed": "Supervisor replacement completed",
+        "supervisor_action_ignored": "Supervisor action ignored",
         "interruption_detected": "Customer interrupted",
         "playback_cancelled": "Playback cancelled",
         "backchannel_detected": "Backchannel detected",
@@ -367,3 +339,100 @@ def close_session(
         "Session closed. Review and training controls are now available.",
         title="Session moved to review",
     )
+
+
+@router.post("/sessions/{session_id}/voice-actions")
+def session_voice_action(
+    session_id: int,
+    action: str = Form(...),
+    replacement_text: str = Form(""),
+    corrected_next_action: str = Form(""),
+    apply_immediately: bool = Form(False),
+    send_to_training: bool = Form(False),
+    notes: str = Form(""),
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if session is None:
+        return JSONResponse({"detail": "Session not found"}, status_code=404)
+    if session.status != "active":
+        return JSONResponse({"detail": "Session is not active"}, status_code=409)
+    if not session.external_session_id:
+        return JSONResponse({"detail": "Session has no external session ID"}, status_code=409)
+
+    latest_turn = (
+        db.query(Turn)
+        .filter(Turn.session_id == session.id)
+        .order_by(Turn.turn_index.desc(), Turn.id.desc())
+        .first()
+    )
+    action_name = action.strip()
+    action_id = uuid.uuid4().hex
+    actor = settings.admin_user
+
+    try:
+        prepared = prepare_voice_action(
+            action=action_name,
+            action_id=action_id,
+            actor=actor,
+            external_session_id=session.external_session_id,
+            session_id=session.id,
+            latest_turn=latest_turn,
+            replacement_text=replacement_text,
+            corrected_next_action=corrected_next_action,
+            apply_immediately=apply_immediately,
+            send_to_training=send_to_training,
+            notes=notes,
+        )
+    except ValueError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    except LookupError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
+
+    if prepared.correction_payload is not None:
+        try:
+            response = httpx.post(
+                f"{settings.agent_backend_url}/corrections",
+                json=prepared.correction_payload,
+                headers=_backend_headers(),
+                timeout=15.0,
+            )
+            response.raise_for_status()
+            correction = response.json()
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Live correction rejected — session=%s status=%d body=%.300s",
+                session_id,
+                exc.response.status_code,
+                exc.response.text,
+            )
+            return JSONResponse(
+                {"detail": "Could not persist the live correction"},
+                status_code=502,
+            )
+        except Exception:
+            logger.exception("Live correction failed — session=%s", session_id)
+            return JSONResponse(
+                {"detail": "Could not persist the live correction"},
+                status_code=502,
+            )
+        prepared.audit_payload["payload"]["correction_id"] = correction["id"]
+    else:
+        correction = None
+
+    try:
+        httpx.post(
+            f"{settings.agent_backend_url}/voice/events",
+            json=prepared.audit_payload,
+            headers=_backend_headers(),
+            timeout=10.0,
+        )
+    except Exception:
+        logger.exception("Could not persist supervisor action audit event — session=%s", session_id)
+
+    return {
+        "ok": True,
+        "command": prepared.command,
+        "correction_id": correction["id"] if correction else None,
+    }
