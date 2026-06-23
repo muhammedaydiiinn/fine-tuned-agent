@@ -21,6 +21,12 @@
   const storageKey = `voice_connected_${sessionId}`;
   let hasConnectedBefore = localStorage.getItem(storageKey) === "1";
 
+  function showToast(kind, message, title) {
+    if (window.anrufUI?.showToast) {
+      window.anrufUI.showToast({ kind, message, title });
+    }
+  }
+
   if (hasConnectedBefore) {
     startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
   }
@@ -35,9 +41,9 @@
     const states = {
       idle: "Microphone is stopped",
       listening: "Listening - you can speak",
-      hearing: "I can hear you...",
-      processing: "Processing your response...",
-      speaking: "Agent is speaking - interrupt at any time",
+      hearing: "Listening to the customer...",
+      processing: "Processing the latest turn...",
+      speaking: "Agent is speaking - interruption is available",
       interrupted: "Interruption detected - switching turns",
       reconnecting: "Connection interrupted - reconnecting...",
       error: detail || "Voice runtime error",
@@ -136,14 +142,17 @@
           setVoiceState("interrupted");
         } else if (event.event === "playback_cancelled") {
           setVoiceState("processing", "Agent stopped - processing your interruption");
+          showToast("warning", "The active playback was cancelled because new customer speech was detected.", "Playback stopped");
         } else if (event.event === "backchannel_detected") {
           setVoiceState("listening", "Acknowledgement detected - continuing");
         } else if (event.event === "duplicate_transcript_ignored") {
           setVoiceState("listening", "Duplicate audio ignored");
+          showToast("info", "A duplicate transcript was ignored to keep the conversation stable.", "Duplicate ignored");
         } else if (event.event === "empty_transcript") {
           setVoiceState("listening", "No speech detected - still listening");
         } else if (event.event === "voice_error") {
           setVoiceState("error", event.detail);
+          showToast("error", event.detail || "The voice runtime reported an error.", "Voice runtime");
         } else if (event.event === "voice_turn_complete") {
           renderMetrics(event.metrics || {});
           setVoiceState("listening", "Listening - ready for the next turn");
@@ -156,7 +165,10 @@
         }
       });
       room.on(RoomEvent.Reconnecting, () => setVoiceState("reconnecting"));
-      room.on(RoomEvent.Reconnected, () => setVoiceState("listening", "Reconnected - listening"));
+      room.on(RoomEvent.Reconnected, () => {
+        setVoiceState("listening", "Reconnected - listening");
+        showToast("success", "The live voice connection was restored.", "Voice reconnected");
+      });
       room.on(RoomEvent.Disconnected, () => resetVoiceControls());
 
       await room.connect(credentials.server_url, credentials.token);
@@ -173,6 +185,7 @@
     } catch (error) {
       console.error(error);
       setStatus(error.message, "error");
+      showToast("error", error.message || "Could not start the voice runtime.", "Voice start failed");
       resetVoiceControls(false);
     }
   }

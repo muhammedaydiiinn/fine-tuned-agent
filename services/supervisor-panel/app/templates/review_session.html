@@ -29,7 +29,7 @@
       <details class="collapsible turn-inline-edit">
         <summary>Edit Response</summary>
         <div class="correction-panel" style="margin-top:12px;">
-          <div id="inline-result-{{ turn.id }}"></div>
+          <div id="inline-result-{{ turn.id }}" data-toast-only="true"></div>
           <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
                 hx-target="#inline-result-{{ turn.id }}"
                 hx-swap="innerHTML">

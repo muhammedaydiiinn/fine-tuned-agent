@@ -12,6 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css?v=11">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/panel-ui.js?v=1" defer></script>
   <!-- Send CSRF token on every HTMX mutating request -->
   <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -24,6 +25,10 @@
   <script src="/static/datatable.js?v=8" defer></script>
 </head>
 <body>
+<script id="panel-flash-toast" type="application/json">
+  {{ request.state.flash_toast | tojson if request.state.flash_toast else 'null' }}
+</script>
+<div class="toast-stack" data-toast-root aria-live="polite" aria-atomic="false"></div>
 <div class="layout">
 
   <aside class="sidebar">

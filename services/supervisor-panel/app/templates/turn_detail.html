@@ -38,7 +38,7 @@
   </div>
   <div class="info-card">
     <div class="info-label">Total</div>
-    <div class="info-value" style="font-size:16px;color:var(--accent-2)">{{ turn.latency_json.get('total_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
+    <div class="info-value" style="font-size:16px;color:var(--accent-2)">{{ turn.latency_json.get('total_voice_turn_ms', turn.latency_json.get('total_ms', 0))|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
   </div>
   {% if turn.model_version %}
   <div class="info-card">
@@ -99,7 +99,7 @@
 <div class="correction-panel">
   <div class="correction-header">
     <div class="correction-header-title">Add Correction</div>
-    <div id="correction-result"></div>
+    <div id="correction-result" data-toast-only="true"></div>
   </div>
 
   <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
