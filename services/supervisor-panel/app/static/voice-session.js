@@ -14,6 +14,11 @@
   const levelBars = Array.from(levelElement?.querySelectorAll("span") || []);
   const audioContainer = document.querySelector("#voice-audio");
   const endSessionForm = document.querySelector("#end-session-form");
+  const stopAgentButton = document.querySelector("#live-stop-agent");
+  const sendReplacementButton = document.querySelector("#live-send-replacement");
+  const replacementField = document.querySelector("#quick-corrected-response");
+  const replacementActionField = document.querySelector("#quick-corrected-action");
+  const quickActionForm = document.querySelector(".supervisor-form");
 
   let room = null;
   let audioContext = null;
@@ -97,6 +102,43 @@
     });
   }
 
+  async function publishControl(command) {
+    if (!room) {
+      throw new Error("Voice room is not connected");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify(command));
+    await room.localParticipant.publishData(payload, {
+      reliable: true,
+      topic: "voice.control",
+    });
+  }
+
+  async function requestVoiceAction(actionName) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    const form = new FormData();
+    form.set("action", actionName);
+    form.set("replacement_text", replacementField?.value || "");
+    form.set("corrected_next_action", replacementActionField?.value || "");
+    form.set("notes", actionName === "replace_answer" ? "Live supervisor replacement" : "Live supervisor stop");
+    if (quickActionForm?.querySelector('input[name="apply_immediately"]')?.checked) {
+      form.set("apply_immediately", "true");
+    }
+    if (quickActionForm?.querySelector('input[name="send_to_training"]')?.checked) {
+      form.set("send_to_training", "true");
+    }
+
+    const response = await fetch(`/sessions/${sessionId}/voice-actions`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken, "Accept": "application/json" },
+      body: form,
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Voice action failed");
+    }
+    return payload;
+  }
+
   async function startVoice() {
     startButton.disabled = true;
     setStatus("Connecting to voice runtime...", "working");
@@ -159,6 +201,18 @@
           if (window.htmx) {
             window.htmx.trigger(document.body, "voice-turn-complete");
           }
+        } else if (event.event === "supervisor_stop_applied") {
+          setVoiceState("processing", "Supervisor stopped the active answer");
+          showToast("warning", "The active agent response was stopped.", "Supervisor control");
+        } else if (event.event === "supervisor_replacement_started") {
+          setVoiceState("speaking", "Supervisor replacement is playing");
+          showToast("info", "The replacement answer is being played to the customer.", "Supervisor control");
+        } else if (event.event === "supervisor_replacement_completed") {
+          renderMetrics({ tts_first_audio_ms: event.tts_first_audio_ms });
+          setVoiceState("listening", "Replacement completed - listening");
+          showToast("success", "The replacement answer was delivered.", "Supervisor control");
+        } else if (event.event === "supervisor_action_ignored") {
+          showToast("warning", "The supervisor action was ignored by the voice runtime.", "Supervisor control");
         }
         if (window.htmx && !["speech_started", "speech_ended", "partial_transcript"].includes(event.event)) {
           window.htmx.trigger(document.body, "voice-event");
@@ -211,6 +265,34 @@
 
   startButton.addEventListener("click", startVoice);
   stopButton.addEventListener("click", stopVoice);
+  if (stopAgentButton) {
+    stopAgentButton.addEventListener("click", async () => {
+      stopAgentButton.disabled = true;
+      try {
+        const response = await requestVoiceAction("stop_agent");
+        await publishControl(response.command);
+      } catch (error) {
+        console.error(error);
+        showToast("error", error.message || "Could not stop the agent.", "Supervisor control");
+      } finally {
+        stopAgentButton.disabled = false;
+      }
+    });
+  }
+  if (sendReplacementButton) {
+    sendReplacementButton.addEventListener("click", async () => {
+      sendReplacementButton.disabled = true;
+      try {
+        const response = await requestVoiceAction("replace_answer");
+        await publishControl(response.command);
+      } catch (error) {
+        console.error(error);
+        showToast("error", error.message || "Could not send the replacement answer.", "Supervisor control");
+      } finally {
+        sendReplacementButton.disabled = false;
+      }
+    });
+  }
   if (endSessionForm) {
     endSessionForm.addEventListener("submit", () => {
       if (room) room.disconnect();

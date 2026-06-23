@@ -1,6 +1,10 @@
 import asyncio
+import pathlib
+import sys
 import time
 import unittest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 try:
     from app.config import Settings
@@ -53,6 +57,9 @@ class FakeBackend:
 
     async def save_voice_metrics(self, turn_id: int, payload: dict):
         self.metrics.append((turn_id, payload))
+
+    async def record_voice_event(self, payload: dict) -> None:
+        return None
 
 
 class FakeSegmenter:
@@ -324,3 +331,43 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
             pipeline.backend.turn_calls,
             [("pipeline-test", "ja aber nein")],
         )
+
+    async def test_supervisor_stop_increments_generation_and_emits_event(self):
+        pipeline = self.make_pipeline()
+        pipeline._playback_cancel = asyncio.Event()
+
+        await pipeline._apply_supervisor_command(
+            None,
+            {"action": "stop_agent", "action_id": "stop-1"},
+            actor="supervisor-test",
+        )
+
+        self.assertEqual(pipeline._generation, 1)
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        stop_event = next(
+            event
+            for event in pipeline.events
+            if event["event"] == "supervisor_stop_applied"
+        )
+        self.assertEqual(stop_event["action_id"], "stop-1")
+
+    async def test_supervisor_replacement_plays_text_and_emits_completion(self):
+        pipeline = self.make_pipeline()
+
+        await pipeline._apply_supervisor_command(
+            None,
+            {
+                "action": "replace_answer",
+                "action_id": "replace-1",
+                "text": "Bitte hören Sie kurz zu.",
+            },
+            actor="supervisor-test",
+        )
+
+        self.assertEqual(
+            pipeline.speak_calls,
+            [("Bitte hören Sie kurz zu.", "supervisor-replacement-replace-1")],
+        )
+        events = [event["event"] for event in pipeline.events]
+        self.assertIn("supervisor_replacement_started", events)
+        self.assertIn("supervisor_replacement_completed", events)
