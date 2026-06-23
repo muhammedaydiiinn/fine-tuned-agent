@@ -4,7 +4,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from livekit import api
 from sqlalchemy import func, or_
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Session as SessionModel, Turn, VoiceEvent
+from app.ui_feedback import toast_redirect
 from app.config import settings
 
 router = APIRouter()
@@ -42,8 +43,17 @@ def start_session(
         session_id = int(response.json()["id"])
     except Exception as exc:
         logger.exception("Could not start session")
-        return HTMLResponse(f"Could not start session: {exc}", status_code=502)
-    return RedirectResponse(url=f"/sessions/{session_id}", status_code=303)
+        return toast_redirect(
+            "/",
+            f"Could not create the test session: {exc}",
+            kind="error",
+            title="Session start failed",
+        )
+    return toast_redirect(
+        f"/sessions/{session_id}",
+        "Test session created. You can start the microphone when ready.",
+        title="Session ready",
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -129,6 +139,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
         .order_by(Turn.turn_index.asc())
         .all()
     )
+    latest_turn = turns[-1] if turns else None
     state_pretty = json.dumps(session.state_json, indent=2, ensure_ascii=False)
     return templates.TemplateResponse(
         "session_detail.html",
@@ -136,6 +147,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
             "request": request,
             "session": session,
             "turns": turns,
+            "latest_turn": latest_turn,
             "state_pretty": state_pretty,
         },
     )
@@ -342,4 +354,8 @@ def close_session(
         return HTMLResponse("Session not found", status_code=404)
     session.status = "closed"
     db.commit()
-    return RedirectResponse(url=f"/review/{session_id}", status_code=303)
+    return toast_redirect(
+        f"/review/{session_id}",
+        "Session closed. Review and training controls are now available.",
+        title="Session moved to review",
+    )

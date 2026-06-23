@@ -1,4 +1,4 @@
-"""Test verisi oluşturur — doğrudan PostgreSQL'e bağlanır."""
+"""Generate representative seed data directly in PostgreSQL."""
 import os
 import random
 from datetime import datetime, timedelta, timezone
@@ -181,22 +181,33 @@ def seed(conn):
     for i in range(25):
         status = "active" if i < 3 else random.choice(["closed"] * 7 + ["active"])
         stage = random.choice(STAGES)
+        current_goal = random.choice([
+            "confirm_interest",
+            "handle_price_objection",
+            "collect_callback_consent",
+            "move_to_activation",
+        ])
         hard_decline = random.randint(0, 3)
         ext_id = f"seed-voice-{run_id}-{i:02d}"
         created = rand_dt(30)
         cur.execute(
             """
             INSERT INTO sessions
-              (external_session_id, status, current_stage, state_json, created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s)
+              (external_session_id, status, current_stage, current_goal, state_json, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
             RETURNING id
             """,
             (
-                ext_id, status, stage,
+                ext_id,
+                status,
+                stage,
+                current_goal,
                 json_value({
                     "stage": stage,
+                    "goal": current_goal,
                     "hard_decline_count": hard_decline,
                     "call_attempt": random.randint(1, 4),
+                    "identity_confirmed": random.choice([True, False]),
                 }),
                 created,
                 created + timedelta(minutes=random.randint(1, 45)),
@@ -209,6 +220,7 @@ def seed(conn):
         turn_ids = []
         for t in range(n_turns):
             turn_created = created + timedelta(seconds=30 * t + random.randint(5, 25))
+            total_voice_turn_ms = random.randint(900, 2500)
             cur.execute(
                 """
                 INSERT INTO turns
@@ -230,10 +242,12 @@ def seed(conn):
                     random.choice(MODEL_VERSIONS),
                     json_value({
                         "stt_ms": random.randint(150, 600),
+                        "backend_ms": random.randint(280, 1000),
                         "llm_ms": random.randint(300, 1200),
                         "tts_first_audio_ms": random.randint(200, 800),
                         "speech_end_to_first_audio_ms": random.randint(700, 1800),
-                        "total_voice_turn_ms": random.randint(900, 2500),
+                        "total_voice_turn_ms": total_voice_turn_ms,
+                        "total_ms": total_voice_turn_ms,
                     }),
                     turn_created,
                 ),
@@ -281,6 +295,8 @@ def seed(conn):
             {"text": "Moment bitte", "interruption_latency_ms": 438},
         ),
         ("playback_cancelled", {"reason": "customer_speech"}),
+        ("duplicate_transcript_ignored", {"text": "Hallo? Hallo?"}),
+        ("stale_response_discarded", {"state": "listening"}),
         ("voice_turn_complete", {"state": "listening"}),
     ]
     for session_id, external_id, turn_ids in session_records[:3]:

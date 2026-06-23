@@ -8,6 +8,7 @@ from app.auth import PUBLIC_PATHS, derive_csrf_token, is_authenticated
 from app.config import settings
 from app.logging_config import configure_access_logging
 from app.routes import auth, corrections, evals, registry, review, sessions, training, turns
+from app.ui_feedback import FLASH_COOKIE_NAME, clear_toast_cookie, load_toast
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -32,13 +33,24 @@ app.include_router(review.router, tags=["review"])
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
+    flash_cookie_present = FLASH_COOKIE_NAME in request.cookies
+    request.state.flash_toast = load_toast(request)
     if path in PUBLIC_PATHS or path.startswith("/static"):
-        return await call_next(request)
+        response = await call_next(request)
+        if flash_cookie_present:
+            clear_toast_cookie(response)
+        return response
     if not is_authenticated(request):
-        return RedirectResponse(url="/login", status_code=302)
+        response = RedirectResponse(url="/login", status_code=302)
+        if flash_cookie_present:
+            clear_toast_cookie(response)
+        return response
     # Make CSRF token available on request.state for templates and dependencies.
     request.state.csrf_token = derive_csrf_token(request)
-    return await call_next(request)
+    response = await call_next(request)
+    if flash_cookie_present:
+        clear_toast_cookie(response)
+    return response
 
 
 @app.get("/health")

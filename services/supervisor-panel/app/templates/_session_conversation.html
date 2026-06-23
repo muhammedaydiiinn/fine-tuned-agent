@@ -6,7 +6,7 @@
       <span>Turn {{ t.turn_index }}</span>
       {% if t.intent %}<span class="badge badge-intent">{{ t.intent }}</span>{% endif %}
       {% if t.next_action %}<span class="badge badge-action">{{ t.next_action }}</span>{% endif %}
-      {% if t.latency_json %}<span class="text-muted">{{ t.latency_json.get('total_ms', 0)|round|int }} ms</span>{% endif %}
+      {% if t.latency_json %}<span class="text-muted">{{ t.latency_json.get('total_voice_turn_ms', t.latency_json.get('total_ms', 0))|round|int }} ms</span>{% endif %}
     </div>
     <div class="chat-bubble chat-customer">
       <div class="bubble-label">Customer</div>
@@ -24,10 +24,17 @@
           <i class="fa-solid fa-check"></i> Good
         </button>
       </form>
+      <form hx-post="/sessions/{{ session.id }}/turns/{{ t.id }}/correct"
+            hx-target="#turn-feedback-{{ t.id }}"
+            hx-swap="innerHTML">
+        <button class="btn btn-sm btn-danger" type="submit" name="mark_bad" value="1">
+          <i class="fa-solid fa-flag"></i> Bad
+        </button>
+      </form>
       <a class="btn btn-sm btn-outline" href="/sessions/{{ session.id }}/turns/{{ t.id }}">
         <i class="fa-solid fa-pen"></i> Correct / Inspect
       </a>
-      <span id="turn-feedback-{{ t.id }}"></span>
+      <span id="turn-feedback-{{ t.id }}" data-toast-only="true" data-refresh-on-toast="panel-refresh"></span>
     </div>
   </article>
   {% endfor %}

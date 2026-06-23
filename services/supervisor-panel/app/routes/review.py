@@ -1,12 +1,10 @@
 """Session-centered review and training workflow."""
 from __future__ import annotations
-
-import html
 import logging
 
 import httpx
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DBSession
@@ -23,6 +21,7 @@ from app.models import (
     Turn,
 )
 from app.routes.corrections import _build_candidate
+from app.ui_feedback import toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -167,10 +166,20 @@ def save_review(
     _csrf: None = Depends(require_csrf),
 ):
     if rating not in {"good", "mixed", "bad"}:
-        return HTMLResponse("Invalid rating", status_code=422)
+        return toast_redirect(
+            f"/review/{session_id}",
+            "Choose a valid review rating before saving.",
+            kind="warning",
+            title="Review not saved",
+        )
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_redirect(
+            "/review",
+            "The requested session could not be found.",
+            kind="error",
+            title="Review unavailable",
+        )
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -199,9 +208,11 @@ def save_review(
 
     if start_training:
         if not candidate_ids:
-            return HTMLResponse(
-                '<div class="alert alert-error">No reviewed turns were eligible for training.</div>',
-                status_code=422,
+            return toast_redirect(
+                f"/review/{session_id}",
+                "Review saved, but no eligible turns were available for training.",
+                kind="warning",
+                title="Nothing to train",
             )
         try:
             response = httpx.post(
@@ -219,12 +230,23 @@ def save_review(
             db.commit()
         except Exception as exc:
             logger.exception("Could not start session review training")
-            return HTMLResponse(
-                f'<div class="alert alert-error">Review saved, but training could not start: '
-                f'{html.escape(str(exc))}</div>',
-                status_code=502,
+            return toast_redirect(
+                f"/review/{session_id}",
+                f"Review saved, but training could not start: {exc}",
+                kind="error",
+                title="Training start failed",
             )
-    return RedirectResponse(url="/review", status_code=303)
+    if start_training and review.training_job_id:
+        return toast_redirect(
+            "/review",
+            f"Review saved and training job #{review.training_job_id} started.",
+            title="Training started",
+        )
+    return toast_redirect(
+        "/review",
+        "Review saved. Eligible turns are ready for the next training batch.",
+        title="Review saved",
+    )
 
 
 def _collect_review_candidates(
