@@ -186,3 +186,49 @@ Remaining live acceptance:
   a real voice run.
 - Text partial hypotheses are not emitted yet; the runtime currently emits
   speech-boundary and final-transcript events.
+
+## Milestone 9 — Live Supervisor Control
+
+Status: conditionally complete for the implemented local/mock flow.
+
+Verified:
+
+- The panel can issue `Stop Agent` and `Replace Answer` commands against the
+  active voice room.
+- A live replacement persists one linked correction request, optional
+  `apply_immediately`, optional `send_to_training`, and a supervisor audit
+  event before publishing the runtime control command.
+- The voice runtime applies `stop_agent` and `replace_answer` commands through
+  the LiveKit data channel and emits durable supervisor events for the panel
+  timeline.
+- Replacement playback is synthesized by the voice runtime and delivered as
+  audio in the same session path used by normal agent responses.
+
+Limitation:
+
+- A real browser microphone session on the target host still needs a manual
+  acceptance pass for the stop/replacement UX and operator workflow.
+
+## Milestone 10 — Voice Hardening
+
+Status: partial progress only.
+
+Verified:
+
+- Agent-backend calls in `voice-runtime` now use a circuit breaker so repeated
+  backend failures fail fast instead of stalling every turn.
+- STT failures emit `stt_unavailable` and return the session to listening
+  state instead of collapsing into a generic runtime error.
+- TTS failures can fall back to mock PCM output, with an explicit
+  `tts_fallback_activated` event and panel warning.
+- Session detail now shows voice health summary cards, a recent-turn latency
+  table, and an acceptance-readiness checklist derived from persisted turns and
+  voice events.
+- The browser voice console now persists lightweight recovery state and
+  automatically retries resume-token reconnects after unexpected room
+  disconnects, while manual stop/end-session actions disable recovery.
+
+Remaining:
+
+- Concurrency/load evidence, restart recovery, security/retention policy, and
+  production operations runbooks are not complete yet.

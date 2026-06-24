@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 from app.backend import AgentBackend, BackendError
 from app.config import Settings
 from app.segmenter import SegmentationConfig, UtteranceSegmenter
-from app.stt import FasterWhisperSTT
+from app.stt import FasterWhisperSTT, STTError
 from app.tts import FishTTS
 from app.turn_taking import BackchannelClassifier, TranscriptDeduplicator
 
@@ -280,6 +280,20 @@ class VoicePipeline:
         generation = self._generation
         try:
             transcript = await self.stt.transcribe(pcm, sample_rate=INPUT_SAMPLE_RATE)
+        except STTError as exc:
+            logger.warning(
+                "STT unavailable for turn — session=%s detail=%s",
+                self.session_id,
+                exc,
+            )
+            await self._emit(
+                room,
+                "stt_unavailable",
+                detail=str(exc),
+                state="listening",
+            )
+            return
+        try:
             if not transcript.text:
                 await self._emit(room, "empty_transcript", state="listening")
                 return
@@ -374,6 +388,14 @@ class VoicePipeline:
                     state="processing",
                 )
                 return
+            if getattr(self.tts, "last_stream_used_fallback", False):
+                await self._emit(
+                    room,
+                    "tts_fallback_activated",
+                    turn_id=turn["turn_id"],
+                    provider="mock_pcm",
+                    state="speaking",
+                )
             if generation != self._generation:
                 logger.info(
                     "stale_response_discarded (post-playback) — session=%s"

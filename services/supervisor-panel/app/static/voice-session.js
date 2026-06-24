@@ -19,12 +19,31 @@
   const replacementField = document.querySelector("#quick-corrected-response");
   const replacementActionField = document.querySelector("#quick-corrected-action");
   const quickActionForm = document.querySelector(".supervisor-form");
+  const recovery = window.VoiceSessionRecovery;
 
   let room = null;
   let audioContext = null;
   let levelFrame = null;
+  let reconnectTimer = null;
+  let manualDisconnect = false;
+  let pageUnload = false;
   const storageKey = `voice_connected_${sessionId}`;
-  let hasConnectedBefore = localStorage.getItem(storageKey) === "1";
+  let recoveryState = recovery
+    ? recovery.readStorage(localStorage.getItem(storageKey))
+    : { hasConnectedBefore: localStorage.getItem(storageKey) === "1", shouldResume: false, reconnectAttempts: 0 };
+  let hasConnectedBefore = recoveryState.hasConnectedBefore;
+
+  function persistRecoveryState() {
+    if (!recovery) return;
+    localStorage.setItem(storageKey, recovery.writeStorage(recoveryState));
+  }
+
+  function clearReconnectTimer() {
+    if (reconnectTimer) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
 
   function showToast(kind, message, title) {
     if (window.agentUI?.showToast) {
@@ -102,6 +121,34 @@
     });
   }
 
+  function scheduleAutoResume() {
+    if (!recovery || !recovery.shouldAutoResume(recoveryState)) return;
+    clearReconnectTimer();
+    const delayMs = recovery.nextRecoveryDelayMs(recoveryState.reconnectAttempts);
+    setVoiceState("reconnecting", `Connection lost - retrying in ${Math.round(delayMs / 1000)}s`);
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      startVoice({ forceResume: true, silentRecovery: true });
+    }, delayMs);
+  }
+
+  function handleUnexpectedDisconnect() {
+    if (!recovery || manualDisconnect || pageUnload || !hasConnectedBefore) {
+      resetVoiceControls();
+      return;
+    }
+    recoveryState = recovery.recordUnexpectedDisconnect(recoveryState);
+    persistRecoveryState();
+    resetVoiceControls(false);
+    if (recovery.shouldAutoResume(recoveryState)) {
+      showToast("warning", "The voice room disconnected. Automatic recovery is starting.", "Voice recovery");
+      scheduleAutoResume();
+      return;
+    }
+    setVoiceState("error", "Voice recovery exhausted - resume manually");
+    showToast("error", "Automatic recovery reached its retry limit. Resume manually.", "Voice recovery");
+  }
+
   async function publishControl(command) {
     if (!room) {
       throw new Error("Voice room is not connected");
@@ -139,11 +186,14 @@
     return payload;
   }
 
-  async function startVoice() {
+  async function startVoice(options) {
+    const opts = options || {};
+    clearReconnectTimer();
+    manualDisconnect = false;
     startButton.disabled = true;
     setStatus("Connecting to voice runtime...", "working");
 
-    const isResume = hasConnectedBefore;
+    const isResume = opts.forceResume || hasConnectedBefore;
     const tokenPath = isResume
       ? `/sessions/${sessionId}/voice-token-resume`
       : `/sessions/${sessionId}/voice-token`;
@@ -192,6 +242,9 @@
           showToast("info", "A duplicate transcript was ignored to keep the conversation stable.", "Duplicate ignored");
         } else if (event.event === "empty_transcript") {
           setVoiceState("listening", "No speech detected - still listening");
+        } else if (event.event === "stt_unavailable") {
+          setVoiceState("listening", "Speech recognition unavailable - listening");
+          showToast("warning", event.detail || "Speech recognition is temporarily unavailable.", "STT unavailable");
         } else if (event.event === "voice_error") {
           setVoiceState("error", event.detail);
           showToast("error", event.detail || "The voice runtime reported an error.", "Voice runtime");
@@ -213,6 +266,8 @@
           showToast("success", "The replacement answer was delivered.", "Supervisor control");
         } else if (event.event === "supervisor_action_ignored") {
           showToast("warning", "The supervisor action was ignored by the voice runtime.", "Supervisor control");
+        } else if (event.event === "tts_fallback_activated") {
+          showToast("warning", "Primary TTS failed, mock PCM fallback was used for this turn.", "TTS fallback");
         }
         if (window.htmx && !["speech_started", "speech_ended", "partial_transcript"].includes(event.event)) {
           window.htmx.trigger(document.body, "voice-event");
@@ -223,7 +278,7 @@
         setVoiceState("listening", "Reconnected - listening");
         showToast("success", "The live voice connection was restored.", "Voice reconnected");
       });
-      room.on(RoomEvent.Disconnected, () => resetVoiceControls());
+      room.on(RoomEvent.Disconnected, () => handleUnexpectedDisconnect());
 
       await room.connect(credentials.server_url, credentials.token);
       await room.localParticipant.setMicrophoneEnabled(true, {
@@ -233,9 +288,14 @@
       });
       const microphone = room.localParticipant.getTrackPublication(Track.Source.Microphone);
       startLevelMeter(microphone?.track?.mediaStreamTrack);
+      recoveryState = recovery ? recovery.recordConnected() : recoveryState;
+      persistRecoveryState();
       hasConnectedBefore = true;
       stopButton.disabled = false;
       setVoiceState(isResume ? "listening" : "processing", isResume ? "Resumed - listening" : "Waiting for voice agent...");
+      if (opts.silentRecovery) {
+        showToast("success", "The voice room was recovered and rejoined.", "Voice recovery");
+      }
     } catch (error) {
       console.error(error);
       setStatus(error.message, "error");
@@ -245,19 +305,25 @@
   }
 
   async function stopVoice() {
+    manualDisconnect = true;
+    clearReconnectTimer();
+    if (recovery) {
+      recoveryState = recovery.recordExpectedDisconnect(recoveryState);
+      persistRecoveryState();
+    }
     stopButton.disabled = true;
     if (room) await room.disconnect();
     resetVoiceControls();
   }
 
   function resetVoiceControls(showStopped) {
+    clearReconnectTimer();
     room = null;
     startButton.disabled = false;
     stopButton.disabled = true;
     audioContainer.replaceChildren();
     stopLevelMeter();
     if (hasConnectedBefore) {
-      localStorage.setItem(storageKey, "1");
       startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
     }
     if (showStopped !== false) setVoiceState("idle");
@@ -295,10 +361,23 @@
   }
   if (endSessionForm) {
     endSessionForm.addEventListener("submit", () => {
+      manualDisconnect = true;
+      clearReconnectTimer();
+      if (recovery) {
+        recoveryState = recovery.recordExpectedDisconnect(recoveryState);
+        persistRecoveryState();
+      }
       if (room) room.disconnect();
     });
   }
   window.addEventListener("beforeunload", () => {
+    pageUnload = true;
     if (room) room.disconnect();
   });
+  if (recovery && recovery.shouldAutoResume(recoveryState)) {
+    setVoiceState("reconnecting", "Resuming the previous voice session...");
+    window.setTimeout(() => {
+      startVoice({ forceResume: true, silentRecovery: true });
+    }, 300);
+  }
 })();

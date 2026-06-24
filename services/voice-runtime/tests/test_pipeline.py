@@ -9,7 +9,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 try:
     from app.config import Settings
     from app.pipeline import VoicePipeline
-    from app.stt import Transcript
+    from app.stt import STTError, Transcript
 except ModuleNotFoundError as exc:
     if exc.name and exc.name.startswith("livekit"):
         Settings = None
@@ -28,6 +28,17 @@ class FakeSTT:
 
     async def transcribe_partial(self, pcm: bytes, sample_rate: int = 16000):
         return Transcript(text=self.text, stt_ms=10.0)
+
+
+class FailingSTT:
+    def __init__(self, exc):
+        self.exc = exc
+
+    async def transcribe(self, pcm: bytes, sample_rate: int = 16000):
+        raise self.exc
+
+    async def transcribe_partial(self, pcm: bytes, sample_rate: int = 16000):
+        raise self.exc
 
 
 class FakeBackend:
@@ -371,3 +382,23 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         events = [event["event"] for event in pipeline.events]
         self.assertIn("supervisor_replacement_started", events)
         self.assertIn("supervisor_replacement_completed", events)
+
+    async def test_tts_fallback_event_is_emitted_after_playback(self):
+        pipeline = self.make_pipeline()
+        pipeline.tts.last_stream_used_fallback = True
+
+        await pipeline._run_turn(None, b"pcm")
+
+        events = [event["event"] for event in pipeline.events]
+        self.assertIn("tts_fallback_activated", events)
+
+    async def test_stt_unavailable_emits_specific_event_and_skips_backend(self):
+        pipeline = self.make_pipeline()
+        pipeline.stt = FailingSTT(STTError("Whisper transcription failed"))
+
+        await pipeline._run_turn(None, b"pcm")
+
+        self.assertEqual(pipeline.backend.turn_calls, [])
+        events = [event["event"] for event in pipeline.events]
+        self.assertIn("stt_unavailable", events)
+        self.assertNotIn("voice_error", events)

@@ -181,6 +181,13 @@
   {% include "_session_summary.html" %}
 </div>
 
+<section
+  id="voice-diagnostics"
+  hx-get="/sessions/{{ session.id }}/voice-diagnostics"
+  hx-trigger="{% if session.status == 'active' %}load, every 5s, voice-turn-complete from:body, voice-event from:body{% else %}load{% endif %}"
+  hx-swap="innerHTML"
+></section>
+
 <details class="collapsible" style="margin-bottom:20px;">
   <summary>State JSON</summary>
   <pre class="json-block">{{ state_pretty }}</pre>
@@ -214,6 +221,7 @@
 </script>
 {% if session.status == 'active' %}
 <script src="/static/livekit-client.umd.min.js"></script>
-<script src="/static/voice-session.js?v=5"></script>
+<script src="/static/voice-session-recovery.js?v=1"></script>
+<script src="/static/voice-session.js?v=6"></script>
 {% endif %}
 {% endblock %}

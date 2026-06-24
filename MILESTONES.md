@@ -257,7 +257,7 @@ Kalan kabul kapısı:
 
 ## M9 — Canlı supervisor control ve anlık düzeltme
 
-**Durum:** Bekliyor.
+**Durum:** Koşullu tamam.
 
 Kapsam:
 
@@ -278,9 +278,34 @@ Kabul kriteri:
   kayıtlarını birbirine bağlı ve izlenebilir biçimde oluşturur.
 - Sonraki benzer durumda hotfix etkisi retraining beklemeden görülür.
 
+Doğrulanan:
+
+- Session detail içinden canlı transcript/turn/event akışı supervisor panelde
+  güncelleniyor.
+- `Stop Agent` aksiyonu aktif playback'i iptal edip runtime generation'ını
+  ilerletiyor; eski cevap yeniden başlamıyor.
+- `Replace Answer` / `Send This Instead` panelden correction kaydı, audit event
+  ve room control command olarak hazırlanıyor; replacement cevap aynı session'da
+  TTS ile oynatılıyor.
+- `Apply Immediately` ve `Send to Training` seçenekleri aynı live correction
+  isteğine bağlandı; correction memory ve training candidate üretimi mevcut
+  correction pipeline üzerinden izlenebilir kalıyor.
+- Supervisor aksiyonları `supervisor_action_requested`,
+  `supervisor_stop_applied`, `supervisor_replacement_started`,
+  `supervisor_replacement_completed` ve `supervisor_action_ignored` event'leri
+  ile audit timeline'a düşüyor.
+
+Kalan kabul kapısı:
+
+- Gerçek browser mikrofonu + LiveKit oturumunda supervisor replacement akışının
+  uçtan uca manuel kabulü hedef GPU host üzerinde alınmalı.
+- Rol/yetki katmanı şu an panel authentication sınırına dayanıyor; production
+  rollout öncesi daha dar supervisor izin modeli gerekiyorsa M10 operasyon
+  hardening kapsamında netleştirilmeli.
+
 ## M10 — Voice performansı ve production hardening
 
-**Durum:** Bekliyor.
+**Durum:** Kısmi ilerleme var.
 
 Kapsam:
 
@@ -298,6 +323,25 @@ Kabul kriteri:
 - STT, LLM veya TTS arızasında görüşme kontrollü fallback ile sonlanır.
 - Restart sonrası deployment ve session verisi tutarlı kalır.
 - Production checklist ve rollback provası tamamlanır.
+
+Mevcut ilerleme:
+
+- Voice runtime backend çağrıları için timeout + circuit breaker eklendi.
+- STT arızası session'ı düşürmeden `stt_unavailable` ile izole ediliyor.
+- Fish TTS hata verdiğinde mock PCM fallback devreye girebiliyor ve panelde
+  `tts_fallback_activated` olarak görünür oluyor.
+- Session detail sayfasında voice health özeti, son turn latency görünümü ve
+  acceptance readiness paneli eklendi.
+- Supervisor panel voice console beklenmeyen room disconnect sonrası sınırlı
+  otomatik recovery deniyor; manuel stop/end session yolları ise recovery'yi
+  bilinçli olarak kapatıyor.
+
+Kalan işler:
+
+- Uçtan uca tracing, p50/p95/p99 dashboard, interruption latency trendleri
+- Concurrency/load/soak testleri
+- Session recovery ve servis restart senaryoları
+- PII/retention, secrets/TLS/rate limit, backup/restore ve operasyon runbook'u
 
 ## M11 — Telefon/pilot entegrasyonu
 

@@ -16,6 +16,11 @@ from app.models import Session as SessionModel, Turn, VoiceEvent
 from app.ui_feedback import toast_redirect
 from app.config import settings
 from app.voice_actions import prepare_voice_action
+from app.voice_observability import (
+    build_recent_voice_turns,
+    build_voice_acceptance,
+    build_voice_health,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -267,9 +272,60 @@ def session_live_summary(
         .scalar()
         or 0
     )
+    turns = (
+        db.query(Turn)
+        .filter(Turn.session_id == session_id)
+        .order_by(Turn.turn_index.asc(), Turn.id.asc())
+        .all()
+    )
+    events = (
+        db.query(VoiceEvent)
+        .filter(VoiceEvent.session_id == session_id)
+        .order_by(VoiceEvent.sequence.asc(), VoiceEvent.id.asc())
+        .limit(200)
+        .all()
+    )
     return templates.TemplateResponse(
         "_session_summary.html",
-        {"request": request, "session": session, "turn_count": turn_count},
+        {
+            "request": request,
+            "session": session,
+            "turn_count": turn_count,
+            "voice_health": build_voice_health(turns, events),
+        },
+    )
+
+
+@router.get("/sessions/{session_id}/voice-diagnostics", response_class=HTMLResponse)
+def session_voice_diagnostics(
+    session_id: int,
+    request: Request,
+    db: DBSession = Depends(get_db),
+):
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        return HTMLResponse("Session not found", status_code=404)
+    turns = (
+        db.query(Turn)
+        .filter(Turn.session_id == session_id)
+        .order_by(Turn.turn_index.asc(), Turn.id.asc())
+        .all()
+    )
+    events = (
+        db.query(VoiceEvent)
+        .filter(VoiceEvent.session_id == session_id)
+        .order_by(VoiceEvent.sequence.asc(), VoiceEvent.id.asc())
+        .limit(200)
+        .all()
+    )
+    return templates.TemplateResponse(
+        "_voice_diagnostics.html",
+        {
+            "request": request,
+            "voice_health": build_voice_health(turns, events),
+            "recent_voice_turns": build_recent_voice_turns(turns, limit=5),
+            "voice_acceptance": build_voice_acceptance(turns, events),
+        },
     )
 
 
@@ -296,6 +352,8 @@ def session_voice_events(
         "supervisor_replacement_started": "Supervisor replacement started",
         "supervisor_replacement_completed": "Supervisor replacement completed",
         "supervisor_action_ignored": "Supervisor action ignored",
+        "stt_unavailable": "STT unavailable",
+        "tts_fallback_activated": "TTS fallback activated",
         "interruption_detected": "Customer interrupted",
         "playback_cancelled": "Playback cancelled",
         "backchannel_detected": "Backchannel detected",
