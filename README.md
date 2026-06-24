@@ -439,7 +439,7 @@ docker compose down -v
 | 11 | Telefon/pilot entegrasyonu | ⏳ Sonraki faz |
 
 Kapsam, bağımlılıklar ve kabul kriterleri için
-[`MILESTONES.md`](./MILESTONES.md) tek referans plandır.
+[`docs/MILESTONES.md`](./docs/MILESTONES.md) tek referans plandır.
 
 ---
 

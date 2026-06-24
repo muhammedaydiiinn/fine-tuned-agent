@@ -15,4 +15,4 @@ echo "[supervisor-panel] running tests"
 PYTHONPATH=services/supervisor-panel python3 -m pytest -q services/supervisor-panel/tests
 
 echo "[frontend-node] running tests"
-node --test tests/node/*.test.js
+node --test services/supervisor-panel/tests/node/*.test.js

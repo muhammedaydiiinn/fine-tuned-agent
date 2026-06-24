@@ -201,7 +201,7 @@ Kalan kabul kapısı:
   konuşulmalı.
 - Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
   doğrulanmalı.
-- Canlı kontrol listesi `services/voice-runtime/LIVE_ACCEPTANCE.md` içindedir.
+- Canlı kontrol listesi `docs/LIVE_ACCEPTANCE.md` içindedir.
 
 ## M8 — Realtime turn-taking ve interruption
 
