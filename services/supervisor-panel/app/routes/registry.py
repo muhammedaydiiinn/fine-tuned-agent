@@ -14,6 +14,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Deployment, EvalRun, ModelVersion
+from app.ui_feedback import toast_fragment
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -219,17 +220,18 @@ def approve(version_name: str, _csrf: None = Depends(require_csrf)):
 def quality_check(model_version_id: int, _csrf: None = Depends(require_csrf)):
     try:
         result = _backend_post("/eval-runs", {"model_version_id": model_version_id})
-        return HTMLResponse(
-            '<div class="alert alert-success">Quality check started. '
-            f'<a href="/eval-jobs/{int(result["id"])}">View progress</a></div>'
+        return toast_fragment(
+            f"Quality check #{int(result['id'])} started.",
+            kind="success",
         )
     except httpx.HTTPStatusError as exc:
         try:
             detail = exc.response.json().get("detail", str(exc))
         except ValueError:
             detail = str(exc)
-        return HTMLResponse(
-            f'<div class="alert alert-error">{html.escape(str(detail))}</div>',
+        return toast_fragment(
+            str(detail),
+            kind="error",
             status_code=exc.response.status_code,
         )
 
@@ -311,22 +313,21 @@ def rollback(environment: str, _csrf: None = Depends(require_csrf)):
 def _action(path: str, success: str, payload: dict | None = None) -> HTMLResponse:
     try:
         _backend_post(path, payload)
-        return HTMLResponse(
-            f'<div class="alert alert-success">{html.escape(success)}. '
-            '<a href="/model-registry">Refresh registry</a></div>'
-        )
+        return toast_fragment(success, kind="success")
     except httpx.HTTPStatusError as exc:
         try:
             detail = exc.response.json().get("detail", str(exc))
         except ValueError:
             detail = str(exc)
-        return HTMLResponse(
-            f'<div class="alert alert-error">{html.escape(str(detail))}</div>',
+        return toast_fragment(
+            str(detail),
+            kind="error",
             status_code=exc.response.status_code,
         )
     except Exception as exc:
         logger.exception("Registry action failed: path=%s", path)
-        return HTMLResponse(
-            f'<div class="alert alert-error">{html.escape(str(exc))}</div>',
+        return toast_fragment(
+            str(exc),
+            kind="error",
             status_code=502,
         )

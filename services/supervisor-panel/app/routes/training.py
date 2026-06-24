@@ -5,7 +5,7 @@ import logging
 
 import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
@@ -13,6 +13,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import TrainingCandidate, TrainingJob
+from app.ui_feedback import toast_fragment
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -102,8 +103,9 @@ def export_jsonl(db: DBSession = Depends(get_db), _csrf: None = Depends(require_
     )
 
     if not candidates:
-        return HTMLResponse(
-            '<div class="alert alert-error">No approved candidates pending export.</div>'
+        return JSONResponse(
+            {"detail": "No approved candidates pending export."},
+            status_code=400,
         )
 
     lines: list[str] = []
@@ -202,9 +204,7 @@ def start_training(request: Request, db: DBSession = Depends(get_db), _csrf: Non
     """Trigger a new training pipeline job via agent-backend."""
     approved_count = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()  # noqa: E712
     if approved_count == 0:
-        return HTMLResponse(
-            '<div class="alert alert-error">No approved training candidates.</div>'
-        )
+        return toast_fragment("No approved training candidates.", kind="error", status_code=400)
 
     try:
         resp = httpx.post(
@@ -217,17 +217,10 @@ def start_training(request: Request, db: DBSession = Depends(get_db), _csrf: Non
         job = resp.json()
         job_id = job.get("id")
         logger.info("Training job created via backend: id=%s", job_id)
-        return HTMLResponse(
-            f'<div class="alert alert-success">'
-            f'Training job <strong>#{job_id}</strong> queued. '
-            f'<a href="/training-jobs">View jobs →</a>'
-            f'</div>'
-        )
+        return toast_fragment(f"Training job #{job_id} queued.", kind="success")
     except Exception as exc:
         logger.error("Failed to start training job: %s", exc)
-        return HTMLResponse(
-            f'<div class="alert alert-error">Failed to start job: {exc}</div>'
-        )
+        return toast_fragment(f"Failed to start job: {exc}", kind="error", status_code=502)
 
 
 @router.get("/training-jobs/{job_id}", response_class=HTMLResponse)

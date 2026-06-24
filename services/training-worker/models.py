@@ -23,6 +23,20 @@ class TrainingCandidate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Turn(Base):
+    __tablename__ = "turns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    customer_text: Mapped[str | None] = mapped_column(Text)
+    agent_response: Mapped[str | None] = mapped_column(Text)
+    next_action: Mapped[str | None] = mapped_column(String(64))
+    intent: Mapped[str | None] = mapped_column(String(64))
+    emotion: Mapped[str | None] = mapped_column(String(32))
+    risk: Mapped[str | None] = mapped_column(String(16))
+    allowed_to_continue: Mapped[bool | None] = mapped_column(Boolean)
+    state_before_json: Mapped[dict | None] = mapped_column(JSONB)
+
+
 class TrainingJob(Base):
     __tablename__ = "training_jobs"
 

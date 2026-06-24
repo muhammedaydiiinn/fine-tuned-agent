@@ -4,7 +4,7 @@
   const consoleElement = document.querySelector("#voice-test-console");
   if (!consoleElement || !window.LivekitClient) return;
 
-  const { Room, RoomEvent, Track } = window.LivekitClient;
+  const { ConnectionState, Room, RoomEvent, Track } = window.LivekitClient;
   const sessionId = consoleElement.dataset.sessionId;
   const startButton = document.querySelector("#voice-start");
   const stopButton = document.querySelector("#voice-stop");
@@ -48,6 +48,12 @@
   function showToast(kind, message, title) {
     if (window.agentUI?.showToast) {
       window.agentUI.showToast({ kind, message, title });
+    }
+  }
+
+  function assertLiveRoomConnected() {
+    if (!room || room.state !== ConnectionState.Connected) {
+      throw new Error("Connect the voice room before sending supervisor actions.");
     }
   }
 
@@ -335,6 +341,7 @@
     stopAgentButton.addEventListener("click", async () => {
       stopAgentButton.disabled = true;
       try {
+        assertLiveRoomConnected();
         const response = await requestVoiceAction("stop_agent");
         await publishControl(response.command);
       } catch (error) {
@@ -349,6 +356,7 @@
     sendReplacementButton.addEventListener("click", async () => {
       sendReplacementButton.disabled = true;
       try {
+        assertLiveRoomConnected();
         const response = await requestVoiceAction("replace_answer");
         await publishControl(response.command);
       } catch (error) {

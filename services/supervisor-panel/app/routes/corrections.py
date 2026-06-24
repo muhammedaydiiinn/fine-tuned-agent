@@ -10,6 +10,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Correction, CorrectionMemory, TrainingCandidate, Turn
+from app.ui_feedback import toast_fragment
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -75,7 +76,7 @@ async def save_correction(
 ):
     turn = db.query(Turn).filter(Turn.id == turn_id).first()
     if not turn:
-        return HTMLResponse('<div class="alert alert-error">Turn not found.</div>')
+        return toast_fragment("Turn not found.", kind="error", status_code=404)
 
     correction_type = "response_correction"
     if mark_good:
@@ -103,7 +104,7 @@ async def save_correction(
     db.refresh(correction)
 
     if mark_good:
-        return HTMLResponse('<div class="alert alert-success">Marked as good.</div>')
+        return toast_fragment("Marked as good.", kind="success", refresh_event="panel-refresh")
 
     # apply_immediately -> correction_memory
     if apply_immediately and corrected_response:
@@ -153,8 +154,7 @@ async def save_correction(
     if send_to_training:
         parts.append("Training candidate created")
 
-    msg = " &nbsp;|&nbsp; ".join(parts)
-    return HTMLResponse(f'<div class="alert alert-success">{msg}</div>')
+    return toast_fragment(" | ".join(parts), kind="success", refresh_event="panel-refresh")
 
 
 def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action: str, correction_type: str = "response_correction"):

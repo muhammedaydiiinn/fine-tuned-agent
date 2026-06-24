@@ -72,6 +72,11 @@
       .replace(/"/g, "&quot;");
   }
 
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute("content") || "" : "";
+  }
+
   // ── Renderer kayıt defteri ────────────────────────────────────────────────
   var RENDERERS = {
     /** <code> tag — sayısal/kısa metin için */
@@ -432,9 +437,13 @@
     if (!btn || btn.disabled) return;
     var url = btn.getAttribute("data-url");
     if (!url) return;
+    var csrf = getCsrfToken();
 
     btn.disabled = true;
-    fetch(url, { method: "POST" })
+    fetch(url, {
+      method: "POST",
+      headers: csrf ? { "X-CSRF-Token": csrf } : {},
+    })
       .then(function () {
         var tbl = btn.closest("table[data-dt-url]");
         if (tbl && tbl._dt) tbl._dt.ajax.reload(null, false);

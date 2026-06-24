@@ -14,9 +14,14 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from models import TrainingCandidate
+from models import TrainingCandidate, Turn
 
 logger = logging.getLogger(__name__)
+
+LEGACY_SYSTEM_INSTRUCTION = (
+    "You are an CallShield Gold Paket sales policy agent. "
+    "Return ONLY a valid JSON policy object."
+)
 
 def _validate_messages(messages: list, source: str) -> None:
     if not isinstance(messages, list) or len(messages) < 3:
@@ -51,6 +56,81 @@ def _validate_messages(messages: list, source: str) -> None:
         raise ValueError(f"{source}: unapproved discount claim")
     if "unbegrenzt" in response_folded and "nummer" in response_folded:
         raise ValueError(f"{source}: unsupported unlimited-number claim")
+
+
+def _normalize_legacy_candidate(candidate: TrainingCandidate, db: Session) -> list:
+    """Upgrade legacy plain-text assistant examples to JSON policy format."""
+    messages = candidate.messages_json or []
+    if not isinstance(messages, list) or len(messages) < 3:
+        raise ValueError(f"training_candidate:{candidate.id}: messages must contain system, user and assistant entries")
+
+    assistant = messages[-1]
+    assistant_text = ""
+    if isinstance(assistant, dict):
+        assistant_text = str(assistant.get("content") or "")
+
+    turn = None
+    if candidate.source_id is not None:
+        turn = db.query(Turn).filter(Turn.id == candidate.source_id).first()
+    if turn is None:
+        raise ValueError(
+            f"training_candidate:{candidate.id}: assistant content must be valid JSON"
+        )
+
+    normalized = [
+        {
+            "role": "system",
+            "content": (
+                messages[0].get("content")
+                if isinstance(messages[0], dict) and messages[0].get("content")
+                else LEGACY_SYSTEM_INSTRUCTION
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "customer_message": turn.customer_text or "",
+                    "state": turn.state_before_json or {},
+                },
+                ensure_ascii=False,
+            ),
+        },
+        {
+            "role": "assistant",
+            "content": json.dumps(
+                {
+                    "intent": turn.intent or "unknown",
+                    "emotion": turn.emotion or "neutral",
+                    "risk": turn.risk or "low",
+                    "next_action": turn.next_action or "",
+                    "behavior_strategy": "corrected",
+                    "allowed_to_continue": (
+                        turn.allowed_to_continue
+                        if turn.allowed_to_continue is not None
+                        else True
+                    ),
+                    "agent_response": assistant_text or turn.agent_response or "",
+                    "voice_style": {
+                        "tone": "clear",
+                        "pace": "normal",
+                        "confidence": "high",
+                    },
+                },
+                ensure_ascii=False,
+            ),
+        },
+    ]
+    candidate.messages_json = normalized
+    metadata = dict(candidate.metadata_json or {})
+    metadata["normalized_from_legacy"] = True
+    candidate.metadata_json = metadata
+    logger.info(
+        "Normalized legacy training candidate id=%d source_turn=%s",
+        candidate.id,
+        candidate.source_id,
+    )
+    return normalized
 
 
 def _write_jsonl_files(fh, directory: Path) -> tuple[int, list[dict]]:
@@ -122,7 +202,13 @@ def build(
     with open(out, "w", encoding="utf-8") as fh:
         # Source 1: candidates
         for c in candidates:
-            _validate_messages(c.messages_json, f"training_candidate:{c.id}")
+            try:
+                _validate_messages(c.messages_json, f"training_candidate:{c.id}")
+            except ValueError as exc:
+                if "assistant content must be valid JSON" not in str(exc):
+                    raise
+                normalized = _normalize_legacy_candidate(c, db)
+                _validate_messages(normalized, f"training_candidate:{c.id}")
             fh.write(json.dumps({"messages": c.messages_json}, ensure_ascii=False) + "\n")
             candidate_count += 1
 
@@ -139,6 +225,7 @@ def build(
         "Dataset built: candidates=%d golden=%d base=%d total=%d → %s",
         candidate_count, golden_count, base_count, total, output_path,
     )
+    db.commit()
 
     output_digest = hashlib.sha256(out.read_bytes()).hexdigest()
     return {
