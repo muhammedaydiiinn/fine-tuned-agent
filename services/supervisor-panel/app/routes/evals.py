@@ -13,6 +13,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
+from app.ui_feedback import toast_fragment
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -100,17 +101,12 @@ def start_eval(model_version_id: int = Form(...), _csrf: None = Depends(require_
         response.raise_for_status()
         eval_run = response.json()
         run_id = int(eval_run["id"])
-        return HTMLResponse(
-            '<div class="alert alert-success">'
-            f'Evaluation <strong>#{run_id}</strong> queued. '
-            f'<a href="/eval-jobs/{run_id}">Open evaluation</a>'
-            "</div>"
-        )
+        return toast_fragment(f"Evaluation #{run_id} queued.", kind="success")
     except Exception as exc:
         logger.exception("Failed to start eval for model_version_id=%d", model_version_id)
-        return HTMLResponse(
-            f'<div class="alert alert-error">Failed to start evaluation: '
-            f'{html.escape(str(exc))}</div>',
+        return toast_fragment(
+            f"Failed to start evaluation: {exc}",
+            kind="error",
             status_code=502,
         )
 

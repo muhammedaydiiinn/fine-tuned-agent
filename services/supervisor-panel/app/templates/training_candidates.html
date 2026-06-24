@@ -50,13 +50,10 @@
   <div class="table-toolbar">
     <span class="table-toolbar-title">Training Candidates</span>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button
-        class="btn btn-sm btn-success"
-        hx-post="/training-candidates/export-jsonl"
-        hx-target="#export-result"
-        hx-swap="innerHTML">
-        Export JSONL
-      </button>
+      <form action="/training-candidates/export-jsonl" method="post" data-download-post>
+        <input type="hidden" name="_csrf" value="{{ request.state.csrf_token }}">
+        <button class="btn btn-sm btn-success" type="submit">Export JSONL</button>
+      </form>
     </div>
   </div>
 

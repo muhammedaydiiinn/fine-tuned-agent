@@ -1,11 +1,12 @@
 """Shared toast/snackbar helpers for supervisor-panel UX feedback."""
 from __future__ import annotations
 
+import html
 import json
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 FLASH_COOKIE_NAME = "anruf_panel_toast"
 
@@ -64,6 +65,28 @@ def toast_redirect(
             duration_ms=duration_ms,
         ),
     )
+
+
+def toast_fragment(
+    message: str,
+    *,
+    kind: str = "info",
+    status_code: int = 200,
+    refresh_event: str | None = None,
+) -> HTMLResponse:
+    kind_map = {
+        "success": "alert-success",
+        "error": "alert-error",
+        "warning": "alert-warning",
+        "info": "alert-info",
+    }
+    refresh_attr = f' data-refresh-on-toast="{html.escape(refresh_event, quote=True)}"' if refresh_event else ""
+    body = (
+        f'<div data-toast-only="true"{refresh_attr}>'
+        f'<div class="alert {kind_map.get(kind, "alert-info")}">{html.escape(message)}</div>'
+        "</div>"
+    )
+    return HTMLResponse(body, status_code=status_code)
 
 
 def load_toast(request: Request) -> dict[str, Any] | None:

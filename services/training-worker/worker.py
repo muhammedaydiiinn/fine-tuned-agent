@@ -163,6 +163,10 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     "train_steps": train_result.get("steps"),
                     "row_count": ds_result["row_count"],
                     "training_mode": settings.training_mode,
+                    "artifact_manifest": {
+                        "valid": True,
+                        **artifact_manifest["merged"],
+                    },
                     "dataset_manifest": ds_result,
                     "pipeline_artifacts": artifact_manifest,
                     "serving": {
@@ -190,9 +194,21 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
 
         eval_run_id = None
         if settings.training_mode == "mock":
+            deployment_evidence = {
+                "artifact_sha256": artifact_manifest["merged"]["sha256"],
+                "artifact_root": merged_path,
+                "serving_target": {
+                    "mode": "mock",
+                    "base_url": "",
+                    "model_name": new_version_name,
+                    "slot": "mock",
+                },
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+            }
             eval_run = EvalRun(
                 model_version_id=model_version_id,
                 status="pending",
+                metrics_json={"deployment_evidence": deployment_evidence},
                 progress_current=0,
                 progress_total=15,
             )

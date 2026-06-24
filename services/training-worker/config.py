@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     max_seq_length: int = 2048
     warmup_ratio: float = 0.05
 
-    # "mock" skips torch imports — useful for unit tests without GPU
-    training_mode: str = "real"
+    # Default to mock for the local Docker workflow. GPU hosts should override
+    # this to "real" in .env and install requirements-gpu.txt in a matching venv.
+    training_mode: str = "mock"
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     candidate_model_name: str = "anrufblocker-candidate"
 

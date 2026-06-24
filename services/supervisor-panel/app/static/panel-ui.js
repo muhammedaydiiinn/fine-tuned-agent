@@ -127,6 +127,55 @@
   document.addEventListener("DOMContentLoaded", showFlashToast);
   document.body.addEventListener("panel-toast", (event) => showToast(event.detail));
 
+  document.addEventListener("submit", async (event) => {
+    const form = event.target.closest("form[data-download-post]");
+    if (!form) return;
+
+    event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+      const response = await fetch(form.action, {
+        method: form.method || "POST",
+        body: new FormData(form),
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(String(payload.detail || payload.message || "").trim() || "Download failed");
+        }
+        const text = await response.text();
+        throw new Error(text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "Download failed");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      const filename = match ? match[1] : "download.bin";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast({ kind: "success", title: "Export ready", message: `${filename} downloaded.` });
+    } catch (error) {
+      showToast({
+        kind: "error",
+        title: "Export failed",
+        message: String(error && error.message ? error.message : error),
+      });
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+
   document.body.addEventListener("htmx:afterSwap", (event) => {
     convertInlineAlerts(event.detail.target || event.target);
   });
