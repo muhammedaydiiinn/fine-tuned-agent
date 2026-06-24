@@ -1,0 +1,75 @@
+{% if voice_health.get('voice_turns') %}
+<div class="voice-diagnostics-card">
+  <div class="voice-diagnostics-header">
+    <div>
+      <div class="voice-diagnostics-title">Voice Diagnostics</div>
+      <div class="voice-diagnostics-subtitle">Mock acceptance view for latency and failure signals</div>
+    </div>
+    <span class="voice-health-badge {{ 'voice-health-badge-warning' if voice_health.get('degraded') else 'voice-health-badge-ok' }}">
+      {{ 'Degraded' if voice_health.get('degraded') else 'Stable' }}
+    </span>
+  </div>
+
+  <div class="voice-diagnostics-grid">
+    <div class="voice-diagnostic-stat"><span>P95 End → Audio</span><strong>{{ (voice_health.get('p95_speech_end_to_first_audio_ms')|round|int ~ ' ms') if voice_health.get('p95_speech_end_to_first_audio_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Avg Total Turn</span><strong>{{ (voice_health.get('avg_total_voice_turn_ms')|round|int ~ ' ms') if voice_health.get('avg_total_voice_turn_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Avg STT</span><strong>{{ (voice_health.get('avg_stt_ms')|round|int ~ ' ms') if voice_health.get('avg_stt_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Barge-ins</span><strong>{{ voice_health.get('barge_in_count', 0) }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>STT Unavailable</span><strong>{{ voice_health.get('stt_unavailable_count', 0) }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>TTS Fallbacks</span><strong>{{ voice_health.get('tts_fallback_count', 0) }}</strong></div>
+  </div>
+
+  <div class="voice-diagnostics-table-wrap">
+    <table class="voice-diagnostics-table">
+      <thead>
+        <tr>
+          <th>Turn</th>
+          <th>Intent</th>
+          <th>STT</th>
+          <th>Backend</th>
+          <th>TTS First</th>
+          <th>End → Audio</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_voice_turns %}
+        <tr>
+          <td>{{ row.turn_index if row.turn_index is not none else '—' }}</td>
+          <td>{{ row.intent or '—' }}</td>
+          <td>{{ row.stt_ms|round|int if row.stt_ms is not none else '—' }}</td>
+          <td>{{ row.backend_ms|round|int if row.backend_ms is not none else '—' }}</td>
+          <td>{{ row.tts_first_audio_ms|round|int if row.tts_first_audio_ms is not none else '—' }}</td>
+          <td>{{ row.speech_end_to_first_audio_ms|round|int if row.speech_end_to_first_audio_ms is not none else '—' }}</td>
+          <td>{{ row.total_voice_turn_ms|round|int if row.total_voice_turn_ms is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="voice-diagnostics-card acceptance-card">
+  <div class="voice-diagnostics-header">
+    <div>
+      <div class="voice-diagnostics-title">Acceptance Readiness</div>
+      <div class="voice-diagnostics-subtitle">Auto-checks that are feasible before the GPU host is available</div>
+    </div>
+    <span class="voice-health-badge {{ 'voice-health-badge-ok' if voice_acceptance.get('ready_for_gpu_acceptance') else 'voice-health-badge-warning' }}">
+      {{ voice_acceptance.get('auto_passed') }}/{{ voice_acceptance.get('auto_total') }} auto checks
+    </span>
+  </div>
+
+  <div class="acceptance-checklist">
+    {% for item in voice_acceptance.get('checks', []) %}
+    <div class="acceptance-check acceptance-check-{{ item.status }}">
+      <div class="acceptance-check-main">
+        <span class="acceptance-check-label">{{ item.label }}</span>
+        <span class="acceptance-check-status">{{ item.status|replace('_', ' ') }}</span>
+      </div>
+      <div class="acceptance-check-detail">{{ item.detail }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

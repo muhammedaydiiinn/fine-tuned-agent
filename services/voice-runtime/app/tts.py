@@ -1,9 +1,12 @@
 import asyncio
 from collections.abc import AsyncIterator
+import logging
 
 import httpx
 
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 def pace_to_speed(pace: str) -> float:
@@ -17,12 +20,14 @@ def pace_to_speed(pace: str) -> float:
 class FishTTS:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.last_stream_used_fallback = False
 
     async def stream(
         self,
         text: str,
         voice_style: dict,
     ) -> AsyncIterator[bytes]:
+        self.last_stream_used_fallback = False
         if self.settings.tts_mode == "mock":
             async for chunk in self._mock_stream(text):
                 yield chunk
@@ -53,17 +58,25 @@ class FishTTS:
             "model": self.settings.fish_tts_model,
         }
         timeout = httpx.Timeout(self.settings.tts_request_timeout_seconds)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST",
-                self.settings.fish_tts_url,
-                headers=headers,
-                json=payload,
-            ) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    if chunk:
-                        yield chunk
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    self.settings.fish_tts_url,
+                    headers=headers,
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        if chunk:
+                            yield chunk
+        except (httpx.HTTPError, RuntimeError) as exc:
+            if not self.settings.tts_fallback_to_mock:
+                raise
+            self.last_stream_used_fallback = True
+            logger.warning("Fish TTS failed — falling back to mock PCM: %s", exc)
+            async for chunk in self._mock_stream(text):
+                yield chunk
 
     async def _mock_stream(self, text: str) -> AsyncIterator[bytes]:
         samples_per_chunk = self.settings.tts_sample_rate // 20

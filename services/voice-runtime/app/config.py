@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # Backend HTTP timeouts (seconds) — configurable for high-latency environments
     backend_timeout_seconds: float = 120.0
     backend_connect_timeout_seconds: float = 15.0
+    backend_circuit_breaker_failures: int = 3
+    backend_circuit_breaker_reset_seconds: float = 20.0
 
     whisper_model_path: str = "/models/whisper/whisper-large-v3-turbo-german"
     whisper_device: str = "cuda"
@@ -63,6 +65,7 @@ class Settings(BaseSettings):
     fish_tts_url: str = "https://api.fish.audio/v1/tts"
     tts_sample_rate: int = 24000
     tts_request_timeout_seconds: float = 45.0
+    tts_fallback_to_mock: bool = True
 
     greeting_text: str = "Guten Tag, ich bin Anna Weber von Anrufblocker. Ich erkläre Ihnen kurz, worum es geht."
     greeting_mock: bool = True

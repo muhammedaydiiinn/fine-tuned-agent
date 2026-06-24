@@ -10,6 +10,10 @@ from app.config import Settings
 logger = logging.getLogger(__name__)
 
 
+class STTError(RuntimeError):
+    """Raised when the transcription backend is unavailable or fails."""
+
+
 @dataclass(frozen=True)
 class Transcript:
     text: str
@@ -31,7 +35,7 @@ class FasterWhisperSTT:
             model = await self._get_model()
         except Exception:
             logger.exception("Failed to load Whisper model")
-            raise
+            raise STTError("Whisper model could not be loaded")
 
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
         if sample_rate != 16000:
@@ -41,7 +45,7 @@ class FasterWhisperSTT:
             text = await asyncio.to_thread(self._transcribe_sync, model, audio)
         except Exception:
             logger.exception("Whisper transcription failed — pcm_bytes=%d", len(pcm))
-            raise
+            raise STTError("Whisper transcription failed")
 
         return Transcript(
             text=text,
@@ -60,7 +64,7 @@ class FasterWhisperSTT:
             model = await self._get_model()
         except Exception:
             logger.exception("Failed to load Whisper model for partial transcription")
-            raise
+            raise STTError("Whisper model could not be loaded")
 
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
         if sample_rate != 16000:
@@ -72,7 +76,7 @@ class FasterWhisperSTT:
             logger.exception(
                 "Whisper partial transcription failed — pcm_bytes=%d", len(pcm)
             )
-            raise
+            raise STTError("Whisper partial transcription failed")
 
         return Transcript(
             text=text,

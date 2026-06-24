@@ -23,3 +23,39 @@
   <div class="info-label">Started</div>
   <div class="info-value" style="font-size:14px;font-weight:500;">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
 </div>
+{% if voice_health is defined and voice_health.get('voice_turns') %}
+<div class="info-card">
+  <div class="info-label">Voice Health</div>
+  <div class="info-value" style="color:{{ 'var(--yellow)' if voice_health.get('degraded') else 'var(--green)' }}">
+    {{ 'Degraded' if voice_health.get('degraded') else 'Stable' }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">Voice Turns</div>
+  <div class="info-value">{{ voice_health.get('voice_turns') }}</div>
+</div>
+<div class="info-card">
+  <div class="info-label">Latest End → Audio</div>
+  <div class="info-value">
+    {{ (voice_health.get('latest_speech_end_to_first_audio_ms')|round|int ~ ' ms') if voice_health.get('latest_speech_end_to_first_audio_ms') is not none else '—' }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">P95 End → Audio</div>
+  <div class="info-value" style="color:{% if voice_health.get('p95_speech_end_to_first_audio_ms') and voice_health.get('p95_speech_end_to_first_audio_ms') > 2500 %}var(--red){% else %}var(--text){% endif %}">
+    {{ (voice_health.get('p95_speech_end_to_first_audio_ms')|round|int ~ ' ms') if voice_health.get('p95_speech_end_to_first_audio_ms') is not none else '—' }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">Avg Total Voice</div>
+  <div class="info-value">
+    {{ (voice_health.get('avg_total_voice_turn_ms')|round|int ~ ' ms') if voice_health.get('avg_total_voice_turn_ms') is not none else '—' }}
+  </div>
+</div>
+<div class="info-card">
+  <div class="info-label">Voice Errors</div>
+  <div class="info-value" style="color:{% if voice_health.get('voice_error_count') or voice_health.get('stt_unavailable_count') or voice_health.get('tts_fallback_count') %}var(--yellow){% else %}var(--text){% endif %}">
+    {{ voice_health.get('voice_error_count', 0) + voice_health.get('stt_unavailable_count', 0) + voice_health.get('tts_fallback_count', 0) }}
+  </div>
+</div>
+{% endif %}
