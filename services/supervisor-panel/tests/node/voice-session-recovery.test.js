@@ -4,7 +4,7 @@ const path = require("node:path");
 
 const recovery = require(path.resolve(
   __dirname,
-  "../../services/supervisor-panel/app/static/voice-session-recovery.js"
+  "../../app/static/voice-session-recovery.js"
 ));
 
 test("readStorage supports legacy connected marker", () => {
