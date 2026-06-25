@@ -215,13 +215,16 @@
         throw new Error(credentials.detail || "Could not create voice token");
       }
 
-      room = new Room({ adaptiveStream: true, dynacast: true });
+      const currentRoom = new Room({ adaptiveStream: true, dynacast: true });
+      room = currentRoom;
       room.on(RoomEvent.TrackSubscribed, (track) => {
+        if (room !== currentRoom) return;
         if (track.kind === Track.Kind.Audio) {
           audioContainer.appendChild(track.attach());
         }
       });
       room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+        if (room !== currentRoom) return;
         if (topic !== "voice.events") return;
         const event = JSON.parse(new TextDecoder().decode(payload));
         if (event.event === "voice_session_ready") {
@@ -279,12 +282,19 @@
           window.htmx.trigger(document.body, "voice-event");
         }
       });
-      room.on(RoomEvent.Reconnecting, () => setVoiceState("reconnecting"));
+      room.on(RoomEvent.Reconnecting, () => {
+        if (room !== currentRoom) return;
+        setVoiceState("reconnecting");
+      });
       room.on(RoomEvent.Reconnected, () => {
+        if (room !== currentRoom) return;
         setVoiceState("listening", "Reconnected - listening");
         showToast("success", "The live voice connection was restored.", "Voice reconnected");
       });
-      room.on(RoomEvent.Disconnected, () => handleUnexpectedDisconnect());
+      room.on(RoomEvent.Disconnected, () => {
+        if (room !== currentRoom) return;
+        handleUnexpectedDisconnect();
+      });
 
       await room.connect(credentials.server_url, credentials.token);
       await room.localParticipant.setMicrophoneEnabled(true, {
@@ -303,6 +313,15 @@
         showToast("success", "The voice room was recovered and rejoined.", "Voice recovery");
       }
     } catch (error) {
+      const failedRoom = room;
+      room = null;
+      if (failedRoom) {
+        try {
+          await failedRoom.disconnect();
+        } catch (_disconnectError) {
+          // Ignore cleanup failures after a start error.
+        }
+      }
       console.error(error);
       setStatus(error.message, "error");
       showToast("error", error.message || "Could not start the voice runtime.", "Voice start failed");

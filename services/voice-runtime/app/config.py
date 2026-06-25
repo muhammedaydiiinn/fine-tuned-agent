@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -83,6 +84,21 @@ class Settings(BaseSettings):
                 errors.append("FISH_API_KEY is required when TTS_MODE=fish")
             if not self.fish_tts_reference_id:
                 errors.append("FISH_TTS_REFERENCE_ID is required when TTS_MODE=fish")
+
+        whisper_path = Path(self.whisper_model_path)
+        if not whisper_path.exists():
+            errors.append(
+                f"WHISPER_MODEL_PATH does not exist: {self.whisper_model_path}"
+            )
+        elif not whisper_path.is_dir():
+            errors.append(
+                f"WHISPER_MODEL_PATH is not a directory: {self.whisper_model_path}"
+            )
+        elif not (whisper_path / "model.bin").is_file():
+            errors.append(
+                "WHISPER_MODEL_PATH must point to a Faster-Whisper/CTranslate2 model "
+                f"directory containing model.bin: {self.whisper_model_path}"
+            )
 
         if errors:
             for msg in errors:
