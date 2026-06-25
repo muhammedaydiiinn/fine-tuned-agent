@@ -159,7 +159,7 @@ Platform iki model kullanır:
 | Model | Kaynak | Hedef Klasör | Kullanım |
 |-------|--------|-------------|----------|
 | **fine-tuned-agent-v14** | Google Drive (özel) | `models/merged/fine-tuned-agent-v14/` | vLLM — ana satış ajanı |
-| **whisper-large-v3-turbo-german** | HuggingFace | `models/whisper/whisper-large-v3-turbo-german/` | STT — Almanca ses tanıma (M7) |
+| **whisper-large-v3-turbo-german-ct2** | Local (CTranslate2) | `models/whisper/whisper-large-v3-turbo-german-ct2/` | STT — Almanca ses tanıma (M7) |
 
 ---
 
@@ -208,7 +208,7 @@ mv /opt/fine-tuned-agent/models/merged/<drive_klasör_adı> \
 pip install huggingface_hub
 
 huggingface-cli download primeline/whisper-large-v3-turbo-german \
-  --local-dir /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german \
+  --local-dir /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german-ct2 \
   --local-dir-use-symlinks False \
   --ignore-patterns "*.msgpack" "flax_model*" "tf_model*"
 ```
@@ -221,7 +221,7 @@ scp -r ./models/merged/fine-tuned-agent-v14/ \
     deploy@SUNUCU_IP:/opt/fine-tuned-agent/models/merged/
 
 # Whisper modelini Mac'ten sunucuya kopyala
-scp -r ./models/whisper/whisper-large-v3-turbo-german/ \
+scp -r ./models/whisper/whisper-large-v3-turbo-german-ct2/ \
     deploy@SUNUCU_IP:/opt/fine-tuned-agent/models/whisper/
 ```
 
@@ -241,10 +241,10 @@ models/
 │       └── model.safetensors.index.json
 │
 └── whisper/
-    └── whisper-large-v3-turbo-german/    ← Whisper STT (Milestone 7)
+    └── whisper-large-v3-turbo-german-ct2/    ← Whisper STT CTranslate2 (Milestone 7)
         ├── config.json
-        ├── model.safetensors
-        ├── tokenizer.json
+        ├── model.bin
+        ├── vocabulary.json
         └── preprocessor_config.json
 ```
 
@@ -256,12 +256,12 @@ ls /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/config.json
 # → dosya görünmeli
 
 # Whisper modeli
-ls /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german/config.json
+ls /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german-ct2/model.bin
 # → dosya görünmeli
 
 # Disk kullanımı özeti
 du -sh /opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14/
-du -sh /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german/
+du -sh /opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german-ct2/
 ```
 
 ---
@@ -272,7 +272,7 @@ Model indirildikten sonra `.env` dosyasını kontrol et:
 
 ```env
 MODEL_MERGED_PATH=/opt/fine-tuned-agent/models/merged/fine-tuned-agent-v14
-WHISPER_MODEL_PATH=/opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german
+WHISPER_MODEL_PATH=/opt/fine-tuned-agent/models/whisper/whisper-large-v3-turbo-german-ct2
 ```
 
 ---
