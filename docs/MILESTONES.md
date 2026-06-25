@@ -154,6 +154,17 @@ Kalan kabul kapısı:
 - Blue/green slot değişimi, health/smoke ve rollback gerçek vLLM modelleriyle
   hedef NVIDIA sunucuda doğrulanmalı.
 
+Eksik kalan (M6 kapsamına eklenecek):
+
+- **vLLM otomatik model yükleme**: Training tamamlanıp `ModelVersion` kaydı
+  oluştuğunda vLLM'e modeli otomatik yükleyecek mekanizma yok. Şu an ops elle
+  kopyalaması gerekiyor. vLLM OpenAI-compatible API'si (`POST /v1/models`) veya
+  servis restart + model path yaklaşımıyla çözülecek. GPU kabul testleri
+  başlamadan önce bu boşluk kapatılmalı — aksi hâlde her training sonrası elle
+  müdahale gerekir.
+- **Redis job queue kalıcılığı**: Queue'daki bekleyen job'lar Redis restart'ta
+  kaybolur. Docker-compose'da `--appendonly yes` ile çözülür; trivial değişiklik.
+
 ## M7 — Browser voice foundation
 
 **Durum:** Koşullu tamam.
@@ -348,6 +359,55 @@ Kalan kabul kapısı:
 - PII/retention politikaları, TLS, rate limit ve operasyon runbook'u
   production rollout öncesi netleştirilmeli.
 
+## M12 — Doğal dil düzeltme derleyicisi
+
+**Durum:** Bekliyor. M9 tamamlandıktan sonra başlanır.
+
+Bağlam:
+
+Sistem şu an yapısal düzeltme destekliyor: supervisor tam cevap metnini yazar,
+bu training datasına girer. Ancak supervisor "Burada fiyat sormuş, önce 14 gün
+ücretsiz demeli" gibi doğal dil talimat yazdığında sistem bunu işleyemiyor.
+
+Yaklaşım — LLM'siz kural tabanlı derleyici:
+
+Supervisor review alanına serbest metin yazar. Sistem bunu kural tabanlı
+bir "Review Compiler" ile işler:
+
+1. Anahtar sözcük ve kalıp eşleştirmesi ile düzeltme tipi çıkarılır
+   (`product_fact_correction`, `missing_step`, `wrong_next_action` vb.)
+2. İlgili product fact şablonları otomatik uygulanır (fiyat, deneme süresi vb.)
+3. Panelde önizleme gösterilir: orijinal turn + üretilen yapısal correction
+4. Operatör [Onayla] / [Düzenle] / [Reddet] seçer
+5. Onaylanırsa mevcut correction pipeline'ına → correction memory +
+   training candidate olarak düşer
+
+LLM kullanılmama nedenleri:
+
+- Yanlış training data üretme riski yok
+- Product fact hataları daha az (şablondan geliyor)
+- Tahmin edilebilir ve debug edilebilir
+- Panelde açıklaması kolay
+
+Kapsam:
+
+- Review Compiler modülü (kural tabanlı, anahtar sözcük eşleştirici)
+- Desteklenen correction tipleri: `product_fact_correction`,
+  `missing_step`, `wrong_next_action`, `tone_correction`
+- Panel önizleme UI: orijinal turn yan yana + üretilen correction
+- Onayla/Düzenle/Reddet akışı
+- Onaylanan correction mevcut pipeline'a enjekte edilir
+- Derleyici kural seti test edilebilir ve genişletilebilir olmalı
+
+Kabul kriteri:
+
+- Supervisor fiyat ile ilgili doğal dil yorum yazar → derleyici doğru
+  `product_fact_correction` tipi ve Almanca şablon cevabı üretir.
+- Yanlış eşleşmede operatör düzenleyebilir veya reddedebilir; sistem
+  yanlış veriyi training'e almaz.
+- Onaylanan correction correction memory ve training candidate tablosuna
+  mevcut M3 pipeline'ı üzerinden izlenebilir biçimde yazılır.
+
 ## M11 — Telefon/pilot entegrasyonu
 
 **Durum:** M7–M10 sonrasına bırakıldı.
@@ -365,14 +425,16 @@ başlatılmaz.
 ## Önerilen uygulama sırası
 
 ```text
-M6 candidate serving + deploy gate
-  → M4/M5 gerçek GPU kabul testleri
+M6 eksikleri kapat (vLLM auto-load + Redis persistence)
+  → M4/M5/M6 gerçek GPU kabul testleri
   → M7 browser voice
   → M8 interruption
   → M9 live supervisor correction
   → M10 production hardening
+  → M12 doğal dil düzeltme derleyicisi
   → M11 telephony pilot
 ```
 
-M7 için temel hazırlık M6 ile paralel ilerleyebilir; ancak M9 ve production
-pilot, güvenilir M6 deploy/rollback kapısı olmadan tamamlanmış sayılmaz.
+M6 eksikleri (vLLM auto-load, Redis persistence) GPU kabul testleri başlamadan
+önce kapatılmalı. M12, M9 tamamlandıktan sonra M11 ile paralel ilerleyebilir;
+M11 için M12 tamamlanmış olmak zorunda değil.
