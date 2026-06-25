@@ -1,0 +1,65 @@
+<div class="review-compiler-preview" id="compiler-preview-{{ turn.id }}">
+  {% if compiled.get('matched') %}
+  <div class="review-compiler-heading">
+    <div>
+      <span class="badge badge-approved">Rule matched</span>
+      <span class="badge badge-intent">{{ compiled.get('correction_type') }}</span>
+    </div>
+    <code>{{ compiled.get('matched_rule') }}</code>
+  </div>
+  <p class="helper-text">{{ compiled.get('explanation') }}</p>
+
+  <div class="review-compiler-comparison">
+    <div>
+      <div class="bubble-label">Original agent response</div>
+      <div class="chat-bubble chat-agent">{{ turn.agent_response or '—' }}</div>
+    </div>
+    <div>
+      <div class="bubble-label">Compiled correction</div>
+      <div class="chat-bubble chat-customer">{{ compiled.get('corrected_agent_response') or '—' }}</div>
+    </div>
+  </div>
+
+  <div id="compiler-result-{{ turn.id }}" data-toast-only="true"></div>
+  <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
+        hx-target="#compiler-result-{{ turn.id }}"
+        hx-swap="innerHTML">
+    <input type="hidden" name="compiled_correction_type" value="{{ compiled.get('correction_type') }}">
+    <input type="hidden" name="notes" value="Review compiler: {{ instruction }}">
+    <div class="form-group">
+      <label>Corrected response</label>
+      <textarea name="corrected_response" rows="4" required>{{ compiled.get('corrected_agent_response') }}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Corrected next action</label>
+      <input name="corrected_next_action" value="{{ compiled.get('corrected_next_action') }}" required>
+    </div>
+    <div class="form-check-row">
+      <label class="checkbox-label">
+        <input type="checkbox" name="apply_immediately" value="true" checked>
+        <span>Apply immediately</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="send_to_training" value="true" checked>
+        <span>Send to training</span>
+      </label>
+    </div>
+    <div class="review-compiler-actions">
+      <button class="btn btn-primary btn-sm" type="submit">
+        <i class="fa-solid fa-check"></i> Approve correction
+      </button>
+      <button class="btn btn-outline btn-sm" type="submit"
+              hx-post="/review/{{ session.id }}/turns/{{ turn.id }}/compile/reject"
+              hx-target="#compiler-preview-{{ turn.id }}"
+              hx-swap="outerHTML">
+        Reject preview
+      </button>
+    </div>
+  </form>
+  {% else %}
+  <div class="alert alert-warning">{{ compiled.get('explanation') }}</div>
+  <p class="helper-text">No data was saved. Refine the instruction or use Edit Response.</p>
+  <button class="btn btn-outline btn-sm" type="button"
+          onclick="this.closest('.review-compiler-preview').remove()">Dismiss</button>
+  {% endif %}
+</div>

@@ -10,12 +10,12 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Correction, CorrectionMemory, TrainingCandidate, Turn
+from app.review_compiler_types import resolve_correction_type
 from app.ui_feedback import toast_fragment
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 logger = logging.getLogger(__name__)
-
 
 @router.get("/corrections", response_class=HTMLResponse)
 def corrections_list(request: Request, db: DBSession = Depends(get_db)):
@@ -72,13 +72,18 @@ async def save_correction(
     send_to_training: bool = Form(False),
     mark_good: str = Form(""),
     mark_bad: str = Form(""),
+    compiled_correction_type: str = Form(""),
     _csrf: None = Depends(require_csrf),
 ):
-    turn = db.query(Turn).filter(Turn.id == turn_id).first()
+    turn = (
+        db.query(Turn)
+        .filter(Turn.id == turn_id, Turn.session_id == session_id)
+        .first()
+    )
     if not turn:
         return toast_fragment("Turn not found.", kind="error", status_code=404)
 
-    correction_type = "response_correction"
+    correction_type = resolve_correction_type(compiled_correction_type)
     if mark_good:
         correction_type = "mark_good"
         corrected_response = turn.agent_response or ""

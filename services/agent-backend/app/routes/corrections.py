@@ -6,12 +6,31 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.core.candidate_builder import build_candidate_from_turn
+from app.core.review_compiler import compile_instruction
 from app.db import get_db
 from app.models import Correction, CorrectionMemory, Session as SessionModel, TrainingCandidate, Turn
-from app.schemas import CreateCorrectionRequest, CorrectionResponse
+from app.schemas import (
+    CompileReviewInstructionRequest,
+    CompileReviewInstructionResponse,
+    CreateCorrectionRequest,
+    CorrectionResponse,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.post(
+    "/review-compiler/compile",
+    response_model=CompileReviewInstructionResponse,
+)
+def compile_review_instruction(req: CompileReviewInstructionRequest):
+    return compile_instruction(
+        req.instruction,
+        customer_text=req.customer_text,
+        agent_response=req.agent_response,
+        current_next_action=req.current_next_action,
+    ).as_dict()
 
 
 @router.get("/corrections", response_model=list[CorrectionResponse])

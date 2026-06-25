@@ -35,6 +35,7 @@ node --test services/supervisor-panel/tests/node/*.test.js
 | File | What it covers |
 |------|----------------|
 | `test_m6_hardening.py` | Model registry deploy/rollback hardening |
+| `test_review_compiler.py` | Deterministic M12 instruction classification and approved templates |
 | `test_voice_events.py` | Voice event persistence and retrieval |
 
 ### voice-runtime (`services/voice-runtime/tests/`)
@@ -61,6 +62,7 @@ node --test services/supervisor-panel/tests/node/*.test.js
 | File | What it covers |
 |------|----------------|
 | `test_ui_feedback.py` | Panel UI feedback and toast notifications |
+| `test_review_compiler.py` | Accepted compiler correction types and safe fallback |
 | `test_voice_actions.py` | Stop-agent and replace-answer action routing |
 | `test_voice_observability.py` | `build_voice_health`, `build_recent_voice_turns`, `build_voice_acceptance` aggregation |
 

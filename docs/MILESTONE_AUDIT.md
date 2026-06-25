@@ -1,4 +1,4 @@
-# Milestone 1–10 Audit — 2026-06-21
+# Milestone 1–12 Audit — 2026-06-21
 
 ## Result
 
@@ -6,8 +6,8 @@ Milestones 1–3 are complete. Milestones 4–6 meet their current platform goal
 in mock mode and are conditionally complete until their GPU/candidate-serving
 acceptance gates are verified. Milestones 7–10 are conditionally complete for
 their local implementation and still require the documented live GPU,
-latency/load, and production-operations acceptance gates. The complete
-evaluation flow was verified through Docker:
+latency/load, and production-operations acceptance gates. Milestone 12 is
+complete locally. The complete evaluation flow was verified through Docker:
 
 ```text
 POST /eval-runs
@@ -241,3 +241,20 @@ Remaining:
 
 - Concurrency/load evidence, restart recovery, security/retention policy, and
   production operations runbooks are not complete yet.
+
+## Milestone 12 — Natural-language Review Compiler
+
+Status: complete.
+
+Verified locally:
+
+- Deterministic Turkish/German rules compile supervisor notes into
+  `product_fact_correction`, `missing_step`, `wrong_next_action`, or
+  `tone_correction`.
+- Price/trial and link-security corrections use agent-backend's authoritative
+  `product_facts.py` templates.
+- Review & Train renders an editable original-versus-proposed preview.
+- Approval uses the existing correction transaction with optional correction
+  memory and training candidate creation.
+- Rejection or an unmatched note produces no persisted correction or training
+  data.

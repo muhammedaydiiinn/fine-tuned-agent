@@ -26,6 +26,32 @@
       <div class="chat-bubble chat-customer"><div class="bubble-label">Customer</div>{{ turn.customer_text }}</div>
       <div class="chat-bubble chat-agent"><div class="bubble-label">Agent</div>{{ turn.agent_response or '—' }}</div>
 
+      <details class="collapsible turn-inline-edit review-compiler">
+        <summary>Compile Supervisor Note</summary>
+        <div class="correction-panel" style="margin-top:12px;">
+          <div class="correction-header">
+            <div>
+              <div class="correction-header-title">Natural-language correction</div>
+              <div class="helper-text">Rules only; no LLM. Preview before anything is saved.</div>
+            </div>
+          </div>
+          <form hx-post="/review/{{ session.id }}/turns/{{ turn.id }}/compile"
+                hx-target="#compiler-output-{{ turn.id }}"
+                hx-swap="innerHTML">
+            <div class="form-group">
+              <label for="compiler-instruction-{{ turn.id }}">Supervisor instruction</label>
+              <textarea id="compiler-instruction-{{ turn.id }}" name="instruction" rows="3"
+                        placeholder="Örn: Burada fiyat sormuş, önce 14 gün ücretsiz demeli"
+                        required></textarea>
+            </div>
+            <button class="btn btn-outline btn-sm" type="submit">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Build preview
+            </button>
+          </form>
+          <div id="compiler-output-{{ turn.id }}" class="review-compiler-output"></div>
+        </div>
+      </details>
+
       <details class="collapsible turn-inline-edit">
         <summary>Edit Response</summary>
         <div class="correction-panel" style="margin-top:12px;">

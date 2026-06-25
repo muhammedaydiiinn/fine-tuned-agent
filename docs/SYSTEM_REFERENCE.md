@@ -246,6 +246,19 @@ Süpervizör hatalı turn'ü düzeltiyor
     blue/green slot üzerinden deploy eder
 ```
 
+### 3.4 Doğal Dil Review Compiler
+
+Review & Train ekranında supervisor bir turn için serbest metin talimat yazar.
+Panel talimatı agent-backend `/review-compiler/compile` endpoint'ine gönderir.
+Derleyici LLM kullanmaz; test edilebilir kurallarla correction tipi, Almanca
+yanıt ve next action önizlemesi üretir.
+
+- Fiyat/deneme ve link güvenliği yanıtları `product_facts.py` şablonlarından gelir.
+- Önizleme kalıcı veri oluşturmaz.
+- Approve mevcut correction akışını kullanır; memory/training seçenekleri aynıdır.
+- Reject önizlemeyi kaldırır ve kayıt oluşturmaz.
+- Eşleşmeyen talimatlarda sistem tahmin yürütmez, manuel edit ister.
+
 ---
 
 ## 4. Veritabanı Modelleri
@@ -365,6 +378,7 @@ Model versiyonunun bir environment'a deploy edilme kaydı. `status`: `pending` �
 | POST | `/agent-turn` | Ana turn endpoint'i — 12 adımlı akış |
 | POST | `/corrections` | Correction kaydet |
 | GET | `/corrections` | Correction listesi |
+| POST | `/review-compiler/compile` | Supervisor talimatından güvenli correction önizlemesi üret |
 | POST | `/training/candidates` | Training candidate ekle |
 | GET | `/training/candidates` | Candidate listesi |
 | POST | `/training/jobs` | Training job başlat |

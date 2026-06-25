@@ -156,6 +156,22 @@ class CorrectionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CompileReviewInstructionRequest(BaseModel):
+    instruction: str = Field(..., min_length=1, max_length=1000)
+    customer_text: str = ""
+    agent_response: str = ""
+    current_next_action: str = ""
+
+
+class CompileReviewInstructionResponse(BaseModel):
+    matched: bool
+    correction_type: str
+    corrected_agent_response: str
+    corrected_next_action: str
+    matched_rule: str
+    explanation: str
+
+
 # ── Training Candidate ───────────────────────────────────────────────────────
 
 class TrainingCandidateResponse(BaseModel):
