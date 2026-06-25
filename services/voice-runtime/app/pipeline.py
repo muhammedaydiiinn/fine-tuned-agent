@@ -112,8 +112,16 @@ class VoicePipeline:
             if remote_participant.sid == participant.sid:
                 disconnected.set()
 
-        def on_data_received(payload, remote_participant, *_args) -> None:
-            topic = _args[-1] if _args else None
+        def on_data_received(*event_args) -> None:
+            if not event_args:
+                logger.warning(
+                    "Received data_received event without payload — session=%s",
+                    self.session_id,
+                )
+                return
+            payload = event_args[0]
+            remote_participant = event_args[1] if len(event_args) > 1 else None
+            topic = event_args[-1] if len(event_args) > 2 else None
             task = asyncio.create_task(
                 self._handle_room_data(
                     room,

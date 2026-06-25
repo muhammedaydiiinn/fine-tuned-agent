@@ -45,7 +45,7 @@ Gerçek ses testi için:
 
 ```env
 LIVEKIT_PUBLIC_URL=ws://localhost:7880
-WHISPER_MODEL_PATH=/models/whisper/whisper-large-v3-turbo-german
+WHISPER_MODEL_PATH=/models/whisper/whisper-large-v3-turbo-german-ct2
 WHISPER_DEVICE=cuda
 WHISPER_COMPUTE_TYPE=float16
 TTS_MODE=fish

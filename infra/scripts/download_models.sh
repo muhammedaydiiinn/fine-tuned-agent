@@ -1,7 +1,7 @@
 #!/bin/bash
 # Anrufblocker platform modellerini indir
 #   - LLM     : Google Drive → models/merged/anrufblocker-v14/
-#   - Whisper : HuggingFace  → models/whisper/whisper-large-v3-turbo-german/
+#   - Whisper : HuggingFace + CT2 convert → models/whisper/whisper-large-v3-turbo-german-ct2/
 #
 # Kullanım:
 #   bash infra/scripts/download_models.sh [MODELS_DIR] [--llm-only|--whisper-only]
@@ -29,7 +29,8 @@ for arg in "$@"; do
 done
 
 LLM_DIR="$MODELS_DIR/merged/anrufblocker-v14"
-WHISPER_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german"
+WHISPER_SRC_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german"
+WHISPER_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german-ct2"
 GDRIVE_FOLDER_ID="19eLgqB0W1UUNuFguwTGA6wnLGQmDHj3y"
 HF_WHISPER_MODEL="primeline/whisper-large-v3-turbo-german"
 
@@ -165,15 +166,16 @@ echo "────────────────────────�
 if [ "$DO_WHISPER" = "false" ]; then
     echo "  2/2  Whisper — atlanıyor (--llm-only)"
     echo "────────────────────────────────────────────────────"
-elif [ -d "$WHISPER_DIR" ] && [ "$(ls -A "$WHISPER_DIR" 2>/dev/null)" ]; then
+elif [ -f "$WHISPER_DIR/model.bin" ]; then
     echo "  2/2  Whisper — zaten mevcut"
     echo "────────────────────────────────────────────────────"
     success "Atlanıyor: $WHISPER_DIR"
 else
     echo "  2/2  Whisper STT (HuggingFace: $HF_WHISPER_MODEL)"
-    echo "       Hedef: $WHISPER_DIR"
+    echo "       Kaynak: $WHISPER_SRC_DIR"
+    echo "       CT2    : $WHISPER_DIR"
     echo "────────────────────────────────────────────────────"
-    mkdir -p "$WHISPER_DIR"
+    mkdir -p "$WHISPER_SRC_DIR" "$WHISPER_DIR"
     info "İndiriliyor... (3-7 GB, birkaç dakika sürebilir)"
 
     python3 - <<PYEOF
@@ -182,7 +184,7 @@ os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="$HF_WHISPER_MODEL",
-    local_dir="$WHISPER_DIR",
+    local_dir="$WHISPER_SRC_DIR",
     local_dir_use_symlinks=False,
     ignore_patterns=[
         "*.msgpack", "flax_model*", "tf_model*", "rust_model*",
@@ -191,12 +193,47 @@ snapshot_download(
 )
 # HuggingFace'in bıraktığı .cache klasörünü temizle
 import shutil
-cache_dir = os.path.join("$WHISPER_DIR", ".cache")
+cache_dir = os.path.join("$WHISPER_SRC_DIR", ".cache")
 if os.path.exists(cache_dir):
     shutil.rmtree(cache_dir)
     print("HF cache temizlendi.")
 print("Whisper modeli indirildi.")
 PYEOF
+
+    if [ ! -f "$WHISPER_SRC_DIR/model.safetensors" ] && [ ! -f "$WHISPER_SRC_DIR/pytorch_model.bin" ]; then
+        echo -e "${RED}✗ Whisper kaynak modeli eksik indirildi: ağırlık dosyası bulunamadı.${NC}"
+        exit 1
+    fi
+
+    python3 - <<PYEOF
+import os, shutil
+src = os.path.join("$WHISPER_SRC_DIR", "vocab.json")
+dst = os.path.join("$WHISPER_SRC_DIR", "vocabulary.json")
+if os.path.exists(src) and not os.path.exists(dst):
+    shutil.copyfile(src, dst)
+    print("Kaynak vocab.json -> vocabulary.json kopyalandı.")
+PYEOF
+
+    info "CT2 formatına dönüştürülüyor..."
+    rm -rf "$WHISPER_DIR"
+    ct2-transformers-converter \
+        --model "$WHISPER_SRC_DIR" \
+        --output_dir "$WHISPER_DIR" \
+        --copy_files tokenizer_config.json preprocessor_config.json merges.txt added_tokens.json normalizer.json special_tokens_map.json
+
+    python3 - <<PYEOF
+import json, os, shutil
+vocab = os.path.join("$WHISPER_DIR", "vocab.json")
+target = os.path.join("$WHISPER_DIR", "vocabulary.json")
+if os.path.exists(vocab) and not os.path.exists(target):
+    shutil.copyfile(vocab, target)
+    print("vocab.json -> vocabulary.json kopyalandı.")
+PYEOF
+
+    if [ ! -f "$WHISPER_DIR/model.bin" ]; then
+        echo -e "${RED}✗ Whisper modeli eksik indirildi: model.bin bulunamadı.${NC}"
+        exit 1
+    fi
 
     success "Whisper modeli hazır: $WHISPER_DIR"
 fi
