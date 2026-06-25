@@ -173,7 +173,11 @@ OpenAI-compat API sunan model inference sunucusu. Sadece `--profile gpu` ile ba�
 
 ### 2.6 `vllm-candidate`
 
-Pre-deploy evaluation için izole edilmiş 2. model slot'u. `vllm-server`'dan bağımsız çalışır, aynı anda iki farklı model versiyonu test edilebilir.
+Pre-deploy evaluation için izole edilmiş candidate model sunucusudur. Tek GPU
+hedefinde production vLLM veya training worker ile aynı anda çalıştırılmaz.
+Training worker modeli sabit publish yoluna koyar; `vllm-candidate` bu modeli
+başlangıçta belleğe yükler. Publish işlemi çalışan vLLM sürecinde hot reload
+yapmaz.
 
 ---
 
@@ -238,7 +242,8 @@ Süpervizör hatalı turn'ü düzeltiyor
   → Tamamlanınca ModelVersion kaydı oluşur
   → Eval worker yeni versiyonu test eder
   → quality_score >= EVAL_PASS_THRESHOLD → Deploy edilebilir
-  → Süpervizör model-registry'den "Set Active" yapar
+  → Süpervizör gerçek eval kanıtını inceler, modeli approve eder ve inactive
+    blue/green slot üzerinden deploy eder
 ```
 
 ---
@@ -438,7 +443,7 @@ Model versiyonunun bir environment'a deploy edilme kaydı. `status`: `pending` �
 | `CANDIDATE_MODEL_PATH` | Test edilecek yeni modelin dizini. `vllm-candidate` bunu mount eder |
 | `CANDIDATE_MODEL_NAME` | `vllm-candidate`'in serve edeceği isim |
 | `CANDIDATE_VLLM_BASE_URL` | `vllm-candidate`'in endpoint'i. Eval worker bunu kullanır |
-| `CANDIDATE_PUBLISH_PATH` | Training worker'ın yeni merged candidate artifact'ı atomik olarak publish ettiği sabit runtime dizini. Varsayılan: `/models/candidates/current` |
+| `CANDIDATE_PUBLISH_PATH` | Training worker'ın yeni merged candidate artifact'ı atomik olarak publish ettiği sabit runtime dizini. ModelVersion DB commit'i başarısız olursa önceki içerik geri yüklenir. Varsayılan: `/models/candidates/current` |
 
 ---
 
@@ -544,20 +549,21 @@ Bu değerlerin hepsi eval-worker tarafından kullanılır. Bir eval run başlat�
 # Sadece core servisler (local dev, GPU yok)
 docker compose up
 
-# GPU + model serving ekle
+# Production model serving ekle
 docker compose --profile gpu up
 
 # Training + eval worker ekle
 docker compose --profile workers up
 
-# Hepsi birden (prod benzeri)
-docker compose --profile gpu --profile workers up
+# Candidate model eval sunucusunu başlat
+docker compose --profile candidate-eval up -d vllm-candidate
 ```
 
 | Profil | Eklenen Servisler |
 |--------|-------------------|
 | _(yok)_ | nginx, postgres, redis, agent-backend, supervisor-panel, livekit-server, voice-runtime-worker |
-| `gpu` | + vllm-server, vllm-candidate |
+| `gpu` | + vllm-server |
+| `candidate-eval` | + vllm-candidate |
 | `workers` | + training-worker, eval-worker |
 
 ---
@@ -585,17 +591,23 @@ docker compose --profile gpu --profile workers up
 
 ---
 
-### 8.3 Yeni model deploy etmek
+### 8.3 Yeni candidate modeli değerlendirmek ve deploy etmek
 
 ```
 1. Training job başlat (supervisor panel → Review & Train)
-2. Eval run otomatik tetiklenir (workers profili aktifse)
-3. quality_score >= EVAL_PASS_THRESHOLD ise model "deploy edilebilir" görünür
-4. Model Registry sayfasından "Set Active" yap
-5. .env'de MODEL_ACTIVE_VERSION ve MODEL_MERGED_PATH güncelle
-6. vllm-server restart: docker compose restart vllm-server
-7. agent-backend restart: docker compose restart agent-backend
+2. Real training tamamlanınca merged model `/models/candidates/current` yoluna
+   atomik publish edilir
+3. Tek GPU hostta training-worker ve production vLLM'i durdur
+4. Candidate sunucusunu yeni artifact ile başlat veya yeniden oluştur:
+   `docker compose --profile candidate-eval up -d --force-recreate vllm-candidate`
+5. Candidate readiness ve `/v1/models` served-model kimliğini doğrula
+6. Model Registry'den candidate için gerçek quality check çalıştır
+7. Gate geçerse modeli approve et; inactive blue/green slot'a deploy et
+8. Health/smoke başarısızsa önceki deployment'a rollback uygula
 ```
+
+`current` dizininin değişmesi çalışan vLLM sürecini güncellemez. Restart/recreate
+adımı bilerek GPU kabul prosedürünün parçasıdır.
 
 ---
 

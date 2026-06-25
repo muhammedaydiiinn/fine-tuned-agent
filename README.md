@@ -434,9 +434,10 @@ docker compose down -v
 | 6 | Model lifecycle + blue/green deploy/rollback | 🟡 Koşullu tamam — gerçek GPU kabulü bekliyor |
 | 7 | Browser voice foundation (streaming STT/TTS) | 🟡 Koşullu tamam — gerçek 10-turn/p95 kabulü bekliyor |
 | 8 | Realtime turn-taking + interruption/barge-in | 🟡 Koşullu tamam — canlı latency/backchannel kabulü bekliyor |
-| 9 | Canlı supervisor control + replacement audio | ⏳ Bekliyor |
-| 10 | Voice performansı + production hardening | ⏳ Bekliyor |
+| 9 | Canlı supervisor control + replacement audio | 🟡 Koşullu tamam — gerçek browser/GPU kabulü bekliyor |
+| 10 | Voice performansı + production hardening | 🟡 Koşullu tamam — load/soak ve production politikaları bekliyor |
 | 11 | Telefon/pilot entegrasyonu | ⏳ Sonraki faz |
+| 12 | Doğal dil düzeltme derleyicisi | ⏳ M9 kabulünden sonra |
 
 Kapsam, bağımlılıklar ve kabul kriterleri için
 [`docs/MILESTONES.md`](./docs/MILESTONES.md) tek referans plandır.

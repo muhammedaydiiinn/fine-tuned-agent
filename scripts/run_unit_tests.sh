@@ -11,6 +11,9 @@ PYTHONPATH=services/agent-backend python3 -m pytest -q services/agent-backend/te
 echo "[voice-runtime] running tests"
 PYTHONPATH=services/voice-runtime python3 -m pytest -q services/voice-runtime/tests
 
+echo "[training-worker] running tests"
+PYTHONPATH=services/training-worker python3 -m pytest -q services/training-worker/tests
+
 echo "[supervisor-panel] running tests"
 PYTHONPATH=services/supervisor-panel python3 -m pytest -q services/supervisor-panel/tests
 

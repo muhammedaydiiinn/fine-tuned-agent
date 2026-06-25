@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from db import get_db
-from jobs import artifacts, build_dataset, merge_model, train_lora
+from jobs import artifacts, build_dataset, merge_model, model_registration, train_lora
 from models import EvalRun, ModelVersion, TrainingJob
 
 logging.basicConfig(
@@ -146,24 +146,28 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             "merged": artifacts.directory_manifest(merged_path),
         }
         candidate_publish_manifest = None
+        candidate_publication = None
         if settings.training_mode == "real":
             _log(
                 log_path,
                 "publishing merged model to candidate serving path "
                 f"{settings.candidate_publish_path}",
             )
-            candidate_publish_manifest = artifacts.publish_directory(
+            candidate_publication = artifacts.begin_directory_publication(
                 merged_path,
                 settings.candidate_publish_path,
             )
+            candidate_publish_manifest = candidate_publication.manifest
             artifact_manifest["candidate_serving"] = candidate_publish_manifest
             _log(
                 log_path,
-                "candidate serving path updated — "
+                "candidate serving path staged — "
                 f"{settings.candidate_publish_path}",
             )
 
-        # Register ModelVersion
+        # Register ModelVersion. Keep the previous candidate serving tree until
+        # this commit succeeds so a database failure cannot leave an untracked
+        # model active at the stable serving path.
         existing = db.query(ModelVersion).filter(ModelVersion.version_name == new_version_name).first()
         if not existing:
             mv = ModelVersion(
@@ -203,11 +207,25 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     },
                 },
             )
-            db.add(mv)
-            db.commit()
-            db.refresh(mv)
-            model_version_id = mv.id
+            model_version_id = model_registration.commit_model_version(
+                db,
+                mv,
+                candidate_publication,
+            )
+            if candidate_publication is not None:
+                _log(
+                    log_path,
+                    "candidate serving path committed — "
+                    f"{settings.candidate_publish_path}",
+                )
         else:
+            if candidate_publication is not None:
+                candidate_publication.finalize()
+                _log(
+                    log_path,
+                    "candidate serving path committed for existing model — "
+                    f"{settings.candidate_publish_path}",
+                )
             model_version_id = existing.id
 
         eval_run_id = None
