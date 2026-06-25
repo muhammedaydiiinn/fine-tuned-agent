@@ -154,16 +154,12 @@ Kalan kabul kapısı:
 - Blue/green slot değişimi, health/smoke ve rollback gerçek vLLM modelleriyle
   hedef NVIDIA sunucuda doğrulanmalı.
 
-Eksik kalan (M6 kapsamına eklenecek):
+Ek doğrulanan:
 
-- **vLLM otomatik model yükleme**: Training tamamlanıp `ModelVersion` kaydı
-  oluştuğunda vLLM'e modeli otomatik yükleyecek mekanizma yok. Şu an ops elle
-  kopyalaması gerekiyor. vLLM OpenAI-compatible API'si (`POST /v1/models`) veya
-  servis restart + model path yaklaşımıyla çözülecek. GPU kabul testleri
-  başlamadan önce bu boşluk kapatılmalı — aksi hâlde her training sonrası elle
-  müdahale gerekir.
-- **Redis job queue kalıcılığı**: Queue'daki bekleyen job'lar Redis restart'ta
-  kaybolur. Docker-compose'da `--appendonly yes` ile çözülür; trivial değişiklik.
+- Training worker, `real` modda merge edilen candidate modeli otomatik olarak
+  sabit candidate serving path'ine publish ediyor; ops'in elle kopyalama
+  ihtiyacı kalktı.
+- Redis queue kalıcılığı `redis-server --appendonly yes` ile açık.
 
 ## M7 — Browser voice foundation
 

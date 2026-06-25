@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     training_mode: str = "mock"
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     candidate_model_name: str = "fine-tuned-agent-candidate"
+    candidate_publish_path: str = "/models/candidates/current"
 
     @property
     def database_url(self) -> str:
