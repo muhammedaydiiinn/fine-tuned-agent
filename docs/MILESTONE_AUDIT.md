@@ -1,10 +1,12 @@
-# Milestone 1–7 Audit — 2026-06-20
+# Milestone 1–10 Audit — 2026-06-21
 
 ## Result
 
 Milestones 1–3 are complete. Milestones 4–6 meet their current platform goals
 in mock mode and are conditionally complete until their GPU/candidate-serving
-acceptance gates are verified. The complete
+acceptance gates are verified. Milestones 7–10 are conditionally complete for
+their local implementation and still require the documented live GPU,
+latency/load, and production-operations acceptance gates. The complete
 evaluation flow was verified through Docker:
 
 ```text
@@ -74,6 +76,9 @@ Verified:
 
 - Redis job dispatch, progress, logs, dataset build, LoRA train, merge and model
   registration paths completed end-to-end in Docker mock mode.
+- Real-mode merged artifacts are atomically published to the stable candidate
+  serving path. The prior tree remains recoverable until ModelVersion commit;
+  a commit failure restores it.
 - Queue failures now mark the database job failed instead of leaving it pending.
 - Mock Docker builds install only worker/runtime dependencies; GPU training
   dependencies are isolated in `requirements-gpu.txt`.
@@ -119,6 +124,10 @@ Verified in Docker mock mode:
 - Supervisor UI reduced to Sessions, Review & Train and Models workspaces.
 - Session review created a candidate-ID-scoped training batch and automatically
   started its quality check.
+- Redis AOF persistence is enabled on a persistent volume.
+- Candidate publication removes the manual copy step. A running vLLM process
+  still requires start/restart because model weights are loaded at process
+  startup; publication is not hot reload.
 
 Limitation:
 

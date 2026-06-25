@@ -159,6 +159,11 @@ Ek doğrulanan:
 - Training worker, `real` modda merge edilen candidate modeli otomatik olarak
   sabit candidate serving path'ine publish ediyor; ops'in elle kopyalama
   ihtiyacı kalktı.
+- Candidate serving path swap'ı ModelVersion DB commit'i tamamlanana kadar geri
+  alınabilir tutuluyor; commit hatasında önceki candidate otomatik geri geliyor.
+- Çalışan vLLM ağırlıkları bellekte tuttuğu için dosya publish işlemi hot reload
+  değildir. Candidate eval, publish sonrasında `vllm-candidate` başlatılarak veya
+  yeniden başlatılarak yapılır.
 - Redis queue kalıcılığı `redis-server --appendonly yes` ile açık.
 
 ## M7 — Browser voice foundation
@@ -421,8 +426,7 @@ başlatılmaz.
 ## Önerilen uygulama sırası
 
 ```text
-M6 eksikleri kapat (vLLM auto-load + Redis persistence)
-  → M4/M5/M6 gerçek GPU kabul testleri
+M4/M5/M6 gerçek GPU kabul testleri
   → M7 browser voice
   → M8 interruption
   → M9 live supervisor correction
@@ -431,6 +435,8 @@ M6 eksikleri kapat (vLLM auto-load + Redis persistence)
   → M11 telephony pilot
 ```
 
-M6 eksikleri (vLLM auto-load, Redis persistence) GPU kabul testleri başlamadan
-önce kapatılmalı. M12, M9 tamamlandıktan sonra M11 ile paralel ilerleyebilir;
-M11 için M12 tamamlanmış olmak zorunda değil.
+Candidate artifact publish ve Redis kalıcılığı GPU öncesinde tamamlandı.
+`vllm-candidate`, yeni publish edilen modeli process başlangıcında yükler; GPU
+kabul prosedürü bu nedenle container start/restart, readiness ve served-model
+kimliği kontrolünü içerir. M12, M9 tamamlandıktan sonra M11 ile paralel
+ilerleyebilir; M11 için M12 tamamlanmış olmak zorunda değildir.

@@ -8,12 +8,13 @@ Each service keeps its tests next to its own code. The root script is the single
 bash scripts/run_unit_tests.sh
 ```
 
-Runs four suites in order:
+Runs five suites in order:
 
 | Suite | Runner | Path |
 |-------|--------|------|
 | agent-backend | pytest | `services/agent-backend/tests/` |
 | voice-runtime | pytest | `services/voice-runtime/tests/` |
+| training-worker | pytest | `services/training-worker/tests/` |
 | supervisor-panel | pytest | `services/supervisor-panel/tests/` |
 | supervisor-panel (JS) | node --test | `services/supervisor-panel/tests/node/` |
 
@@ -46,6 +47,14 @@ node --test services/supervisor-panel/tests/node/*.test.js
 | `test_tts.py` | `pace_to_speed` mapping, TTS fallback behaviour |
 | `test_segmenter.py` | VAD segmenter logic |
 | `test_turn_taking.py` | Turn-taking scenario catalogue |
+
+### training-worker (`services/training-worker/tests/`)
+
+| File | What it covers |
+|------|----------------|
+| `test_build_dataset.py` | Dataset validation, candidate scoping and manifests |
+| `test_artifacts.py` | Atomic candidate publication, checksum, rollback and backup cleanup |
+| `test_worker_publication.py` | ModelVersion commit success/failure coordination with candidate publication |
 
 ### supervisor-panel (`services/supervisor-panel/tests/`)
 

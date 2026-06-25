@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -38,8 +39,42 @@ def directory_manifest(path_value: str) -> dict[str, Any]:
     }
 
 
-def publish_directory(source_path: str, target_path: str) -> dict[str, Any]:
-    """Atomically publish a directory tree to a stable runtime path."""
+@dataclass
+class DirectoryPublication:
+    """A reversible atomic directory publication.
+
+    The caller must finalize the publication after its related database commit,
+    or roll it back if that commit fails.
+    """
+
+    target: Path
+    backup: Path | None
+    manifest: dict[str, Any]
+    active: bool = True
+
+    def finalize(self) -> None:
+        if not self.active:
+            return
+        if self.backup is not None:
+            shutil.rmtree(self.backup, ignore_errors=True)
+            self.backup = None
+        self.active = False
+
+    def rollback(self) -> None:
+        if not self.active:
+            return
+        shutil.rmtree(self.target, ignore_errors=True)
+        if self.backup is not None and self.backup.exists():
+            self.backup.replace(self.target)
+        self.backup = None
+        self.active = False
+
+
+def begin_directory_publication(
+    source_path: str,
+    target_path: str,
+) -> DirectoryPublication:
+    """Atomically swap a directory while retaining a rollback point."""
     source = Path(source_path)
     target = Path(target_path)
 
@@ -54,16 +89,30 @@ def publish_directory(source_path: str, target_path: str) -> dict[str, Any]:
     shutil.rmtree(staging, ignore_errors=True)
     shutil.copytree(source, staging)
 
+    swapped = False
     try:
         if target.exists():
             target.replace(backup)
         staging.replace(target)
+        swapped = True
+        manifest = directory_manifest(str(target))
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
+        if swapped:
+            shutil.rmtree(target, ignore_errors=True)
         if backup.exists() and not target.exists():
             backup.replace(target)
         raise
-    else:
-        shutil.rmtree(backup, ignore_errors=True)
 
-    return directory_manifest(str(target))
+    return DirectoryPublication(
+        target=target,
+        backup=backup if backup.exists() else None,
+        manifest=manifest,
+    )
+
+
+def publish_directory(source_path: str, target_path: str) -> dict[str, Any]:
+    """Atomically publish a directory and immediately finalize the swap."""
+    publication = begin_directory_publication(source_path, target_path)
+    publication.finalize()
+    return publication.manifest
