@@ -14,7 +14,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import Deployment, EvalRun, ModelVersion
-from app.ui_feedback import toast_fragment
+from app.ui_feedback import toast_fragment, toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -244,7 +244,7 @@ def model_detail(version_name: str, request: Request, db: DBSession = Depends(ge
         .first()
     )
     if not model:
-        return HTMLResponse("<div class='alert alert-error'>Model not found.</div>", status_code=404)
+        return toast_redirect("/model-registry", "Model not found.", kind="error")
     eval_runs = (
         db.query(EvalRun)
         .filter(EvalRun.model_version_id == model.id)

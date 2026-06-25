@@ -13,7 +13,7 @@ from app.csrf import require_csrf
 from app.db import get_db
 from app.livekit_tokens import build_voice_token
 from app.models import Session as SessionModel, Turn, VoiceEvent
-from app.ui_feedback import toast_redirect
+from app.ui_feedback import toast_fragment, toast_redirect
 from app.config import settings
 from app.voice_actions import prepare_voice_action
 from app.voice_observability import (
@@ -145,7 +145,7 @@ def sessions_data(db: DBSession = Depends(get_db)):
 def session_detail(session_id: int, request: Request, db: DBSession = Depends(get_db)):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_redirect("/", "Session not found.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -244,7 +244,7 @@ def session_conversation(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_fragment("Session not found.", kind="error", status_code=404)
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -265,7 +265,7 @@ def session_live_summary(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_fragment("Session not found.", kind="error", status_code=404)
     turn_count = (
         db.query(func.count(Turn.id))
         .filter(Turn.session_id == session_id)
@@ -304,7 +304,7 @@ def session_voice_diagnostics(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_fragment("Session not found.", kind="error", status_code=404)
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -389,7 +389,7 @@ def close_session(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_redirect("/", "Session not found.", kind="error")
     session.status = "closed"
     db.commit()
     return toast_redirect(

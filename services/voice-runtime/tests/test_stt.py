@@ -44,6 +44,7 @@ class RuntimeConfigValidationTests(IsolatedAsyncioTestCase):
             settings = Settings(
                 tts_mode="mock",
                 whisper_model_path=tmpdir,
+                whisper_device="cuda",
             )
 
             with self.assertRaisesRegex(RuntimeError, "model.bin"):
