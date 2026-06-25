@@ -36,39 +36,6 @@ def _backend_post(path: str, json: dict | None = None) -> dict:
     return response.json()
 
 
-@router.get("/model-registry", response_class=HTMLResponse)
-def registry(request: Request, db: DBSession = Depends(get_db)):
-    models = (
-        db.query(ModelVersion)
-        .order_by(ModelVersion.created_at.desc())
-        .all()
-    )
-    deployments = (
-        db.query(Deployment)
-        .order_by(Deployment.created_at.desc())
-        .limit(100)
-        .all()
-    )
-    latest_runs: dict[int, EvalRun] = {}
-    for run in db.query(EvalRun).order_by(EvalRun.created_at.desc()).all():
-        latest_runs.setdefault(run.model_version_id, run)
-    active = {
-        deployment.environment: deployment
-        for deployment in deployments
-        if deployment.status == "active"
-    }
-    return templates.TemplateResponse(
-        "model_registry.html",
-        {
-            "request": request,
-            "models": models,
-            "deployments": deployments,
-            "latest_runs": latest_runs,
-            "active": active,
-        },
-    )
-
-
 @router.get("/model-registry/models/data")
 def models_data(db: DBSession = Depends(get_db)):
     """DataTables AJAX source — trained models."""
@@ -170,38 +137,6 @@ def models_data(db: DBSession = Depends(get_db)):
             "created_at": model.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if model.created_at else None,
             "actions": actions,
             "open_id": model.version_name,
-        })
-    return {"data": rows}
-
-
-@router.get("/model-registry/deployments/data")
-def deployments_data(db: DBSession = Depends(get_db)):
-    """DataTables AJAX source — deployment history."""
-    deployments = (
-        db.query(Deployment)
-        .order_by(Deployment.created_at.desc())
-        .limit(100)
-        .all()
-    )
-    status_cls = {
-        "active": "badge-approved",
-        "rolled_back": "badge-pending",
-        "superseded": "badge-closed",
-        "failed": "badge-error",
-    }
-    rows = []
-    for d in deployments:
-        meta = d.metadata_json or {}
-        cls = status_cls.get(d.status, "badge-info")
-        rows.append({
-            "id": d.id,
-            "model_version_id": d.model_version_id,
-            "environment": d.environment,
-            "status_badge": f'<span class="badge {cls}">{d.status}</span>',
-            "action": meta.get("action", "deploy"),
-            "actor": meta.get("actor") or "—",
-            "rollback_target": str(d.rollback_model_version_id) if d.rollback_model_version_id else "—",
-            "deployed_at": d.deployed_at.strftime("%Y-%m-%dT%H:%M:%SZ") if d.deployed_at else None,
         })
     return {"data": rows}
 

@@ -4,16 +4,15 @@ import logging
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
-from app.csrf import require_csrf
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
-from app.ui_feedback import toast_fragment, toast_redirect
+from app.ui_feedback import toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -65,52 +64,6 @@ def eval_jobs_data(db: DBSession = Depends(get_db)):
     return {"data": rows}
 
 
-@router.get("/eval-jobs", response_class=HTMLResponse)
-def eval_jobs_list(request: Request, db: DBSession = Depends(get_db)):
-    runs = db.query(EvalRun).order_by(EvalRun.created_at.desc()).limit(500).all()
-    model_versions = (
-        db.query(ModelVersion)
-        .filter(ModelVersion.merged_path.is_not(None))
-        .order_by(ModelVersion.created_at.desc())
-        .all()
-    )
-    status_counts = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
-    for run in runs:
-        if run.status in status_counts:
-            status_counts[run.status] += 1
-    return templates.TemplateResponse(
-        "eval_jobs.html",
-        {
-            "request": request,
-            "runs": runs,
-            "model_versions": model_versions,
-            "status_counts": status_counts,
-        },
-    )
-
-
-@router.post("/eval-jobs/start", response_class=HTMLResponse)
-def start_eval(model_version_id: int = Form(...), _csrf: None = Depends(require_csrf)):
-    try:
-        response = httpx.post(
-            f"{settings.agent_backend_url}/eval-runs",
-            json={"model_version_id": model_version_id},
-            headers=_backend_headers(),
-            timeout=10.0,
-        )
-        response.raise_for_status()
-        eval_run = response.json()
-        run_id = int(eval_run["id"])
-        return toast_fragment(f"Evaluation #{run_id} queued.", kind="success")
-    except Exception as exc:
-        logger.exception("Failed to start eval for model_version_id=%d", model_version_id)
-        return toast_fragment(
-            f"Failed to start evaluation: {exc}",
-            kind="error",
-            status_code=502,
-        )
-
-
 @router.get("/eval-jobs/{eval_run_id}", response_class=HTMLResponse)
 def eval_job_detail(
     eval_run_id: int,
@@ -119,7 +72,7 @@ def eval_job_detail(
 ):
     run = db.query(EvalRun).filter(EvalRun.id == eval_run_id).first()
     if not run:
-        return toast_redirect("/eval-jobs", "Evaluation not found.", kind="error")
+        return toast_redirect("/pipeline", "Evaluation not found.", kind="error")
     model_version = (
         db.query(ModelVersion)
         .filter(ModelVersion.id == run.model_version_id)
