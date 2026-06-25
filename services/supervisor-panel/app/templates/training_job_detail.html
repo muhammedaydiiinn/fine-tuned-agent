@@ -5,7 +5,7 @@
 
 <div class="page-header">
   <div class="page-header-left">
-    <a href="/training-jobs" class="btn btn-outline" style="margin-right:12px;">
+    <a href="/pipeline" class="btn btn-outline" style="margin-right:12px;">
       <i class="fa-solid fa-arrow-left"></i>
     </a>
     <h1>Training Job <span class="text-muted">#{{ job.id }}</span></h1>
@@ -64,16 +64,15 @@
 
 {% if job.status == 'failed' and job.error_message %}
 <div class="table-container" style="margin-bottom:16px;">
-  <div class="table-toolbar"><span class="table-toolbar-title">Hata</span></div>
+  <div class="table-toolbar"><span class="table-toolbar-title">Error</span></div>
   <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;padding:12px 16px;margin:0;">{{ job.error_message }}</pre>
 </div>
 {% endif %}
 
-{# ── Teknik detaylar (gizli) ─────────────────────────────────────────────── #}
 <details class="table-container" style="margin-bottom:16px;">
   <summary style="padding:12px 16px;cursor:pointer;font-weight:600;font-size:.85rem;list-style:none;">
     <i class="fa-solid fa-chevron-right" style="margin-right:6px;font-size:.75rem;transition:transform .15s;" data-summary-icon></i>
-    Teknik detaylar
+    Technical details
   </summary>
   <div style="padding:0 16px 16px;">
     <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Input</div>
@@ -123,7 +122,7 @@
   var container = document.getElementById('log-container');
   if (!container) return;
 
-  // Initial fetch — server-side render ile aynı endpoint (HTML fragment)
+  // Initial fetch for log content
   fetch('/training-jobs/{{ job.id }}/logs?tail=200')
     .then(function (r) { return r.text(); })
     .then(function (html) {
@@ -132,7 +131,7 @@
     })
     .catch(function () {});
 
-  // HTMX afterSettle — live log güncellenmesinde scroll'ı en alta tut
+  // Keep scroll pinned to bottom on live updates
   container.addEventListener('htmx:afterSettle', function () {
     container.scrollTop = container.scrollHeight;
   });

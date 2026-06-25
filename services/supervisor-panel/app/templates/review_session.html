@@ -41,7 +41,7 @@
             <div class="form-group">
               <label for="compiler-instruction-{{ turn.id }}">Supervisor instruction</label>
               <textarea id="compiler-instruction-{{ turn.id }}" name="instruction" rows="3"
-                        placeholder="Örn: Burada fiyat sormuş, önce 14 gün ücretsiz demeli"
+                        placeholder="E.g. customer asked about price, agent should mention the 14-day free trial first"
                         required></textarea>
             </div>
             <button class="btn btn-outline btn-sm" type="submit">
@@ -94,7 +94,7 @@
 
   <aside class="session-review-card">
     <h2>Conversation feedback</h2>
-    <p class="text-muted">Değerlendirme kaydedilince uygun turn'ler otomatik training verisine eklenir.</p>
+    <p class="text-muted">Reviewed turns are automatically added to the training batch on save.</p>
     <form action="/review/{{ session.id }}" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <div class="rating-options">

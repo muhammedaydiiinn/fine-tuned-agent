@@ -22,7 +22,7 @@ def prepare_voice_action(
     corrected_next_action: str,
     notes: str,
 ) -> PreparedVoiceAction:
-    # Canlı düzeltmeler her zaman anında uygulanır ve training'e gider.
+    # Live corrections always apply immediately and go to training.
     apply_immediately = True
     send_to_training = True
     action_name = action.strip()
