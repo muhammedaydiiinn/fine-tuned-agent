@@ -1,11 +1,9 @@
 """Training panel — candidates + training jobs."""
-import io
-import json
 import logging
 
 import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
@@ -25,23 +23,6 @@ def _backend_headers() -> dict[str, str]:
 
 
 # ── Training candidates ───────────────────────────────────────────────────────
-
-@router.get("/training-candidates", response_class=HTMLResponse)
-def candidates_list(request: Request, db: DBSession = Depends(get_db)):
-    total          = db.query(TrainingCandidate).count()
-    total_approved = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()   # noqa: E712
-    total_exported = db.query(TrainingCandidate).filter(TrainingCandidate.exported == True).count()   # noqa: E712
-    return templates.TemplateResponse(
-        "training_candidates.html",
-        {
-            "request": request,
-            "total_count": total,
-            "total_approved": total_approved,
-            "total_exported": total_exported,
-            "total_pending": total - total_approved,
-        },
-    )
-
 
 @router.get("/training-candidates/data")
 def candidates_data(db: DBSession = Depends(get_db)):
@@ -93,39 +74,6 @@ def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: 
     return HTMLResponse('<span class="badge badge-rejected">Rejected</span>')
 
 
-@router.post("/training-candidates/export-jsonl")
-def export_jsonl(db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
-    candidates = (
-        db.query(TrainingCandidate)
-        .filter(TrainingCandidate.approved == True, TrainingCandidate.exported == False)  # noqa: E712
-        .order_by(TrainingCandidate.created_at.asc())
-        .all()
-    )
-
-    if not candidates:
-        return JSONResponse(
-            {"detail": "No approved candidates pending export."},
-            status_code=400,
-        )
-
-    lines: list[str] = []
-    exported_ids: list[int] = []
-    for c in candidates:
-        lines.append(json.dumps({"messages": c.messages_json}, ensure_ascii=False))
-        c.exported = True
-        exported_ids.append(c.id)
-    db.commit()
-
-    content = "\n".join(lines) + "\n"
-    filename = f"dataset_{settings.model_active_version}.jsonl"
-    logger.info("Panel JSONL export: %d rows, file=%s", len(lines), filename)
-
-    return StreamingResponse(
-        io.BytesIO(content.encode("utf-8")),
-        media_type="application/jsonlines",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
 
 # ── Training jobs ─────────────────────────────────────────────────────────────
 
@@ -173,62 +121,12 @@ def training_jobs_data(db: DBSession = Depends(get_db)):
     return {"data": rows}
 
 
-@router.get("/training-jobs", response_class=HTMLResponse)
-def training_jobs_list(request: Request, db: DBSession = Depends(get_db)):
-    jobs = (
-        db.query(TrainingJob)
-        .order_by(TrainingJob.created_at.desc())
-        .limit(100)
-        .all()
-    )
-    approved_count = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()  # noqa: E712
-
-    status_counts = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
-    for j in jobs:
-        if j.status in status_counts:
-            status_counts[j.status] += 1
-
-    return templates.TemplateResponse(
-        "training_jobs.html",
-        {
-            "request": request,
-            "jobs": jobs,
-            "approved_count": approved_count,
-            "status_counts": status_counts,
-        },
-    )
-
-
-@router.post("/training-jobs/start", response_class=HTMLResponse)
-def start_training(request: Request, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
-    """Trigger a new training pipeline job via agent-backend."""
-    approved_count = db.query(TrainingCandidate).filter(TrainingCandidate.approved == True).count()  # noqa: E712
-    if approved_count == 0:
-        return toast_fragment("No approved training candidates.", kind="error", status_code=400)
-
-    try:
-        resp = httpx.post(
-            f"{settings.agent_backend_url}/training-jobs",
-            json={},
-            headers=_backend_headers(),
-            timeout=10.0,
-        )
-        resp.raise_for_status()
-        job = resp.json()
-        job_id = job.get("id")
-        logger.info("Training job created via backend: id=%s", job_id)
-        return toast_fragment(f"Training job #{job_id} queued.", kind="success")
-    except Exception as exc:
-        logger.error("Failed to start training job: %s", exc)
-        return toast_fragment(f"Failed to start job: {exc}", kind="error", status_code=502)
-
-
 @router.get("/training-jobs/{job_id}", response_class=HTMLResponse)
 def training_job_detail(job_id: int, request: Request, db: DBSession = Depends(get_db)):
     """Job detail page — metadata + live log viewer."""
     job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
     if not job:
-        return toast_redirect("/training-jobs", "Training job not found.", kind="error")
+        return toast_redirect("/pipeline", "Training job not found.", kind="error")
 
     pct = 0
     if job.progress_total and job.progress_total > 0:
