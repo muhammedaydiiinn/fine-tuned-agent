@@ -1,5 +1,6 @@
 import pathlib
 import sys
+import tempfile
 from unittest import IsolatedAsyncioTestCase
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -34,3 +35,16 @@ class STTErrorWrappingTests(IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(STTError, "transcription failed"):
             await stt.transcribe(b"\x00\x00" * 1600)
+
+
+class RuntimeConfigValidationTests(IsolatedAsyncioTestCase):
+    async def test_validate_runtime_rejects_non_ct2_whisper_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pathlib.Path(tmpdir, "config.json").write_text("{}", encoding="utf-8")
+            settings = Settings(
+                tts_mode="mock",
+                whisper_model_path=tmpdir,
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "model.bin"):
+                settings.validate_runtime()
