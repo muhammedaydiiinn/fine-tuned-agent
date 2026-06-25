@@ -116,7 +116,9 @@ services:
   # ── LiveKit WebRTC media server (Milestone 7) ──────────────────────────────
   livekit-server:
     image: livekit/livekit-server:v1.9
-    command: --bind 0.0.0.0 --udp-port 7882 --node-ip 127.0.0.1
+    # LIVEKIT_NODE_IP must be set to the server's public IP in .env on GPU host.
+    # 127.0.0.1 is fine for local dev but WebRTC ICE will fail in production.
+    command: --bind 0.0.0.0 --udp-port 7882 --node-ip ${LIVEKIT_NODE_IP:-127.0.0.1}
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}"
       # LiveKit reports normal WebRTC disconnect teardown as WARN. Product
@@ -150,6 +152,13 @@ services:
     depends_on:
       - livekit-server
       - agent-backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
     logging: *default-logging
 
@@ -173,7 +182,7 @@ services:
       --model /model
       --served-model-name ${VLLM_MODEL_NAME:-fine-tuned-agent-v14}
       --max-model-len 4096
-      --gpu-memory-utilization 0.45
+      --gpu-memory-utilization 0.60
       --port 8000
     networks:
       - agent-net
@@ -181,10 +190,16 @@ services:
     logging: *default-logging
 
   # ── Isolated candidate model server (M5/M6 pre-deploy evaluation) ──────────
+  # IMPORTANT: Never run alongside vllm-server or training-worker on a single
+  # GPU host. Qwen3.5 9B needs ~18 GB; two instances would exceed A6000 48 GB.
+  # Candidate eval workflow:
+  #   1. docker compose --profile gpu stop vllm-server
+  #   2. docker compose --profile candidate-eval up -d vllm-candidate
+  #   3. run eval, then reverse the steps.
   vllm-candidate:
     image: vllm/vllm-openai:latest
     profiles:
-      - gpu
+      - candidate-eval
     deploy:
       resources:
         reservations:
@@ -200,7 +215,7 @@ services:
       --model /model
       --served-model-name ${CANDIDATE_MODEL_NAME:-fine-tuned-agent-candidate}
       --max-model-len 4096
-      --gpu-memory-utilization 0.45
+      --gpu-memory-utilization 0.60
       --port 8000
     networks:
       - agent-net
@@ -208,6 +223,9 @@ services:
     logging: *default-logging
 
   # ── Training worker (Milestone 4'te aktif edilecek) ─────────────────────────
+  # GPU reservation is required for TRAINING_MODE=real (QLoRA on Qwen3.5 9B).
+  # Training runs concurrently with vllm-server on the same A6000 48 GB GPU;
+  # vllm-server is capped at 0.60 (28.8 GB) to leave ~14 GB headroom for QLoRA.
   training-worker:
     build:
       context: ./services/training-worker
@@ -224,6 +242,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
     logging: *default-logging
 
