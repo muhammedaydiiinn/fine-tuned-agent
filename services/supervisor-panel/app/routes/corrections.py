@@ -40,7 +40,7 @@ async def save_correction(
 
     correction_type = resolve_correction_type(compiled_correction_type)
 
-    # ── Mark bad: sadece negatif sinyal kaydedilir, training'e gitmez ────────
+    # ── Mark bad: negative signal only, not sent to training ─────────────────
     if mark_bad:
         correction = Correction(
             session_id=session_id,
@@ -58,9 +58,9 @@ async def save_correction(
         )
         db.add(correction)
         db.commit()
-        return toast_fragment("İşaretlendi: geliştirilmeli.", kind="warning", refresh_event="panel-refresh")
+        return toast_fragment("Marked bad — flagged for improvement.", kind="warning", refresh_event="panel-refresh")
 
-    # ── Mark good: mevcut cevap zaten doğru, training'e ekle ─────────────────
+    # ── Mark good: current response is correct, add to training ──────────────
     if mark_good:
         good_response = turn.agent_response or ""
         correction = Correction(
@@ -82,9 +82,9 @@ async def save_correction(
         candidate = _build_candidate(turn, good_response, turn.next_action or "", "mark_good")
         db.add(candidate)
         db.commit()
-        return toast_fragment("Mark Good · training verisine eklendi.", kind="success", refresh_event="panel-refresh")
+        return toast_fragment("Mark Good · added to training batch.", kind="success", refresh_event="panel-refresh")
 
-    # ── Düzeltme: hem correction_memory'ye hem training'e git (atomik) ───────
+    # ── Correction: write to correction_memory and training batch atomically ──
     correction = Correction(
         session_id=session_id,
         turn_id=turn_id,
@@ -102,7 +102,7 @@ async def save_correction(
     db.add(correction)
     db.flush()
 
-    # correction_memory — anında uygulama
+    # correction_memory — live application
     if corrected_response:
         trigger_key = turn.intent or correction_type
         existing = (
@@ -136,7 +136,7 @@ async def save_correction(
             ))
         logger.info("correction_memory updated: trigger=%s", trigger_key)
 
-    # training candidate — her düzeltmede otomatik
+    # training candidate — auto-created on every correction
     candidate = _build_candidate(
         turn,
         corrected_response or turn.agent_response or "",
@@ -148,7 +148,7 @@ async def save_correction(
     logger.info("correction saved atomically: id=%d, candidate=%d", correction.id, candidate.id)
 
     return toast_fragment(
-        "Düzeltme kaydedildi · canlıya uygulandı · training verisine eklendi.",
+        "Correction saved · applied live · added to training batch.",
         kind="success",
         refresh_event="panel-refresh",
     )

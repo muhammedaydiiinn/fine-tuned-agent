@@ -17,11 +17,11 @@
       {{ session.status }}
     </span>
     {% if active_model_name %}
-    <span class="badge badge-info" title="Aktif model versiyonu" style="margin-left:4px;">
+    <span class="badge badge-info" title="Active model version" style="margin-left:4px;">
       <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ active_model_name }}
     </span>
     {% elif latest_turn and latest_turn.model_version %}
-    <span class="badge badge-pending" title="Bu turn'ü üreten model" style="margin-left:4px;">
+    <span class="badge badge-pending" title="Model that produced this turn" style="margin-left:4px;">
       <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ latest_turn.model_version }}
     </span>
     {% endif %}
