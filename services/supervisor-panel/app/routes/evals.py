@@ -13,7 +13,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import EvalRun, ModelVersion
-from app.ui_feedback import toast_fragment
+from app.ui_feedback import toast_fragment, toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -119,10 +119,7 @@ def eval_job_detail(
 ):
     run = db.query(EvalRun).filter(EvalRun.id == eval_run_id).first()
     if not run:
-        return HTMLResponse(
-            '<div class="alert alert-error">Evaluation not found.</div>',
-            status_code=404,
-        )
+        return toast_redirect("/eval-jobs", "Evaluation not found.", kind="error")
     model_version = (
         db.query(ModelVersion)
         .filter(ModelVersion.id == run.model_version_id)

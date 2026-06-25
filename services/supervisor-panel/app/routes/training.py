@@ -13,7 +13,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.db import get_db
 from app.models import TrainingCandidate, TrainingJob
-from app.ui_feedback import toast_fragment
+from app.ui_feedback import toast_fragment, toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -75,7 +75,7 @@ def candidates_data(db: DBSession = Depends(get_db)):
 def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
-        return HTMLResponse('<span class="badge badge-error">Not found</span>')
+        return toast_fragment("Candidate not found.", kind="error", status_code=404)
     c.approved = True
     db.commit()
     logger.info("training_candidate approved: id=%d", candidate_id)
@@ -86,7 +86,7 @@ def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf:
 def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
-        return HTMLResponse('<span class="badge badge-error">Not found</span>')
+        return toast_fragment("Candidate not found.", kind="error", status_code=404)
     c.approved = False
     db.commit()
     logger.info("training_candidate rejected: id=%d", candidate_id)
@@ -228,7 +228,7 @@ def training_job_detail(job_id: int, request: Request, db: DBSession = Depends(g
     """Job detail page — metadata + live log viewer."""
     job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
     if not job:
-        return HTMLResponse('<div class="alert alert-error">Job not found.</div>', status_code=404)
+        return toast_redirect("/training-jobs", "Training job not found.", kind="error")
 
     pct = 0
     if job.progress_total and job.progress_total > 0:

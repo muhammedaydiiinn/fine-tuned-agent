@@ -87,18 +87,24 @@ class Settings(BaseSettings):
 
         whisper_path = Path(self.whisper_model_path)
         if not whisper_path.exists():
-            errors.append(
-                f"WHISPER_MODEL_PATH does not exist: {self.whisper_model_path}"
-            )
+            msg = f"WHISPER_MODEL_PATH does not exist: {self.whisper_model_path}"
+            if self.whisper_device == "cuda":
+                errors.append(msg)
+            else:
+                logger.warning("Config warning: %s", msg)
         elif not whisper_path.is_dir():
             errors.append(
                 f"WHISPER_MODEL_PATH is not a directory: {self.whisper_model_path}"
             )
         elif not (whisper_path / "model.bin").is_file():
-            errors.append(
+            msg = (
                 "WHISPER_MODEL_PATH must point to a Faster-Whisper/CTranslate2 model "
                 f"directory containing model.bin: {self.whisper_model_path}"
             )
+            if self.whisper_device == "cuda":
+                errors.append(msg)
+            else:
+                logger.warning("Config warning: %s", msg)
 
         if errors:
             for msg in errors:

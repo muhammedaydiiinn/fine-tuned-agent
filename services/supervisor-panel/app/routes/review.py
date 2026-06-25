@@ -125,7 +125,7 @@ def review_session(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return HTMLResponse("Session not found", status_code=404)
+        return toast_redirect("/review", "Session not found.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)

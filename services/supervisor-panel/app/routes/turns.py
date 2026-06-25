@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.db import get_db
 from app.models import Session as SessionModel, Turn, Correction
+from app.ui_feedback import toast_redirect
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -23,7 +24,7 @@ def turn_detail(session_id: int, turn_id: int, request: Request, db: DBSession =
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     turn = db.query(Turn).filter(Turn.id == turn_id, Turn.session_id == session_id).first()
     if not turn:
-        return HTMLResponse("Turn not found", status_code=404)
+        return toast_redirect(f"/sessions/{session_id}", "Turn not found.", kind="error")
 
     corrections = (
         db.query(Correction)
