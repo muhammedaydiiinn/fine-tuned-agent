@@ -30,14 +30,13 @@ class VoiceActionPreparationTests(unittest.TestCase):
             latest_turn=self.make_turn(),
             replacement_text=" Supervisor answer ",
             corrected_next_action="send_activation_link",
-            apply_immediately=True,
-            send_to_training=True,
             notes="fix now",
         )
 
         self.assertEqual(prepared.command["action"], "replace_answer")
         self.assertEqual(prepared.command["text"], "Supervisor answer")
         self.assertEqual(prepared.correction_payload["turn_id"], 42)
+        # Live corrections always apply immediately and go to training
         self.assertTrue(prepared.correction_payload["apply_immediately"])
         self.assertTrue(prepared.correction_payload["send_to_training"])
         self.assertEqual(
@@ -59,8 +58,6 @@ class VoiceActionPreparationTests(unittest.TestCase):
             latest_turn=self.make_turn(),
             replacement_text="",
             corrected_next_action="",
-            apply_immediately=False,
-            send_to_training=False,
             notes="",
         )
 
@@ -79,8 +76,6 @@ class VoiceActionPreparationTests(unittest.TestCase):
                 latest_turn=None,
                 replacement_text="Supervisor answer",
                 corrected_next_action="",
-                apply_immediately=False,
-                send_to_training=False,
                 notes="",
             )
 
@@ -95,8 +90,6 @@ class VoiceActionPreparationTests(unittest.TestCase):
                 latest_turn=self.make_turn(),
                 replacement_text="   ",
                 corrected_next_action="",
-                apply_immediately=False,
-                send_to_training=False,
                 notes="",
             )
 

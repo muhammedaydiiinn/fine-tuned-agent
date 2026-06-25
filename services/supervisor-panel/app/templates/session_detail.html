@@ -16,6 +16,15 @@
       {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
       {{ session.status }}
     </span>
+    {% if active_model_name %}
+    <span class="badge badge-info" title="Aktif model versiyonu" style="margin-left:4px;">
+      <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ active_model_name }}
+    </span>
+    {% elif latest_turn and latest_turn.model_version %}
+    <span class="badge badge-pending" title="Bu turn'ü üreten model" style="margin-left:4px;">
+      <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ latest_turn.model_version }}
+    </span>
+    {% endif %}
   </div>
   <div class="page-header-right">
     {% if session.status == 'active' %}
@@ -135,16 +144,6 @@
       <div class="form-group">
         <label for="quick-corrected-action">Next action</label>
         <input id="quick-corrected-action" name="corrected_next_action" type="text" value="{{ latest_turn.next_action or '' }}" placeholder="for example: explain_price">
-      </div>
-      <div class="form-check-row">
-        <label class="checkbox-label">
-          <input type="checkbox" name="apply_immediately" value="true">
-          <span>Apply immediately</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" name="send_to_training" value="true">
-          <span>Send to training</span>
-        </label>
       </div>
       <div class="supervisor-form-actions">
         <button class="btn btn-success" type="submit" name="mark_good" value="1">

@@ -77,16 +77,6 @@
                 <input type="text" name="corrected_next_action" value="{{ turn.next_action or '' }}">
               </div>
             </div>
-            <div class="form-check-row">
-              <label class="checkbox-label">
-                <input type="checkbox" name="apply_immediately" value="true">
-                <span>Apply immediately through correction memory</span>
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" name="send_to_training" value="true">
-                <span>Send to training</span>
-              </label>
-            </div>
             <div style="display:flex;gap:8px;margin-top:12px;">
               <button type="submit" name="mark_good" value="1" class="btn btn-sm btn-success">
                 <i class="fa-solid fa-check" style="font-size:11px;"></i> Mark Good
@@ -104,7 +94,7 @@
 
   <aside class="session-review-card">
     <h2>Conversation feedback</h2>
-    <p class="text-muted">This summary controls which reviewed turns become the next training batch.</p>
+    <p class="text-muted">Değerlendirme kaydedilince uygun turn'ler otomatik training verisine eklenir.</p>
     <form action="/review/{{ session.id }}" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <div class="rating-options">
@@ -116,14 +106,6 @@
         <label>Session notes</label>
         <textarea name="notes" rows="5" placeholder="What should the agent learn from this conversation?">{{ review.notes if review else '' }}</textarea>
       </div>
-      <label class="checkbox-label">
-        <input type="checkbox" name="add_to_training" value="true" checked>
-        <span>Add eligible reviewed turns to training</span>
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" name="start_training" value="true">
-        <span>Start training immediately after saving</span>
-      </label>
       <button class="btn btn-primary" type="submit">
         <i class="fa-solid fa-check"></i> Save Review
       </button>

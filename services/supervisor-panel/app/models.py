@@ -123,6 +123,9 @@ class TrainingCandidate(Base):
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     exported: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Generational pipeline state: NULL/NULL=ready, job_id set=locked, model_version_id set=baked
+    training_job_id: Mapped[int | None] = mapped_column(Integer)
+    model_version_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -138,6 +141,7 @@ class TrainingJob(Base):
     progress_current: Mapped[int] = mapped_column(Integer, default=0)
     progress_total: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
+    model_version_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

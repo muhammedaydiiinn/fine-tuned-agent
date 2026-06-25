@@ -20,10 +20,11 @@ def prepare_voice_action(
     latest_turn,
     replacement_text: str,
     corrected_next_action: str,
-    apply_immediately: bool,
-    send_to_training: bool,
     notes: str,
 ) -> PreparedVoiceAction:
+    # Canlı düzeltmeler her zaman anında uygulanır ve training'e gider.
+    apply_immediately = True
+    send_to_training = True
     action_name = action.strip()
     if action_name not in {"stop_agent", "replace_answer"}:
         raise ValueError("Unsupported voice action")

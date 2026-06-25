@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import get_db
 from jobs import artifacts, build_dataset, merge_model, model_registration, train_lora
-from models import EvalRun, ModelVersion, TrainingJob
+from models import Deployment, EvalRun, ModelVersion, TrainingCandidate, TrainingJob
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,6 +42,37 @@ def _log(log_path: str, message: str) -> None:
 
 # ── Pipeline handler ──────────────────────────────────────────────────────────
 
+def _active_model(db: Session) -> ModelVersion | None:
+    """Return the currently deployed production ModelVersion, or None."""
+    deployment = (
+        db.query(Deployment)
+        .filter(Deployment.environment == "production", Deployment.status == "active")
+        .order_by(Deployment.id.desc())
+        .first()
+    )
+    if not deployment:
+        return None
+    return db.query(ModelVersion).filter(ModelVersion.id == deployment.model_version_id).first()
+
+
+def _next_version_name(parent_name: str, job_id: int) -> tuple[str, str]:
+    """Derive next version name by incrementing the trailing integer.
+
+    Returns (new_version_name, base_label) where base_label is the parent name.
+    Examples:
+        anrufblocker-v14 → anrufblocker-v15
+        anrufblocker-v14-ft-3 → anrufblocker-v15 (uses last digit segment)
+    Falls back to <parent>-ft-<job_id> if no trailing integer is found.
+    """
+    import re
+    m = re.search(r"^(.*?)[-_]v(\d+)(?:[-_].*)?$", parent_name)
+    if m:
+        prefix = m.group(1)
+        num = int(m.group(2)) + 1
+        return f"{prefix}-v{num}", parent_name
+    return f"{parent_name}-ft-{job_id}", parent_name
+
+
 def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
     job = db.query(TrainingJob).filter(TrainingJob.id == job_db_id).first()
     if not job:
@@ -49,15 +80,43 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
         return
 
     dataset_version = payload.get("dataset_version", f"ds-job{job_db_id}")
-    short_id = str(job_db_id)
-    new_version_name = f"{settings.model_active_version}-ft-{short_id}"
+
+    # Use the parent snapshot captured at job-creation time (in input_json) so we
+    # always train on the model that was live when the user pressed Eğit — not
+    # whatever is deployed when the worker finally picks this job up.
+    input_json = job.input_json or {}
+    snapped_parent_id = input_json.get("parent_model_version_id")
+    snapped_parent_name = input_json.get("parent_version_name")
+
+    if snapped_parent_id and snapped_parent_name:
+        snapped_mv = db.query(ModelVersion).filter(ModelVersion.id == snapped_parent_id).first()
+        if snapped_mv and snapped_mv.merged_path:
+            parent_version_name = snapped_parent_name
+            parent_model_id = snapped_parent_id
+            base_model_path = snapped_mv.merged_path
+        else:
+            parent_version_name = snapped_parent_name
+            parent_model_id = snapped_parent_id
+            base_model_path = str(Path(settings.model_dir) / "merged" / snapped_parent_name)
+    else:
+        # Fallback: resolve from active deployment (pre-snapshot jobs or first boot)
+        parent_model = _active_model(db)
+        if parent_model and parent_model.merged_path:
+            parent_version_name = parent_model.version_name
+            parent_model_id = parent_model.id
+            base_model_path = parent_model.merged_path
+        else:
+            parent_version_name = settings.model_active_version
+            parent_model_id = None
+            base_model_path = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
+
+    new_version_name, _ = _next_version_name(parent_version_name, job_db_id)
 
     dataset_path = str(Path(settings.data_dir) / "datasets" / f"{dataset_version}.jsonl")
     adapter_path = str(Path(settings.model_dir) / "adapters" / new_version_name)
     merged_path = str(Path(settings.model_dir) / "merged" / new_version_name)
     adapter_partial_path = f"{adapter_path}.partial"
     merged_partial_path = f"{merged_path}.partial"
-    base_model_path = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
     log_path = str(Path(settings.data_dir) / "training_logs" / f"{job_db_id}.log")
 
     _update_job(
@@ -170,17 +229,20 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
         # model active at the stable serving path.
         existing = db.query(ModelVersion).filter(ModelVersion.version_name == new_version_name).first()
         if not existing:
+            serving_mode = "mock" if settings.training_mode == "mock" else "real"
             mv = ModelVersion(
                 version_name=new_version_name,
-                base_model=settings.model_active_version,
+                base_model=parent_version_name,
                 lora_path=adapter_path,
                 merged_path=merged_path,
                 dataset_version=dataset_version,
                 eval_status="pending",
                 deployment_status="inactive",
+                parent_model_version_id=parent_model_id,
                 metadata_json={
                     "lifecycle_status": "candidate",
                     "job_id": job_db_id,
+                    "parent_version": parent_version_name,
                     "train_steps": train_result.get("steps"),
                     "row_count": ds_result["row_count"],
                     "training_mode": settings.training_mode,
@@ -192,7 +254,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     "pipeline_artifacts": artifact_manifest,
                     "candidate_publish_manifest": candidate_publish_manifest,
                     "serving": {
-                        "mode": "mock" if settings.training_mode == "mock" else "real",
+                        "mode": serving_mode,
                         "base_url": (
                             ""
                             if settings.training_mode == "mock"
@@ -228,52 +290,68 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                 )
             model_version_id = existing.id
 
-        eval_run_id = None
-        if settings.training_mode == "mock":
-            deployment_evidence = {
-                "artifact_sha256": artifact_manifest["merged"]["sha256"],
-                "artifact_root": merged_path,
-                "serving_target": {
-                    "mode": "mock",
-                    "base_url": "",
-                    "model_name": new_version_name,
-                    "slot": "mock",
-                },
-                "captured_at": datetime.now(timezone.utc).isoformat(),
-            }
-            eval_run = EvalRun(
-                model_version_id=model_version_id,
-                status="pending",
-                metrics_json={"deployment_evidence": deployment_evidence},
-                progress_current=0,
-                progress_total=15,
-            )
-            db.add(eval_run)
-            db.commit()
-            db.refresh(eval_run)
-            eval_run_id = eval_run.id
-            try:
-                queue = redis.from_url(settings.redis_url, decode_responses=True)
-                import uuid as _uuid
-                queue.rpush(
-                    "anruf:eval_jobs",
-                    json.dumps({
-                        "job_id": str(_uuid.uuid4()),
-                        "job_type": "run_eval",
-                        "payload": {
-                            "eval_run_id": eval_run.id,
-                            "model_version_id": model_version_id,
-                        },
-                    }),
-                )
-                _log(log_path, f"quality check queued — eval_run_id={eval_run.id}")
-            except Exception as exc:
-                eval_run.status = "failed"
-                eval_run.error_message = f"Failed to enqueue quality check: {exc}"[:1000]
-                db.commit()
-                _log(log_path, f"quality check enqueue failed — {exc}")
+        # Link the job to its produced model version so deploy/bake/release can find it
+        job.model_version_id = model_version_id
+        db.commit()
 
-        _log(log_path, f"ModelVersion created — id={model_version_id} name={new_version_name}")
+        # Auto-trigger quality eval (both mock and real mode)
+        eval_run_id = None
+        deployment_evidence = {
+            "artifact_sha256": artifact_manifest["merged"].get("sha256", ""),
+            "artifact_root": merged_path,
+            "serving_target": {
+                "mode": "mock" if settings.training_mode == "mock" else "real",
+                "base_url": (
+                    ""
+                    if settings.training_mode == "mock"
+                    else settings.candidate_vllm_base_url
+                ),
+                "model_name": (
+                    new_version_name
+                    if settings.training_mode == "mock"
+                    else settings.candidate_model_name
+                ),
+                "slot": "mock" if settings.training_mode == "mock" else "green",
+            },
+            "captured_at": datetime.now(timezone.utc).isoformat(),
+        }
+        eval_run = EvalRun(
+            model_version_id=model_version_id,
+            status="pending",
+            metrics_json={"deployment_evidence": deployment_evidence},
+            progress_current=0,
+            progress_total=15,
+        )
+        db.add(eval_run)
+        db.commit()
+        db.refresh(eval_run)
+        eval_run_id = eval_run.id
+        try:
+            import uuid as _uuid
+            queue = redis.from_url(settings.redis_url, decode_responses=True)
+            queue.rpush(
+                "anruf:eval_jobs",
+                json.dumps({
+                    "job_id": str(_uuid.uuid4()),
+                    "job_type": "run_eval",
+                    "payload": {
+                        "eval_run_id": eval_run.id,
+                        "model_version_id": model_version_id,
+                    },
+                }),
+            )
+            _log(log_path, f"quality check queued — eval_run_id={eval_run.id}")
+        except Exception as exc:
+            eval_run.status = "failed"
+            eval_run.error_message = f"Failed to enqueue quality check: {exc}"[:1000]
+            db.commit()
+            _log(log_path, f"quality check enqueue failed — {exc}")
+
+        _log(
+            log_path,
+            f"ModelVersion created — id={model_version_id} name={new_version_name}"
+            f" parent={parent_version_name}",
+        )
         _update_job(
             db, job,
             status="completed",
@@ -284,15 +362,22 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                 "adapter_path": adapter_path,
                 "merged_path": merged_path,
                 "model_version_id": model_version_id,
+                "parent_model_version_id": parent_model_id,
                 "eval_run_id": eval_run_id,
                 "version_name": new_version_name,
+                "parent_version": parent_version_name,
                 **ds_result,
                 **train_result,
                 **merge_result,
                 "artifact_manifest": artifact_manifest,
             },
         )
-        logger.info("Pipeline completed: job_id=%d version=%s", job_db_id, new_version_name)
+        logger.info(
+            "Pipeline completed: job_id=%d version=%s parent=%s",
+            job_db_id,
+            new_version_name,
+            parent_version_name,
+        )
 
     except Exception as exc:
         shutil.rmtree(adapter_partial_path, ignore_errors=True)
@@ -300,6 +385,21 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
         msg = str(exc)
         logger.error("Pipeline failed: job_id=%d error=%s", job_db_id, msg)
         _log(log_path, f"ERROR — {msg}")
+        # Release candidates so they re-enter the active batch and can be retrained.
+        # Only release candidates that are still locked into this job but not yet
+        # baked into a model version (model_version_id IS NULL).
+        try:
+            released = (
+                db.query(TrainingCandidate)
+                .filter(
+                    TrainingCandidate.training_job_id == job_db_id,
+                    TrainingCandidate.model_version_id.is_(None),
+                )
+                .update({"training_job_id": None}, synchronize_session="fetch")
+            )
+            logger.info("Released %d candidates after pipeline failure — job_id=%d", released, job_db_id)
+        except Exception as rel_exc:
+            logger.error("Failed to release candidates after pipeline failure: %s", rel_exc)
         _update_job(
             db, job,
             status="failed",

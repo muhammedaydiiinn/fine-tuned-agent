@@ -182,6 +182,8 @@ class TrainingCandidateResponse(BaseModel):
     metadata_json: dict[str, Any]
     approved: bool
     exported: bool
+    training_job_id: int | None = None
+    model_version_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -216,6 +218,7 @@ class TrainingJobResponse(BaseModel):
     progress_current: int
     progress_total: int
     error_message: str | None
+    model_version_id: int | None = None
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
@@ -281,6 +284,7 @@ class ModelVersionResponse(BaseModel):
     dataset_version: str | None
     eval_status: str
     deployment_status: str
+    parent_model_version_id: int | None = None
     metadata_json: dict[str, Any]
     created_at: datetime
 

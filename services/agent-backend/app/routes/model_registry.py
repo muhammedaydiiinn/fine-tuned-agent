@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.core import deployment_policy, model_runtime
 from app.config import settings
 from app.db import get_db
-from app.models import Deployment, EvalRun, ModelVersion
+from app.models import Deployment, EvalRun, ModelVersion, TrainingCandidate, TrainingJob
 from app.schemas import (
     ConfigureServingRequest,
     DeploymentRequest,
@@ -368,6 +368,11 @@ def deploy_model(
     db.flush()
     for affected_model in {item.id: item for item in affected_models}.values():
         _sync_model_deployment_state(db, affected_model)
+
+    # Bake candidates: mark all candidates that were locked into the job that
+    # produced this model version as consumed (model_version_id set).
+    _bake_candidates_for_model(db, model.id)
+
     db.commit()
     db.refresh(deployment)
     logger.info(
@@ -377,6 +382,28 @@ def deploy_model(
         previous_model_id,
     )
     return deployment
+
+
+def _bake_candidates_for_model(db: DBSession, model_id: int) -> int:
+    """Set model_version_id on all candidates that were locked into the training job
+    that produced this model version. Returns the count of baked candidates."""
+    job = (
+        db.query(TrainingJob)
+        .filter(TrainingJob.model_version_id == model_id)
+        .first()
+    )
+    if not job:
+        return 0
+    updated = (
+        db.query(TrainingCandidate)
+        .filter(
+            TrainingCandidate.training_job_id == job.id,
+            TrainingCandidate.model_version_id.is_(None),
+        )
+        .update({"model_version_id": model_id}, synchronize_session="fetch")
+    )
+    logger.info("Baked %d candidates into model_version_id=%d", updated, model_id)
+    return updated
 
 
 @router.post(
@@ -440,6 +467,26 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
         target_model.id: target_model,
     }.values():
         _sync_model_deployment_state(db, affected_model)
+
+    # Re-open the rolled-back version's baked candidates so they enter the next
+    # training batch. Without this the corrections that made v15 would be "consumed"
+    # but not present in the now-active v14, causing silent data loss across versions.
+    rolled_back_model_id = current.model_version_id
+    released = (
+        db.query(TrainingCandidate)
+        .filter(TrainingCandidate.model_version_id == rolled_back_model_id)
+        .update(
+            {"model_version_id": None, "training_job_id": None},
+            synchronize_session="fetch",
+        )
+    )
+    if released:
+        logger.warning(
+            "Rollback released %d baked candidates from model_version_id=%d back to active batch",
+            released,
+            rolled_back_model_id,
+        )
+
     db.commit()
     db.refresh(rollback_deployment)
     logger.warning(
@@ -461,3 +508,157 @@ def list_deployments(
     if environment:
         query = query.filter(Deployment.environment == environment)
     return query.order_by(Deployment.created_at.desc()).limit(limit).all()
+
+
+@router.post(
+    "/models/{version_name}/approve-and-deploy",
+    response_model=DeploymentResponse,
+    status_code=201,
+    summary="Approve model and immediately deploy to production in one step",
+)
+def approve_and_deploy(
+    version_name: str,
+    body: DeploymentRequest,
+    db: DBSession = Depends(get_db),
+):
+    """Combined approve + deploy for the Pipeline UI's 'Onayla & Yayınla' action."""
+    model = _model_or_404(db, version_name)
+
+    # Approve step (same logic as /approve, no separate commit needed)
+    artifact = model_runtime.inspect_artifact(model.merged_path)
+    if not artifact["valid"]:
+        raise HTTPException(status_code=422, detail=artifact["error"])
+    if model.eval_status != "passed":
+        raise HTTPException(status_code=409, detail="Only models with passed eval can be approved")
+    run = _latest_gate_run(db, model.id)
+    gate = (run.metrics_json or {}).get("deployment_gate") if run else None
+    if not isinstance(gate, dict) or not gate.get("passed"):
+        raise HTTPException(status_code=409, detail="Deployment gate has not passed")
+    if gate.get("policy_version") != CURRENT_EVAL_POLICY_VERSION:
+        raise HTTPException(status_code=409, detail="Evaluation gate policy is obsolete")
+    _assert_evidence_matches(model, run, artifact)
+    metadata = _metadata(model)
+    metadata["artifact_manifest"] = artifact
+    metadata["lifecycle_status"] = "approved"
+    metadata["approved_at"] = datetime.now(timezone.utc).isoformat()
+    metadata["approved_eval_run_id"] = run.id
+    model.metadata_json = metadata
+    db.flush()
+
+    # Deploy step (reuse _assert_deployable which now sees lifecycle_status=approved)
+    gate_run = _assert_deployable(db, model, body.environment)
+    target = model_runtime.serving_target(model)
+    smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
+    health = model_runtime.check_serving_target(target, smoke_messages=smoke)
+    if not health.get("healthy"):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
+        )
+
+    _lock_environment(db, body.environment)
+    current = (
+        db.query(Deployment)
+        .filter(
+            Deployment.environment == body.environment,
+            Deployment.status == "active",
+        )
+        .with_for_update()
+        .order_by(Deployment.deployed_at.desc(), Deployment.id.desc())
+        .first()
+    )
+    previous_model_id = current.model_version_id if current else None
+    if current and current.model_version_id == model.id:
+        raise HTTPException(status_code=409, detail="Model is already active")
+    if current and target["mode"] != "mock":
+        current_slot = model_runtime.serving_target(current.model_version)["slot"]
+        if current_slot == target["slot"]:
+            raise HTTPException(
+                status_code=409,
+                detail="Deployment target must use the inactive blue/green slot",
+            )
+
+    now = datetime.now(timezone.utc)
+    deployment = Deployment(
+        model_version_id=model.id,
+        environment=body.environment,
+        status="active",
+        deployed_at=now,
+        rollback_model_version_id=previous_model_id,
+        metadata_json={
+            "action": "approve-and-deploy",
+            "eval_run_id": gate_run.id,
+            "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
+            "serving_health": health,
+            "serving_target": target,
+            "actor": body.actor,
+            "deployed_at": now.isoformat(),
+        },
+    )
+    affected_models = [model]
+    if current:
+        current.status = "superseded"
+        affected_models.append(current.model_version)
+
+    deploy_meta = _metadata(model)
+    deploy_meta["deployed_at"] = now.isoformat()
+    model.metadata_json = deploy_meta
+    db.add(deployment)
+    db.flush()
+    for affected_model in {item.id: item for item in affected_models}.values():
+        _sync_model_deployment_state(db, affected_model)
+    _bake_candidates_for_model(db, model.id)
+    db.commit()
+    db.refresh(deployment)
+    logger.info(
+        "Model approve-and-deploy: version=%s environment=%s previous_model_id=%s",
+        model.version_name,
+        body.environment,
+        previous_model_id,
+    )
+    return deployment
+
+
+@router.post(
+    "/models/{version_name}/discard",
+    response_model=ModelVersionResponse,
+    summary="Retire a candidate model and release its locked training batch",
+)
+def discard_model(version_name: str, db: DBSession = Depends(get_db)):
+    """Mark a candidate model as retired and release its training candidates so they
+    can be included in the next training run."""
+    model = _model_or_404(db, version_name)
+    lifecycle = (_metadata(model)).get("lifecycle_status")
+    if lifecycle in ("deployed", "active_production"):
+        raise HTTPException(status_code=409, detail="Cannot discard an active deployed model")
+
+    # Release candidates locked into this model's training job (but not yet baked)
+    job = (
+        db.query(TrainingJob)
+        .filter(TrainingJob.model_version_id == model.id)
+        .first()
+    )
+    released = 0
+    if job:
+        released = (
+            db.query(TrainingCandidate)
+            .filter(
+                TrainingCandidate.training_job_id == job.id,
+                TrainingCandidate.model_version_id.is_(None),
+            )
+            .update({"training_job_id": None}, synchronize_session="fetch")
+        )
+
+    metadata = _metadata(model)
+    metadata["lifecycle_status"] = "retired"
+    metadata["retired_at"] = datetime.now(timezone.utc).isoformat()
+    model.metadata_json = metadata
+    model.deployment_status = "inactive"
+    db.commit()
+    db.refresh(model)
+    logger.info(
+        "Model discarded: version=%s released_candidates=%d",
+        model.version_name,
+        released,
+    )
+    return model

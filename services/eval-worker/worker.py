@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import get_db
 from evals import gate, run_eval
-from models import EvalRun, ModelVersion
+from models import EvalRun, ModelVersion, TrainingCandidate, TrainingJob
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +45,33 @@ def _write_results(path: Path, payload: dict) -> None:
         encoding="utf-8",
     )
     temporary_path.replace(path)
+
+
+def _release_candidates(db: Session, model_version_id: int) -> None:
+    """Release training candidates locked into the job that produced model_version_id.
+    Sets training_job_id=NULL so they re-enter the active batch for the next run."""
+    job = (
+        db.query(TrainingJob)
+        .filter(TrainingJob.model_version_id == model_version_id)
+        .first()
+    )
+    if not job:
+        return
+    released = (
+        db.query(TrainingCandidate)
+        .filter(
+            TrainingCandidate.training_job_id == job.id,
+            TrainingCandidate.model_version_id.is_(None),
+        )
+        .update({"training_job_id": None}, synchronize_session="fetch")
+    )
+    db.commit()
+    logger.info(
+        "Released %d candidates from failed eval — model_version_id=%d job_id=%d",
+        released,
+        model_version_id,
+        job.id,
+    )
 
 
 def handle_eval(
@@ -160,6 +187,9 @@ def handle_eval(
             progress_total=report["scenario_count"],
             finished_at=datetime.now(timezone.utc),
         )
+        if not passed:
+            # Gate failed — release candidates so they can be retrained
+            _release_candidates(db, model_version_id)
         _log(
             log_path,
             f"evaluation completed — score={report['quality_score']:.4f}"
@@ -178,6 +208,7 @@ def handle_eval(
         if model_version:
             model_version.eval_status = "failed"
             db.add(model_version)
+            _release_candidates(db, model_version_id)
         _update_run(
             db,
             run,

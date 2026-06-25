@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/style.css?v=13">
+  <link rel="stylesheet" href="/static/style.css?v=14">
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/panel-ui.js?v=3" defer></script>
   <!-- Send CSRF token on every HTMX mutating request -->
@@ -50,12 +50,12 @@
 
       <a href="/review" class="nav-item {% if request.url.path.startswith('/review') %}active{% endif %}">
         <i class="fa-solid fa-clipboard-check nav-icon"></i>
-        Review & Train
+        Review
       </a>
 
-      <a href="/model-registry" class="nav-item {% if request.url.path.startswith('/model-registry') %}active{% endif %}">
-        <i class="fa-solid fa-code-branch nav-icon"></i>
-        Models
+      <a href="/pipeline" class="nav-item {% if request.url.path.startswith('/pipeline') or request.url.path.startswith('/training') or request.url.path.startswith('/model-registry') %}active{% endif %}">
+        <i class="fa-solid fa-microchip nav-icon"></i>
+        Pipeline
       </a>
     </nav>
 

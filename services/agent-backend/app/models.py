@@ -159,6 +159,12 @@ class TrainingCandidate(Base):
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     exported: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Generational pipeline links:
+    # NULL/NULL+approved → ready (active batch for next training)
+    # training_job_id set, model_version_id NULL → locked into a training run
+    # model_version_id set → baked into that version (consumed)
+    training_job_id: Mapped[int | None] = mapped_column(Integer)
+    model_version_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -174,6 +180,7 @@ class TrainingJob(Base):
     progress_current: Mapped[int] = mapped_column(Integer, default=0)
     progress_total: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
+    model_version_id: Mapped[int | None] = mapped_column(Integer)  # set when training completes
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -190,6 +197,7 @@ class ModelVersion(Base):
     dataset_version: Mapped[str | None] = mapped_column(String(64))
     eval_status: Mapped[str] = mapped_column(String(32), default="pending")
     deployment_status: Mapped[str] = mapped_column(String(32), default="inactive")
+    parent_model_version_id: Mapped[int | None] = mapped_column(Integer)  # generational lineage
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
