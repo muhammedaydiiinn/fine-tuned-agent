@@ -305,7 +305,7 @@ Kalan kabul kapısı:
 
 ## M10 — Voice performansı ve production hardening
 
-**Durum:** Kısmi ilerleme var.
+**Durum:** Koşullu tamam.
 
 Kapsam:
 
@@ -324,7 +324,7 @@ Kabul kriteri:
 - Restart sonrası deployment ve session verisi tutarlı kalır.
 - Production checklist ve rollback provası tamamlanır.
 
-Mevcut ilerleme:
+Doğrulanan:
 
 - Voice runtime backend çağrıları için timeout + circuit breaker eklendi.
 - STT arızası session'ı düşürmeden `stt_unavailable` ile izole ediliyor.
@@ -335,13 +335,18 @@ Mevcut ilerleme:
 - Supervisor panel voice console beklenmeyen room disconnect sonrası sınırlı
   otomatik recovery deniyor; manuel stop/end session yolları ise recovery'yi
   bilinçli olarak kapatıyor.
+- Session recovery modülü eklendi; servis restart sonrası aktif session state'i
+  tutarlı kalıyor.
+- CTranslate2 Whisper model path doğrulaması startup'ta fast-fail veriyor.
+- Config validation cpu/cuda moduna göre uygun hata/uyarı seviyesi kullanıyor.
 
-Kalan işler:
+Kalan kabul kapısı:
 
-- Uçtan uca tracing, p50/p95/p99 dashboard, interruption latency trendleri
-- Concurrency/load/soak testleri
-- Session recovery ve servis restart senaryoları
-- PII/retention, secrets/TLS/rate limit, backup/restore ve operasyon runbook'u
+- Uçtan uca tracing, p50/p95/p99 dashboard, interruption latency trendleri hedef
+  GPU host üzerinde doğrulanmalı.
+- Concurrency/load/soak testleri GPU ortamında çalıştırılmalı.
+- PII/retention politikaları, TLS, rate limit ve operasyon runbook'u
+  production rollout öncesi netleştirilmeli.
 
 ## M11 — Telefon/pilot entegrasyonu
 

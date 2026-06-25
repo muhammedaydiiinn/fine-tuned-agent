@@ -457,7 +457,7 @@ Model versiyonunun bir environment'a deploy edilme kaydı. `status`: `pending` �
 
 | Değişken | Default | Açıklama |
 |----------|---------|---------|
-| `WHISPER_MODEL_PATH` | `/models/whisper/whisper-large-v3-turbo-german` | Container içi yol. `infra/scripts/download_models.sh` indirir |
+| `WHISPER_MODEL_PATH` | `/models/whisper/whisper-large-v3-turbo-german-ct2` | Container içi yol. CTranslate2 formatı (`model.bin` içermeli) |
 | `WHISPER_DEVICE` | `cuda` | `cuda` (GPU) veya `cpu` (çok yavaş, sadece test) |
 | `WHISPER_COMPUTE_TYPE` | `float16` | `float16` (GPU, hızlı), `int8` (daha hızlı/düşük kalite), `float32` (CPU) |
 | `WHISPER_LANGUAGE` | `de` | Alman Almancası. Değiştirme — model German fine-tune |

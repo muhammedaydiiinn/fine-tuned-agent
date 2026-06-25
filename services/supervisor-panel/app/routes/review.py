@@ -125,7 +125,7 @@ def review_session(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect("/review", "Session not found.", kind="error")
+        return toast_redirect("/review", "Review not found.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -174,12 +174,7 @@ def save_review(
         )
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect(
-            "/review",
-            "The requested session could not be found.",
-            kind="error",
-            title="Review unavailable",
-        )
+        return toast_redirect("/review", "Review not found.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
