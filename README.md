@@ -437,7 +437,7 @@ docker compose down -v
 | 9 | Canlı supervisor control + replacement audio | 🟡 Koşullu tamam — gerçek browser/GPU kabulü bekliyor |
 | 10 | Voice performansı + production hardening | 🟡 Koşullu tamam — load/soak ve production politikaları bekliyor |
 | 11 | Telefon/pilot entegrasyonu | ⏳ Sonraki faz |
-| 12 | Doğal dil düzeltme derleyicisi | ⏳ M9 kabulünden sonra |
+| 12 | Doğal dil düzeltme derleyicisi | ✅ Tamamlandı |
 
 Kapsam, bağımlılıklar ve kabul kriterleri için
 [`docs/MILESTONES.md`](./docs/MILESTONES.md) tek referans plandır.

@@ -362,7 +362,7 @@ Kalan kabul kapısı:
 
 ## M12 — Doğal dil düzeltme derleyicisi
 
-**Durum:** Bekliyor. M9 tamamlandıktan sonra başlanır.
+**Durum:** Tamamlandı.
 
 Bağlam:
 
@@ -409,6 +409,19 @@ Kabul kriteri:
 - Onaylanan correction correction memory ve training candidate tablosuna
   mevcut M3 pipeline'ı üzerinden izlenebilir biçimde yazılır.
 
+Doğrulanan:
+
+- Fiyat/deneme ve link güvenliği talimatları agent-backend'deki authoritative
+  product fact şablonlarından derleniyor; panelde şablon kopyası bulunmuyor.
+- `product_fact_correction`, `missing_step`, `wrong_next_action` ve
+  `tone_correction` kuralları deterministik testlerle doğrulandı.
+- Review ekranı orijinal yanıt ile derlenmiş correction'ı yan yana gösteriyor;
+  operatör metni ve next action'ı onay öncesinde düzenleyebiliyor.
+- Approve mevcut correction endpoint'i üzerinden correction memory ve training
+  candidate kayıtlarını oluşturuyor. Reject yalnız önizlemeyi kaldırıyor.
+- Güvenli kuralla eşleşmeyen talimat tahmin edilmiyor ve manuel düzeltmeye
+  yönlendiriliyor.
+
 ## M11 — Telefon/pilot entegrasyonu
 
 **Durum:** M7–M10 sonrasına bırakıldı.
@@ -431,12 +444,11 @@ M4/M5/M6 gerçek GPU kabul testleri
   → M8 interruption
   → M9 live supervisor correction
   → M10 production hardening
-  → M12 doğal dil düzeltme derleyicisi
   → M11 telephony pilot
 ```
 
 Candidate artifact publish ve Redis kalıcılığı GPU öncesinde tamamlandı.
 `vllm-candidate`, yeni publish edilen modeli process başlangıcında yükler; GPU
 kabul prosedürü bu nedenle container start/restart, readiness ve served-model
-kimliği kontrolünü içerir. M12, M9 tamamlandıktan sonra M11 ile paralel
-ilerleyebilir; M11 için M12 tamamlanmış olmak zorunda değildir.
+kimliği kontrolünü içerir. M12 yerel geliştirme ve testleri tamamlanmıştır;
+telefon/pilot öncesinde ayrıca bir M12 geliştirme kapısı kalmamıştır.

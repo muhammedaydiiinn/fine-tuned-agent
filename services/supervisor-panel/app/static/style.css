@@ -1592,6 +1592,42 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
 .turn-inline-edit > summary:hover { border-color: var(--accent-2); color: var(--text); }
 .turn-inline-edit .correction-panel { margin-top: 0; }
 
+.review-compiler-output {
+  margin-top: 14px;
+}
+
+.review-compiler-preview {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.review-compiler-heading,
+.review-compiler-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-compiler-heading {
+  margin-bottom: 8px;
+}
+
+.review-compiler-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.review-compiler-actions {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
 .review-layout {
   align-items: start;
   display: grid;
@@ -1662,6 +1698,10 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   }
 
   .supervisor-console-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-compiler-comparison {
     grid-template-columns: 1fr;
   }
 }

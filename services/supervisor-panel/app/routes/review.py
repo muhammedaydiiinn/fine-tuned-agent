@@ -32,6 +32,91 @@ def _headers() -> dict[str, str]:
     return {"X-API-Key": settings.api_key} if settings.api_key else {}
 
 
+@router.post(
+    "/review/{session_id}/turns/{turn_id}/compile",
+    response_class=HTMLResponse,
+)
+def compile_turn_instruction(
+    session_id: int,
+    turn_id: int,
+    request: Request,
+    instruction: str = Form(...),
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    turn = (
+        db.query(Turn)
+        .filter(Turn.id == turn_id, Turn.session_id == session_id)
+        .first()
+    )
+    if not turn:
+        return HTMLResponse(
+            '<div class="alert alert-error">Turn not found.</div>',
+            status_code=404,
+        )
+    clean_instruction = instruction.strip()
+    if not clean_instruction:
+        return HTMLResponse(
+            '<div class="alert alert-warning">Enter a supervisor instruction first.</div>',
+            status_code=422,
+        )
+
+    try:
+        response = httpx.post(
+            f"{settings.agent_backend_url}/review-compiler/compile",
+            json={
+                "instruction": clean_instruction,
+                "customer_text": turn.customer_text or "",
+                "agent_response": turn.agent_response or "",
+                "current_next_action": turn.next_action or "",
+            },
+            headers=_headers(),
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        compiled = response.json()
+    except Exception as exc:
+        logger.exception("Review compiler request failed")
+        return HTMLResponse(
+            '<div class="alert alert-error">Review compiler is unavailable.</div>',
+            status_code=502,
+        )
+
+    return templates.TemplateResponse(
+        "_review_compiler_preview.html",
+        {
+            "request": request,
+            "session": db.query(SessionModel).filter(SessionModel.id == session_id).first(),
+            "turn": turn,
+            "instruction": clean_instruction,
+            "compiled": compiled,
+        },
+    )
+
+
+@router.post(
+    "/review/{session_id}/turns/{turn_id}/compile/reject",
+    response_class=HTMLResponse,
+)
+def reject_compiled_instruction(
+    session_id: int,
+    turn_id: int,
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    exists = (
+        db.query(Turn.id)
+        .filter(Turn.id == turn_id, Turn.session_id == session_id)
+        .first()
+    )
+    if not exists:
+        return HTMLResponse(
+            '<div class="alert alert-error">Turn not found.</div>',
+            status_code=404,
+        )
+    return HTMLResponse("")
+
+
 @router.get("/review", response_class=HTMLResponse)
 def review_queue(request: Request, db: DBSession = Depends(get_db)):
     pending_count = (
