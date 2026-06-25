@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.csrf import require_csrf
 from app.db import get_db
 from app.livekit_tokens import build_voice_token
-from app.models import Session as SessionModel, Turn, VoiceEvent
+from app.models import Deployment, ModelVersion, Session as SessionModel, Turn, VoiceEvent
 from app.ui_feedback import toast_fragment, toast_redirect
 from app.config import settings
 from app.voice_actions import prepare_voice_action
@@ -154,6 +154,20 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
     )
     latest_turn = turns[-1] if turns else None
     state_pretty = json.dumps(session.state_json, indent=2, ensure_ascii=False)
+
+    # Active model badge: find the currently deployed production model version name
+    active_model_name = None
+    active_deployment = (
+        db.query(Deployment)
+        .filter(Deployment.environment == "production", Deployment.status == "active")
+        .order_by(Deployment.id.desc())
+        .first()
+    )
+    if active_deployment:
+        mv = db.query(ModelVersion).filter(ModelVersion.id == active_deployment.model_version_id).first()
+        if mv:
+            active_model_name = mv.version_name
+
     response = templates.TemplateResponse(
         "session_detail.html",
         {
@@ -162,6 +176,7 @@ def session_detail(session_id: int, request: Request, db: DBSession = Depends(ge
             "turns": turns,
             "latest_turn": latest_turn,
             "state_pretty": state_pretty,
+            "active_model_name": active_model_name,
         },
     )
     return _set_no_store(response)
@@ -405,8 +420,6 @@ def session_voice_action(
     action: str = Form(...),
     replacement_text: str = Form(""),
     corrected_next_action: str = Form(""),
-    apply_immediately: bool = Form(False),
-    send_to_training: bool = Form(False),
     notes: str = Form(""),
     db: DBSession = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -439,8 +452,6 @@ def session_voice_action(
             latest_turn=latest_turn,
             replacement_text=replacement_text,
             corrected_next_action=corrected_next_action,
-            apply_immediately=apply_immediately,
-            send_to_training=send_to_training,
             notes=notes,
         )
     except ValueError as exc:

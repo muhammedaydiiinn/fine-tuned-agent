@@ -64,6 +64,31 @@ def create_tables() -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_deployments_one_active_per_env "
             "ON deployments (environment) WHERE status = 'active'"
         ))
+        # Faz M12: generational pipeline links
+        for clause in (
+            "ADD COLUMN IF NOT EXISTS training_job_id INTEGER",
+            "ADD COLUMN IF NOT EXISTS model_version_id INTEGER",
+        ):
+            connection.execute(text(f"ALTER TABLE training_candidates {clause}"))
+        connection.execute(text(
+            "ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS model_version_id INTEGER"
+        ))
+        connection.execute(text(
+            "ALTER TABLE model_versions ADD COLUMN IF NOT EXISTS parent_model_version_id INTEGER"
+        ))
+        # Indexes for the new generational pipeline columns (idempotent)
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_training_candidates_training_job_id "
+            "ON training_candidates (training_job_id)"
+        ))
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_training_candidates_model_version_id "
+            "ON training_candidates (model_version_id)"
+        ))
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_model_versions_parent_model_version_id "
+            "ON model_versions (parent_model_version_id)"
+        ))
     _bootstrap_active_model()
 
 

@@ -62,23 +62,40 @@
 </div>
 {% endif %}
 
-{# ── Input / Output / Error ──────────────────────────────────────────────── #}
-<div class="detail-grid">
-  <div class="table-container detail-card">
-    <div class="table-toolbar"><span class="table-toolbar-title">Input</span></div>
-    <pre class="detail-code">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
-  </div>
-  <div class="table-container detail-card">
-    <div class="table-toolbar"><span class="table-toolbar-title">Output</span></div>
-    {% if job.status == 'failed' and job.error_message %}
-      <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;margin:0;">{{ job.error_message }}</pre>
-    {% elif job.output_json %}
+{% if job.status == 'failed' and job.error_message %}
+<div class="table-container" style="margin-bottom:16px;">
+  <div class="table-toolbar"><span class="table-toolbar-title">Hata</span></div>
+  <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;padding:12px 16px;margin:0;">{{ job.error_message }}</pre>
+</div>
+{% endif %}
+
+{# ── Teknik detaylar (gizli) ─────────────────────────────────────────────── #}
+<details class="table-container" style="margin-bottom:16px;">
+  <summary style="padding:12px 16px;cursor:pointer;font-weight:600;font-size:.85rem;list-style:none;">
+    <i class="fa-solid fa-chevron-right" style="margin-right:6px;font-size:.75rem;transition:transform .15s;" data-summary-icon></i>
+    Teknik detaylar
+  </summary>
+  <div style="padding:0 16px 16px;">
+    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Input</div>
+    <pre class="detail-code" style="margin-bottom:12px;">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
+    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Output</div>
+    {% if job.output_json %}
       <pre class="detail-code">{{ job.output_json | tojson(indent=2) }}</pre>
     {% else %}
       <span class="text-muted">—</span>
     {% endif %}
   </div>
-</div>
+</details>
+<script>
+(function () {
+  var details = document.querySelector('details[class~="table-container"]');
+  if (!details) return;
+  details.addEventListener('toggle', function () {
+    var icon = details.querySelector('[data-summary-icon]');
+    if (icon) icon.style.transform = details.open ? 'rotate(90deg)' : '';
+  });
+})();
+</script>
 
 {# ── Log viewer ──────────────────────────────────────────────────────────── #}
 <div class="table-container">

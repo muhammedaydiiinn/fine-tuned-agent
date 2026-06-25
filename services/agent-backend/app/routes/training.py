@@ -6,12 +6,13 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.core.candidate_builder import build_candidate_from_turn
 from app.db import get_db
-from app.models import Correction, TrainingCandidate, TrainingJob, Turn
+from app.models import Correction, Deployment, ModelVersion, TrainingCandidate, TrainingJob, Turn
 from app.schemas import (
     CreateTrainingJobRequest,
     ExportResult,
@@ -232,7 +233,32 @@ def create_training_job(
             input_data[field] = val
     if body.session_id is not None:
         input_data["session_id"] = body.session_id
+
+    # Serialize concurrent "Eğit" requests: only one can claim the active batch
+    # at a time. pg_advisory_xact_lock is released automatically at transaction end.
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext('training-job-create'))"))
+
+    # Snapshot the active production model at job-creation time so the worker
+    # always trains on the model that was live when the user pressed Eğit —
+    # not whatever is live later when the worker starts.
+    parent_deployment = (
+        db.query(Deployment)
+        .filter(Deployment.environment == "production", Deployment.status == "active")
+        .order_by(Deployment.id.desc())
+        .first()
+    )
+    parent_model_version_id = None
+    parent_version_name = None
+    if parent_deployment:
+        parent_mv = db.query(ModelVersion).filter(
+            ModelVersion.id == parent_deployment.model_version_id
+        ).first()
+        if parent_mv:
+            parent_model_version_id = parent_mv.id
+            parent_version_name = parent_mv.version_name
+
     if body.candidate_ids:
+        # Explicit candidate list — validate all exist and are approved
         candidate_ids = sorted(set(body.candidate_ids))
         approved_count = (
             db.query(TrainingCandidate)
@@ -248,10 +274,32 @@ def create_training_job(
                 detail="Every requested candidate must exist and be approved",
             )
         input_data["candidate_ids"] = candidate_ids
+    else:
+        # Auto-select the active batch: approved, not yet locked into a job, not yet baked.
+        # Advisory lock above prevents two concurrent requests from both seeing the same rows.
+        active_batch = (
+            db.query(TrainingCandidate)
+            .filter(
+                TrainingCandidate.approved == True,  # noqa: E712
+                TrainingCandidate.training_job_id.is_(None),
+                TrainingCandidate.model_version_id.is_(None),
+            )
+            .order_by(TrainingCandidate.created_at.asc())
+            .all()
+        )
+        if not active_batch:
+            raise HTTPException(
+                status_code=422,
+                detail="No new training data available. Add corrections or reviews first.",
+            )
+        candidate_ids = [c.id for c in active_batch]
+        input_data["candidate_ids"] = candidate_ids
 
-    # Stage the job first so we have a DB-generated id for the queue payload,
-    # then attempt to enqueue. If enqueueing fails the job is rolled back —
-    # no orphaned "pending" record stays in the DB.
+    if parent_model_version_id is not None:
+        input_data["parent_model_version_id"] = parent_model_version_id
+    if parent_version_name:
+        input_data["parent_version_name"] = parent_version_name
+
     job = TrainingJob(
         job_type="train_pipeline",
         status="pending",
@@ -262,22 +310,45 @@ def create_training_job(
     db.add(job)
     db.flush()  # assigns job.id without committing
 
-    payload = {
-        "job_id": job.id,
-        "dataset_version": body.dataset_version or f"ds-job{job.id}",
-        "candidate_ids": input_data.get("candidate_ids") or [],
-        "session_id": body.session_id,
-    }
-    try:
-        enqueue_training_job("train_pipeline", payload)
-    except Exception as exc:
-        db.rollback()
-        logger.exception("Failed to enqueue training job — transaction rolled back")
-        raise HTTPException(status_code=503, detail="Training queue is unavailable") from exc
+    # Lock the selected candidates into this job so they can't be picked again
+    db.query(TrainingCandidate).filter(
+        TrainingCandidate.id.in_(candidate_ids),
+    ).update({"training_job_id": job.id}, synchronize_session="fetch")
 
+    # Commit first so the worker always finds the job and candidate locks in DB.
+    # If enqueue fails after commit, the job stays "pending" with no queue entry —
+    # it is orphaned but harmless (no candidates will be double-trained; the batch
+    # can be manually released via discard if needed).
     db.commit()
     db.refresh(job)
-    logger.info("training_job created and enqueued: id=%d", job.id)
+
+    try:
+        payload = {
+            "job_id": job.id,
+            "dataset_version": body.dataset_version or f"ds-job{job.id}",
+            "candidate_ids": candidate_ids,
+            "session_id": body.session_id,
+        }
+        enqueue_training_job("train_pipeline", payload)
+    except Exception as exc:
+        logger.error(
+            "Enqueue failed AFTER commit — job_id=%d is orphaned in DB as pending. "
+            "Re-enqueue or discard manually. error=%s",
+            job.id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"Training job #{job.id} created but could not be queued. "
+                   "Use Pipeline > Discard to release the batch, then retry.",
+        ) from exc
+
+    logger.info(
+        "training_job created and enqueued: id=%d candidates=%d parent=%s",
+        job.id,
+        len(candidate_ids),
+        parent_version_name,
+    )
     return job
 
 

@@ -68,8 +68,6 @@ async def save_correction(
     corrected_response: str = Form(""),
     corrected_next_action: str = Form(""),
     notes: str = Form(""),
-    apply_immediately: bool = Form(False),
-    send_to_training: bool = Form(False),
     mark_good: str = Form(""),
     mark_bad: str = Form(""),
     compiled_correction_type: str = Form(""),
@@ -84,12 +82,52 @@ async def save_correction(
         return toast_fragment("Turn not found.", kind="error", status_code=404)
 
     correction_type = resolve_correction_type(compiled_correction_type)
-    if mark_good:
-        correction_type = "mark_good"
-        corrected_response = turn.agent_response or ""
-    elif mark_bad:
-        correction_type = "mark_bad"
 
+    # ── Mark bad: sadece negatif sinyal kaydedilir, training'e gitmez ────────
+    if mark_bad:
+        correction = Correction(
+            session_id=session_id,
+            turn_id=turn_id,
+            correction_type="mark_bad",
+            old_agent_response=turn.agent_response,
+            corrected_agent_response=turn.agent_response,
+            old_next_action=turn.next_action,
+            corrected_next_action=turn.next_action,
+            notes=notes,
+            apply_immediately=False,
+            send_to_training=False,
+            approved=True,
+            created_by="panel",
+        )
+        db.add(correction)
+        db.commit()
+        return toast_fragment("İşaretlendi: geliştirilmeli.", kind="warning", refresh_event="panel-refresh")
+
+    # ── Mark good: mevcut cevap zaten doğru, training'e ekle ─────────────────
+    if mark_good:
+        good_response = turn.agent_response or ""
+        correction = Correction(
+            session_id=session_id,
+            turn_id=turn_id,
+            correction_type="mark_good",
+            old_agent_response=turn.agent_response,
+            corrected_agent_response=good_response,
+            old_next_action=turn.next_action,
+            corrected_next_action=turn.next_action,
+            notes=notes,
+            apply_immediately=False,
+            send_to_training=True,
+            approved=True,
+            created_by="panel",
+        )
+        db.add(correction)
+        db.flush()
+        candidate = _build_candidate(turn, good_response, turn.next_action or "", "mark_good")
+        db.add(candidate)
+        db.commit()
+        return toast_fragment("Mark Good · training verisine eklendi.", kind="success", refresh_event="panel-refresh")
+
+    # ── Düzeltme: hem correction_memory'ye hem training'e git (atomik) ───────
     correction = Correction(
         session_id=session_id,
         turn_id=turn_id,
@@ -99,20 +137,16 @@ async def save_correction(
         old_next_action=turn.next_action,
         corrected_next_action=corrected_next_action or turn.next_action,
         notes=notes,
-        apply_immediately=apply_immediately,
-        send_to_training=send_to_training,
+        apply_immediately=True,
+        send_to_training=True,
         approved=True,
         created_by="panel",
     )
     db.add(correction)
-    db.commit()
-    db.refresh(correction)
+    db.flush()
 
-    if mark_good:
-        return toast_fragment("Marked as good.", kind="success", refresh_event="panel-refresh")
-
-    # apply_immediately -> correction_memory
-    if apply_immediately and corrected_response:
+    # correction_memory — anında uygulama
+    if corrected_response:
         trigger_key = turn.intent or correction_type
         existing = (
             db.query(CorrectionMemory)
@@ -143,23 +177,24 @@ async def save_correction(
                 active=True,
                 priority=10,
             ))
-        db.commit()
         logger.info("correction_memory updated: trigger=%s", trigger_key)
 
-    # send_to_training -> training_candidate
-    if send_to_training:
-        candidate = _build_candidate(turn, corrected_response, corrected_next_action, correction_type)
-        if candidate:
-            db.add(candidate)
-            db.commit()
+    # training candidate — her düzeltmede otomatik
+    candidate = _build_candidate(
+        turn,
+        corrected_response or turn.agent_response or "",
+        corrected_next_action or turn.next_action or "",
+        correction_type,
+    )
+    db.add(candidate)
+    db.commit()
+    logger.info("correction saved atomically: id=%d, candidate=%d", correction.id, candidate.id)
 
-    parts = [f"Correction saved (id={correction.id})"]
-    if apply_immediately:
-        parts.append("Correction memory updated")
-    if send_to_training:
-        parts.append("Training candidate created")
-
-    return toast_fragment(" | ".join(parts), kind="success", refresh_event="panel-refresh")
+    return toast_fragment(
+        "Düzeltme kaydedildi · canlıya uygulandı · training verisine eklendi.",
+        kind="success",
+        refresh_event="panel-refresh",
+    )
 
 
 def _build_candidate(turn: Turn, corrected_response: str, corrected_next_action: str, correction_type: str = "response_correction"):

@@ -267,6 +267,24 @@
       );
     },
 
+    /**
+     * training_candidates (sadeleştirilmiş): sadece "Remove" butonu.
+     * Veriler zaten approved geldiği için Approve adımı gereksiz.
+     */
+    removeOnly: function (d, type, row) {
+      if (type !== "display") return "";
+      var dis = !row.approved ? "disabled" : "";
+      return (
+        '<button class="btn btn-sm btn-danger dt-action-btn" ' +
+        'data-url="/training-candidates/' +
+        row.id +
+        '/reject" ' +
+        dis +
+        ' title="Training verisinden çıkar">' +
+        '<i class="fa-solid fa-xmark" style="font-size:10px;"></i> Remove</button>'
+      );
+    },
+
     /** approved boolean → "Approved" / "Rejected" badge */
     approvedBadge: function (d, type) {
       if (type !== "display") return d;

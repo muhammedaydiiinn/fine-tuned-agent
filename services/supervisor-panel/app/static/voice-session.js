@@ -173,12 +173,6 @@
     form.set("replacement_text", replacementField?.value || "");
     form.set("corrected_next_action", replacementActionField?.value || "");
     form.set("notes", actionName === "replace_answer" ? "Live supervisor replacement" : "Live supervisor stop");
-    if (quickActionForm?.querySelector('input[name="apply_immediately"]')?.checked) {
-      form.set("apply_immediately", "true");
-    }
-    if (quickActionForm?.querySelector('input[name="send_to_training"]')?.checked) {
-      form.set("send_to_training", "true");
-    }
 
     const response = await fetch(`/sessions/${sessionId}/voice-actions`, {
       method: "POST",

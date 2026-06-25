@@ -73,6 +73,7 @@ def toast_fragment(
     kind: str = "info",
     status_code: int = 200,
     refresh_event: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> HTMLResponse:
     kind_map = {
         "success": "alert-success",
@@ -86,7 +87,11 @@ def toast_fragment(
         f'<div class="alert {kind_map.get(kind, "alert-info")}">{html.escape(message)}</div>'
         "</div>"
     )
-    return HTMLResponse(body, status_code=status_code)
+    response = HTMLResponse(body, status_code=status_code)
+    if extra_headers:
+        for key, value in extra_headers.items():
+            response.headers[key] = value
+    return response
 
 
 def load_toast(request: Request) -> dict[str, Any] | None:

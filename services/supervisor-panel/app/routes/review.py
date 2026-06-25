@@ -245,15 +245,13 @@ def save_review(
     session_id: int,
     rating: str = Form(...),
     notes: str = Form(""),
-    add_to_training: bool = Form(False),
-    start_training: bool = Form(False),
     db: DBSession = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
     if rating not in {"good", "mixed", "bad"}:
         return toast_redirect(
             f"/review/{session_id}",
-            "Choose a valid review rating before saving.",
+            "Kaydetmeden önce bir değerlendirme seçin.",
             kind="warning",
             title="Review not saved",
         )
@@ -266,9 +264,9 @@ def save_review(
         .order_by(Turn.turn_index.asc())
         .all()
     )
-    candidate_ids: list[int] = []
-    if add_to_training:
-        candidate_ids = _collect_review_candidates(db, session_id, turns, rating)
+
+    # Uygun turn'ler her zaman training verisine eklenir
+    candidate_ids = _collect_review_candidates(db, session_id, turns, rating)
 
     review = (
         db.query(SessionReview)
@@ -284,49 +282,10 @@ def save_review(
     review.reviewed_by = settings.admin_user
     session.status = "reviewed"
     db.commit()
-    db.refresh(review)
 
-    if start_training:
-        if not candidate_ids:
-            return toast_redirect(
-                f"/review/{session_id}",
-                "Review saved, but no eligible turns were available for training.",
-                kind="warning",
-                title="Nothing to train",
-            )
-        try:
-            response = httpx.post(
-                f"{settings.agent_backend_url}/training-jobs",
-                json={
-                    "session_id": session_id,
-                    "candidate_ids": candidate_ids,
-                    "dataset_version": f"session-{session_id}-review",
-                },
-                headers=_headers(),
-                timeout=10.0,
-            )
-            response.raise_for_status()
-            review.training_job_id = int(response.json()["id"])
-            db.commit()
-        except Exception as exc:
-            logger.exception("Could not start session review training")
-            return toast_redirect(
-                f"/review/{session_id}",
-                f"Review saved, but training could not start: {exc}",
-                kind="error",
-                title="Training start failed",
-            )
-    if start_training and review.training_job_id:
-        return toast_redirect(
-            "/review",
-            f"Review saved and training job #{review.training_job_id} started.",
-            title="Training started",
-        )
-    return toast_redirect(
-        "/review",
-        "Review saved. Eligible turns are ready for the next training batch.",
-        title="Review saved",
-    )
+    n = len(candidate_ids)
+    msg = f"Değerlendirme kaydedildi · {n} turn training verisine eklendi." if n > 0 else "Değerlendirme kaydedildi."
+    return toast_redirect("/review", msg, title="Review saved")
 
 
 def _collect_review_candidates(
