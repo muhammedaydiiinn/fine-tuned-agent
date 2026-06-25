@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -34,3 +36,34 @@ def directory_manifest(path_value: str) -> dict[str, Any]:
         "sha256": digest.hexdigest(),
         "files": files,
     }
+
+
+def publish_directory(source_path: str, target_path: str) -> dict[str, Any]:
+    """Atomically publish a directory tree to a stable runtime path."""
+    source = Path(source_path)
+    target = Path(target_path)
+
+    if not source.is_dir():
+        raise FileNotFoundError(f"source directory does not exist: {source}")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    token = uuid.uuid4().hex[:8]
+    staging = target.parent / f".{target.name}.staging-{token}"
+    backup = target.parent / f".{target.name}.backup-{token}"
+
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.copytree(source, staging)
+
+    try:
+        if target.exists():
+            target.replace(backup)
+        staging.replace(target)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        if backup.exists() and not target.exists():
+            backup.replace(target)
+        raise
+    else:
+        shutil.rmtree(backup, ignore_errors=True)
+
+    return directory_manifest(str(target))

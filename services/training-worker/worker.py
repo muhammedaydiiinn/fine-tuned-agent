@@ -145,6 +145,23 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             "adapter": artifacts.directory_manifest(adapter_path),
             "merged": artifacts.directory_manifest(merged_path),
         }
+        candidate_publish_manifest = None
+        if settings.training_mode == "real":
+            _log(
+                log_path,
+                "publishing merged model to candidate serving path "
+                f"{settings.candidate_publish_path}",
+            )
+            candidate_publish_manifest = artifacts.publish_directory(
+                merged_path,
+                settings.candidate_publish_path,
+            )
+            artifact_manifest["candidate_serving"] = candidate_publish_manifest
+            _log(
+                log_path,
+                "candidate serving path updated — "
+                f"{settings.candidate_publish_path}",
+            )
 
         # Register ModelVersion
         existing = db.query(ModelVersion).filter(ModelVersion.version_name == new_version_name).first()
@@ -169,6 +186,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     },
                     "dataset_manifest": ds_result,
                     "pipeline_artifacts": artifact_manifest,
+                    "candidate_publish_manifest": candidate_publish_manifest,
                     "serving": {
                         "mode": "mock" if settings.training_mode == "mock" else "real",
                         "base_url": (

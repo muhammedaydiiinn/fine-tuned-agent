@@ -438,6 +438,7 @@ Model versiyonunun bir environment'a deploy edilme kaydı. `status`: `pending` �
 | `CANDIDATE_MODEL_PATH` | Test edilecek yeni modelin dizini. `vllm-candidate` bunu mount eder |
 | `CANDIDATE_MODEL_NAME` | `vllm-candidate`'in serve edeceği isim |
 | `CANDIDATE_VLLM_BASE_URL` | `vllm-candidate`'in endpoint'i. Eval worker bunu kullanır |
+| `CANDIDATE_PUBLISH_PATH` | Training worker'ın yeni merged candidate artifact'ı atomik olarak publish ettiği sabit runtime dizini. Varsayılan: `/models/candidates/current` |
 
 ---
 
