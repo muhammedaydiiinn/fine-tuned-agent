@@ -55,28 +55,23 @@ if ! command -v python3 &>/dev/null; then
     echo -e "${RED}✗ python3 bulunamadı.${NC}"; exit 1
 fi
 
-# ── Bağımlılıkları sadece gerektiğinde kur ────────────────────────────────
-PIP_CMD=""
-if command -v pip3 &>/dev/null; then
-    PIP_CMD="pip3"
-elif command -v pip &>/dev/null; then
-    PIP_CMD="pip"
-elif python3 -m pip --version &>/dev/null 2>&1; then
-    PIP_CMD="python3 -m pip"
-else
-    info "pip bulunamadı, kuruluyor..."
-    python3 -m ensurepip --upgrade 2>/dev/null || apt-get install -y python3-pip -q
-    PIP_CMD="python3 -m pip"
+# ── İzole venv ile bağımlılıkları kur ────────────────────────────────────
+VENV_DIR="/tmp/anruf-dl-venv"
+if [ ! -f "$VENV_DIR/bin/pip" ]; then
+    info "Download venv hazırlanıyor: $VENV_DIR"
+    apt-get install -y python3-venv -q 2>/dev/null || true
+    python3 -m venv "$VENV_DIR"
 fi
+PIP_INSTALL="$VENV_DIR/bin/pip install -q"
+PYTHON3="$VENV_DIR/bin/python3"
+export PATH="$VENV_DIR/bin:$PATH"
 
-PIP_INSTALL="$PIP_CMD install -q --break-system-packages"
-
-if [ "$DO_LLM" = "true" ] && ! python3 -c "import gdown" &>/dev/null 2>&1; then
+if [ "$DO_LLM" = "true" ] && ! "$PYTHON3" -c "import gdown" &>/dev/null 2>&1; then
     info "gdown kuruluyor..."; $PIP_INSTALL gdown
 fi
 
-if [ "$DO_WHISPER" = "true" ] && ! python3 -c "import huggingface_hub" &>/dev/null 2>&1; then
-    info "huggingface_hub kuruluyor..."; $PIP_INSTALL huggingface_hub
+if [ "$DO_WHISPER" = "true" ] && ! "$PYTHON3" -c "import huggingface_hub" &>/dev/null 2>&1; then
+    info "huggingface_hub + ctranslate2 kuruluyor..."; $PIP_INSTALL huggingface_hub ctranslate2 transformers torch
 fi
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -97,7 +92,7 @@ else
     mkdir -p "$MODELS_DIR/merged"
     info "İndiriliyor... (model boyutuna göre 10-30 dk sürebilir)"
 
-    if python3 - <<PYEOF
+    if "$PYTHON3" - <<PYEOF
 import gdown, os, shutil, sys, tempfile
 
 folder_id  = "$GDRIVE_FOLDER_ID"
@@ -193,7 +188,7 @@ else
     mkdir -p "$WHISPER_SRC_DIR" "$WHISPER_DIR"
     info "İndiriliyor... (3-7 GB, birkaç dakika sürebilir)"
 
-    python3 - <<PYEOF
+    "$PYTHON3" - <<PYEOF
 import os
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 from huggingface_hub import snapshot_download
@@ -220,7 +215,7 @@ PYEOF
         exit 1
     fi
 
-    python3 - <<PYEOF
+    "$PYTHON3" - <<PYEOF
 import os, shutil
 src = os.path.join("$WHISPER_SRC_DIR", "vocab.json")
 dst = os.path.join("$WHISPER_SRC_DIR", "vocabulary.json")
@@ -236,7 +231,7 @@ PYEOF
         --output_dir "$WHISPER_DIR" \
         --copy_files tokenizer_config.json preprocessor_config.json merges.txt added_tokens.json normalizer.json special_tokens_map.json
 
-    python3 - <<PYEOF
+    "$PYTHON3" - <<PYEOF
 import json, os, shutil
 vocab = os.path.join("$WHISPER_DIR", "vocab.json")
 target = os.path.join("$WHISPER_DIR", "vocabulary.json")
