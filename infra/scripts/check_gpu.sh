@@ -21,7 +21,7 @@ fi
 
 echo ""
 echo "=== NVIDIA Container Toolkit ==="
-if dpkg -l | grep -q nvidia-container-toolkit 2>/dev/null; then
+if command -v nvidia-ctk &>/dev/null || dpkg -l 2>/dev/null | grep -q nvidia-container-toolkit; then
     echo "OK: nvidia-container-toolkit kurulu."
 else
     echo "UYARI: nvidia-container-toolkit kurulu görünmüyor."
