@@ -254,8 +254,8 @@ fi
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Disk kullanımı:"
-du -sh "$LLM_DIR"     2>/dev/null | awk "{print \"  LLM    : \$1  $LLM_DIR\"}"     || true
-du -sh "$WHISPER_DIR" 2>/dev/null | awk "{print \"  Whisper: \$1  $WHISPER_DIR\"}" || true
+du -sh "$LLM_DIR"     2>/dev/null | awk -v p="$LLM_DIR"     '{print "  LLM    : " $1 "  " p}' || true
+du -sh "$WHISPER_DIR" 2>/dev/null | awk -v p="$WHISPER_DIR" '{print "  Whisper: " $1 "  " p}' || true
 echo ""
 echo "  .env değerleri:"
 echo "  MODEL_MERGED_PATH=$LLM_DIR"
