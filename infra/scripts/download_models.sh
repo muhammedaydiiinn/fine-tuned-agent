@@ -69,12 +69,14 @@ else
     PIP_CMD="python3 -m pip"
 fi
 
+PIP_INSTALL="$PIP_CMD install -q --break-system-packages"
+
 if [ "$DO_LLM" = "true" ] && ! python3 -c "import gdown" &>/dev/null 2>&1; then
-    info "gdown kuruluyor..."; $PIP_CMD install -q gdown
+    info "gdown kuruluyor..."; $PIP_INSTALL gdown
 fi
 
 if [ "$DO_WHISPER" = "true" ] && ! python3 -c "import huggingface_hub" &>/dev/null 2>&1; then
-    info "huggingface_hub kuruluyor..."; $PIP_CMD install -q huggingface_hub
+    info "huggingface_hub kuruluyor..."; $PIP_INSTALL huggingface_hub
 fi
 
 # ═════════════════════════════════════════════════════════════════════════
