@@ -80,7 +80,7 @@ Kabul kriteri:
 
 ## M4 — Training worker ve model candidate üretimi
 
-**Durum:** Koşullu tamam.
+**Durum:** Koşullu tamam. GPU sunucu hazır, kabul testi bekliyor.
 
 Mevcut:
 
@@ -95,13 +95,13 @@ Mevcut:
 
 Kalan kabul kapısı:
 
-- Hedef NVIDIA sunucuda gerçek LoRA eğitimi çalıştırılmalı.
-- Gerçek GPU job'unda aynı manifest ve atomik artifact kabul kriterleri
+- [ ] Hedef NVIDIA sunucuda gerçek LoRA eğitimi çalıştırılmalı.
+- [ ] Gerçek GPU job'unda aynı manifest ve atomik artifact kabul kriterleri
   doğrulanmalı.
 
 ## M5 — Evaluation worker ve kalite kapısı
 
-**Durum:** Koşullu tamam.
+**Durum:** Koşullu tamam. GPU sunucu hazır, kabul testi bekliyor.
 
 Mevcut:
 
@@ -115,7 +115,7 @@ Mevcut:
 
 Kalan kabul kapısı:
 
-- En az bir gerçek vLLM candidate koşusu GPU sunucuda doğrulanmalı.
+- [ ] En az bir gerçek vLLM candidate koşusu GPU sunucuda doğrulanmalı.
 
 ## M6 — Model registry, candidate serving, deploy ve rollback
 
@@ -151,7 +151,7 @@ Doğrulanan:
 
 Kalan kabul kapısı:
 
-- Blue/green slot değişimi, health/smoke ve rollback gerçek vLLM modelleriyle
+- [ ] Blue/green slot değişimi, health/smoke ve rollback gerçek vLLM modelleriyle
   hedef NVIDIA sunucuda doğrulanmalı.
 
 Ek doğrulanan:
@@ -209,9 +209,9 @@ Doğrulanan:
 
 Kalan kabul kapısı:
 
-- Gerçek GPU Whisper modeli ve Fish Audio ile browser üzerinden en az 10 turn
+- [ ] Gerçek GPU Whisper modeli ve Fish Audio ile browser üzerinden en az 10 turn
   konuşulmalı.
-- Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
+- [ ] Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
   doğrulanmalı.
 - Canlı kontrol listesi `docs/LIVE_ACCEPTANCE.md` içindedir.
 
@@ -260,10 +260,12 @@ Doğrulanan:
 
 Kalan kabul kapısı:
 
-- Gerçek browser/Fish Audio akışında interruption-to-cancel latency ölçülmeli.
-- Aynı 20+20 senaryo gerçek mikrofon/STT çıktılarıyla çalıştırılarak akustik
-  false-interrupt oranı doğrulanmalı. Metin sınıflandırma kapısı geçiyor.
-- Streaming partial transcript hipotezleri mevcut Faster Whisper batch
+- [ ] Gerçek browser/Fish Audio akışında interruption-to-cancel latency ölçülmeli
+  (`interruption_latency_ms` < 600ms).
+- [ ] Backchannel frases ("ja ja", "mhm okay", "ja genau") gerçek mikrofon/STT
+  çıktısında `backchannel_detected` olarak sınıflanmalı; "ja aber nein" gibi
+  gerçek barge-in ise agent'ı durdurmalı.
+- [ ] Streaming partial transcript hipotezleri mevcut Faster Whisper batch
   segmenter'ına güvenli biçimde eklenmeli; şu anda speech boundary ve final
   transcript event'leri vardır.
 
@@ -309,9 +311,9 @@ Doğrulanan:
 
 Kalan kabul kapısı:
 
-- Gerçek browser mikrofonu + LiveKit oturumunda supervisor replacement akışının
+- [ ] Gerçek browser mikrofonu + LiveKit oturumunda supervisor replacement akışının
   uçtan uca manuel kabulü hedef GPU host üzerinde alınmalı.
-- Rol/yetki katmanı şu an panel authentication sınırına dayanıyor; production
+- [ ] Rol/yetki katmanı şu an panel authentication sınırına dayanıyor; production
   rollout öncesi daha dar supervisor izin modeli gerekiyorsa M10 operasyon
   hardening kapsamında netleştirilmeli.
 
@@ -354,10 +356,10 @@ Doğrulanan:
 
 Kalan kabul kapısı:
 
-- Uçtan uca tracing, p50/p95/p99 dashboard, interruption latency trendleri hedef
-  GPU host üzerinde doğrulanmalı.
-- Concurrency/load/soak testleri GPU ortamında çalıştırılmalı.
-- PII/retention politikaları, TLS, rate limit ve operasyon runbook'u
+- [ ] Uçtan uca tracing, p50/p95/p99 dashboard, interruption latency trendleri
+  hedef GPU host üzerinde doğrulanmalı.
+- [ ] Concurrency/load/soak testleri GPU ortamında çalıştırılmalı.
+- [ ] PII/retention politikaları, TLS, rate limit ve operasyon runbook'u
   production rollout öncesi netleştirilmeli.
 
 ## M12 — Doğal dil düzeltme derleyicisi
@@ -436,15 +438,20 @@ Kapsam:
 Browser voice demo ve güvenilir interruption tamamlanmadan telefon entegrasyonu
 başlatılmaz.
 
-## Önerilen uygulama sırası
+## GPU Kabul Testi Sırası
+
+GPU sunucu hazır (89.105.220.109, NVIDIA RTX PRO 6000 Black, 97887 MiB VRAM).
+Aşağıdaki sırayla ilerlenir:
 
 ```text
-M4/M5/M6 gerçek GPU kabul testleri
-  → M7 browser voice
-  → M8 interruption
-  → M9 live supervisor correction
-  → M10 production hardening
-  → M11 telephony pilot
+1. [ ] M4 — Gerçek LoRA eğitimi (training-worker-gpu)
+2. [ ] M5 — Gerçek vLLM candidate eval koşusu
+3. [ ] M6 — Blue/green slot swap + rollback (vllm-candidate)
+4. [ ] M7 — 10-turn browser voice (GPU Whisper + Fish Audio, p95 < 2500ms)
+5. [ ] M8 — Barge-in latency < 600ms + backchannel sınıflandırma
+6. [ ] M9 — Supervisor replacement uçtan uca (canlı browser)
+7. [ ] M10 — Load/soak + tracing dashboard + runbook
+8. [ ] M11 — Telefon/SIP pilot
 ```
 
 Candidate artifact publish ve Redis kalıcılığı GPU öncesinde tamamlandı.
