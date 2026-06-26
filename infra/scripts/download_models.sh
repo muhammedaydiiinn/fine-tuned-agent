@@ -56,12 +56,25 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 # ── Bağımlılıkları sadece gerektiğinde kur ────────────────────────────────
+PIP_CMD=""
+if command -v pip3 &>/dev/null; then
+    PIP_CMD="pip3"
+elif command -v pip &>/dev/null; then
+    PIP_CMD="pip"
+elif python3 -m pip --version &>/dev/null 2>&1; then
+    PIP_CMD="python3 -m pip"
+else
+    info "pip bulunamadı, kuruluyor..."
+    python3 -m ensurepip --upgrade 2>/dev/null || apt-get install -y python3-pip -q
+    PIP_CMD="python3 -m pip"
+fi
+
 if [ "$DO_LLM" = "true" ] && ! python3 -c "import gdown" &>/dev/null 2>&1; then
-    info "gdown kuruluyor..."; pip install -q gdown
+    info "gdown kuruluyor..."; $PIP_CMD install -q gdown
 fi
 
 if [ "$DO_WHISPER" = "true" ] && ! python3 -c "import huggingface_hub" &>/dev/null 2>&1; then
-    info "huggingface_hub kuruluyor..."; pip install -q huggingface_hub
+    info "huggingface_hub kuruluyor..."; $PIP_CMD install -q huggingface_hub
 fi
 
 # ═════════════════════════════════════════════════════════════════════════
