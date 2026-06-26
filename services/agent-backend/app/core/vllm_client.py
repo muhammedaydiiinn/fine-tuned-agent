@@ -120,6 +120,7 @@ def _real_chat(messages: list[dict], target: dict[str, str]) -> str:
         "messages": messages,
         "temperature": 0.1,
         "max_tokens": 512,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
         with httpx.Client(timeout=30.0) as client:
