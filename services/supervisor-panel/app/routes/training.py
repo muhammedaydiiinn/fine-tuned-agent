@@ -1,4 +1,5 @@
 """Training panel — candidates + training jobs."""
+import json as _json
 import logging
 
 import httpx
@@ -36,8 +37,16 @@ def candidates_data(db: DBSession = Depends(get_db)):
     rows = []
     for c in candidates:
         msgs = c.messages_json or []
-        customer_msg  = msgs[1].get("content", "") if len(msgs) > 1 else ""
-        corrected_msg = msgs[2].get("content", "") if len(msgs) > 2 else ""
+        try:
+            user_content = _json.loads(msgs[1]["content"]) if len(msgs) > 1 else {}
+            customer_msg = user_content.get("customer_message", "") if isinstance(user_content, dict) else ""
+        except Exception:
+            customer_msg = msgs[1].get("content", "") if len(msgs) > 1 else ""
+        try:
+            asst_content = _json.loads(msgs[2]["content"]) if len(msgs) > 2 else {}
+            corrected_msg = asst_content.get("agent_response", "") if isinstance(asst_content, dict) else ""
+        except Exception:
+            corrected_msg = msgs[2].get("content", "") if len(msgs) > 2 else ""
         correction_type = (c.metadata_json or {}).get("correction_type", "")
         rows.append({
             "id": c.id,

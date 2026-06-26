@@ -32,7 +32,7 @@ def build_toast(
 def set_toast_cookie(response: Response, payload: dict[str, Any]) -> Response:
     response.set_cookie(
         key=FLASH_COOKIE_NAME,
-        value=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        value=json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
         httponly=False,
         max_age=30,
         samesite="lax",

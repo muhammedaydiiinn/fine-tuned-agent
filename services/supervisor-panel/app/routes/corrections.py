@@ -80,7 +80,21 @@ async def save_correction(
         db.add(correction)
         db.flush()
         candidate = _build_candidate(turn, good_response, turn.next_action or "", "mark_good")
-        db.add(candidate)
+        existing = (
+            db.query(TrainingCandidate)
+            .filter(
+                TrainingCandidate.source_type == "correction",
+                TrainingCandidate.source_id == turn.id,
+                TrainingCandidate.training_job_id.is_(None),
+                TrainingCandidate.model_version_id.is_(None),
+            )
+            .first()
+        )
+        if existing:
+            existing.messages_json = candidate.messages_json
+            existing.metadata_json = candidate.metadata_json
+        else:
+            db.add(candidate)
         db.commit()
         return toast_fragment("Mark Good · added to training batch.", kind="success", refresh_event="panel-refresh")
 
@@ -136,14 +150,29 @@ async def save_correction(
             ))
         logger.info("correction_memory updated: trigger=%s", trigger_key)
 
-    # training candidate — auto-created on every correction
+    # training candidate — upsert to avoid duplicates on re-correction
     candidate = _build_candidate(
         turn,
         corrected_response or turn.agent_response or "",
         corrected_next_action or turn.next_action or "",
         correction_type,
     )
-    db.add(candidate)
+    existing = (
+        db.query(TrainingCandidate)
+        .filter(
+            TrainingCandidate.source_type == "correction",
+            TrainingCandidate.source_id == turn.id,
+            TrainingCandidate.training_job_id.is_(None),
+            TrainingCandidate.model_version_id.is_(None),
+        )
+        .first()
+    )
+    if existing:
+        existing.messages_json = candidate.messages_json
+        existing.metadata_json = candidate.metadata_json
+        candidate = existing
+    else:
+        db.add(candidate)
     db.commit()
     logger.info("correction saved atomically: id=%d, candidate=%d", correction.id, candidate.id)
 
