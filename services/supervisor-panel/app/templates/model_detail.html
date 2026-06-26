@@ -41,7 +41,7 @@
   <div class="stat-card green">
     <div class="stat-label">Created</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">
-      <time data-utc="{{ model.created_at.isoformat() }}">{{ model.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+      {{ model.created_at.strftime('%Y-%m-%d %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span>
     </div>
   </div>
 </div>
@@ -138,7 +138,7 @@
             </span>
           {% else %}—{% endif %}
         </td>
-        <td>{% if run.started_at %}<time data-utc="{{ run.started_at.isoformat() }}">{{ run.started_at.strftime('%Y-%m-%d %H:%M') }}</time>{% elif run.created_at %}<time data-utc="{{ run.created_at.isoformat() }}">{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</time>{% else %}—{% endif %}</td>
+        <td>{% if run.started_at %}{{ run.started_at.strftime('%Y-%m-%d %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span>{% elif run.created_at %}{{ run.created_at.strftime('%Y-%m-%d %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span>{% else %}—{% endif %}</td>
         <td><a href="/eval-jobs/{{ run.id }}" style="font-size:.82rem;">View report</a></td>
       </tr>
     {% else %}
@@ -171,7 +171,7 @@
         <td>{{ dmeta.get('action', '—') }}</td>
         <td>{{ dmeta.get('actor') or '—' }}</td>
         <td>{{ dep.rollback_model_version_id or '—' }}</td>
-        <td>{% if dep.deployed_at %}<time data-utc="{{ dep.deployed_at.isoformat() }}">{{ dep.deployed_at.strftime('%Y-%m-%d %H:%M') }}</time>{% else %}—{% endif %}</td>
+        <td>{% if dep.deployed_at %}{{ dep.deployed_at.strftime('%Y-%m-%d %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
       <tr><td colspan="7"><div class="empty-state">No deployments for this model.</div></td></tr>
