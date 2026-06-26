@@ -188,6 +188,15 @@
 
   async function startVoice(options) {
     const opts = options || {};
+
+    const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    if (location.protocol !== "https:" && !isLocalhost) {
+      const msg = "Microphone access requires HTTPS. Open this page over https:// or add the origin to Chrome's insecure-origins allowlist (chrome://flags/#unsafely-treat-insecure-origin-as-secure).";
+      setStatus(msg, "error");
+      showToast("error", msg, "HTTPS required");
+      return;
+    }
+
     clearReconnectTimer();
     manualDisconnect = false;
     startButton.disabled = true;
@@ -317,8 +326,13 @@
         }
       }
       console.error(error);
-      setStatus(error.message, "error");
-      showToast("error", error.message || "Could not start the voice runtime.", "Voice start failed");
+      const userMsg = (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")
+        ? "Microphone permission denied. Allow microphone access in the browser, or use HTTPS."
+        : (error.name === "NotSupportedError" || error.name === "NotFoundError")
+          ? "No microphone found or microphone API unavailable. HTTPS is required for microphone access."
+          : (error.message || "Could not start the voice runtime.");
+      setStatus(userMsg, "error");
+      showToast("error", userMsg, "Voice start failed");
       resetVoiceControls(false);
     }
   }
