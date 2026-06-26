@@ -35,7 +35,7 @@
   <div class="stat-card orange">
     <div class="stat-label">Started</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">
-      {{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '—' }}
+      {% if job.started_at %}<time data-utc="{{ job.started_at.isoformat() }}">{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</time>{% else %}—{% endif %}
     </div>
   </div>
   <div class="stat-card green">
