@@ -124,27 +124,19 @@
       );
     },
 
-    /** tarih/saat — ISO string'i tarayıcının yerel saatine çevirir */
+    /** tarih/saat — panel genelindeki yerel saat biçimini kullanır */
     datetime: function (d, type) {
       if (type !== "display") return d;
       if (!d || d === "—") return '<span style="opacity:.4;">—</span>';
-      var dt = new Date(d);
-      if (isNaN(dt.getTime())) return '<span class="td-mono" style="font-size:.8rem;opacity:.7;">' + esc(d) + "</span>";
-      var offsetMin = -dt.getTimezoneOffset();
-      var sign = offsetMin >= 0 ? "+" : "-";
-      var absMin = Math.abs(offsetMin);
-      var oh = String(Math.floor(absMin / 60)).padStart(2, "0");
-      var om = String(absMin % 60).padStart(2, "0");
-      var tzLabel = "UTC" + sign + oh + ":" + om;
-      var local = dt.toLocaleString("en-GB", {
-        day: "2-digit", month: "short",
-        hour: "2-digit", minute: "2-digit",
-        hour12: false,
-      });
+      var formatted = window.formatPanelDateTime
+        ? window.formatPanelDateTime(d)
+        : null;
+      if (!formatted)
+        return '<span class="td-mono" style="font-size:.8rem;opacity:.7;">' + esc(d) + "</span>";
       return (
-        '<span class="td-mono" style="font-size:.8rem;opacity:.8;">' +
-        esc(local) +
-        ' <span style="opacity:.45;font-size:.72rem;">' + esc(tzLabel) + "</span>" +
+        '<span class="panel-datetime">' +
+        '<span class="panel-datetime-value">' + esc(formatted.local) + "</span> " +
+        '<span class="panel-datetime-zone">' + esc(formatted.timezone) + "</span>" +
         "</span>"
       );
     },
