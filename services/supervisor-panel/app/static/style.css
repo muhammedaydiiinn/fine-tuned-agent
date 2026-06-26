@@ -571,6 +571,15 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .td-center   { text-align: center; }
 .td-truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.panel-datetime {
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  white-space: nowrap;
+}
+
+.panel-datetime-value { opacity: .8; }
+.panel-datetime-zone  { opacity: .45; font-size: .72rem; }
+
 /* ─── Badges ─────────────────────────────────────────────────────────── */
 .badge {
   display: inline-flex;

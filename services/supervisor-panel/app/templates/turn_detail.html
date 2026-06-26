@@ -86,7 +86,7 @@
         <td class="td-truncate">{{ (c.corrected_agent_response or "—")[:55] }}</td>
         <td class="td-center">{{ '+' if c.apply_immediately else '—' }}</td>
         <td class="td-center">{{ '+' if c.send_to_training else '—' }}</td>
-        <td class="td-muted">{{ c.created_at.strftime('%d.%m %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span></td>
+        <td class="td-muted"><time class="panel-datetime" data-panel-datetime datetime="{{ c.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ c.created_at.strftime('%d.%m %H:%M') }} UTC</time></td>
       </tr>
       {% endfor %}
       </tbody>

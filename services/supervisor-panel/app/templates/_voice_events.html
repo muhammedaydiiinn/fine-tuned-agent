@@ -12,7 +12,11 @@
       {% if item.payload_json and item.payload_json.get('text') %}
       <span class="voice-event-detail">{{ item.payload_json.get('text') }}</span>
       {% endif %}
-      <time>{{ item.created_at.strftime('%H:%M:%S') if item.created_at else '—' }} <span style="font-size:.75rem;opacity:.5;">GMT</span></time>
+      {% if item.created_at %}
+      <time class="panel-datetime" data-panel-datetime datetime="{{ item.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ item.created_at.strftime('%d.%m.%Y %H:%M') }} UTC</time>
+      {% else %}
+      <time>—</time>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
