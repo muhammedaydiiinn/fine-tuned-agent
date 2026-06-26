@@ -8,13 +8,14 @@ Each service keeps its tests next to its own code. The root script is the single
 bash scripts/run_unit_tests.sh
 ```
 
-Runs five suites in order:
+Runs six suites in order:
 
 | Suite | Runner | Path |
 |-------|--------|------|
 | agent-backend | pytest | `services/agent-backend/tests/` |
 | voice-runtime | pytest | `services/voice-runtime/tests/` |
 | training-worker | pytest | `services/training-worker/tests/` |
+| eval-worker | pytest | `services/eval-worker/tests/` |
 | supervisor-panel | pytest | `services/supervisor-panel/tests/` |
 | supervisor-panel (JS) | node --test | `services/supervisor-panel/tests/node/` |
 

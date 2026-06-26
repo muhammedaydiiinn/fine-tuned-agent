@@ -11,6 +11,13 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from db import get_db
+from job_lifecycle import (
+    PROCESSING_QUEUE_NAME,
+    QUEUE_NAME,
+    is_terminal_status,
+    next_version_name,
+    requeue_interrupted_jobs,
+)
 from jobs import artifacts, build_dataset, merge_model, model_registration, train_lora
 from models import Deployment, EvalRun, ModelVersion, TrainingCandidate, TrainingJob
 
@@ -22,7 +29,6 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("redis").setLevel(logging.WARNING)
 logger = logging.getLogger("training-worker")
 
-QUEUE_NAME = "agent:training_jobs"
 POLL_INTERVAL = 5
 
 
@@ -55,28 +61,123 @@ def _active_model(db: Session) -> ModelVersion | None:
     return db.query(ModelVersion).filter(ModelVersion.id == deployment.model_version_id).first()
 
 
-def _next_version_name(parent_name: str, job_id: int) -> tuple[str, str]:
-    """Derive next version name by incrementing the trailing integer.
+def _queue_quality_eval(
+    db: Session,
+    *,
+    job: TrainingJob,
+    model: ModelVersion,
+    artifact_sha256: str,
+    artifact_root: str,
+    log_path: str,
+) -> int:
+    """Create and enqueue one eval run, releasing the batch on enqueue failure."""
+    existing_run = (
+        db.query(EvalRun)
+        .filter(EvalRun.model_version_id == model.id)
+        .order_by(EvalRun.id.desc())
+        .first()
+    )
+    if existing_run:
+        return existing_run.id
 
-    Returns (new_version_name, base_label) where base_label is the parent name.
-    Examples:
-        fine-tuned-agent-v14 → fine-tuned-agent-v15
-        fine-tuned-agent-v14-ft-3 → fine-tuned-agent-v15 (uses last digit segment)
-    Falls back to <parent>-ft-<job_id> if no trailing integer is found.
-    """
-    import re
-    m = re.search(r"^(.*?)[-_]v(\d+)(?:[-_].*)?$", parent_name)
-    if m:
-        prefix = m.group(1)
-        num = int(m.group(2)) + 1
-        return f"{prefix}-v{num}", parent_name
-    return f"{parent_name}-ft-{job_id}", parent_name
+    serving = (model.metadata_json or {}).get("serving") or {}
+    deployment_evidence = {
+        "artifact_sha256": artifact_sha256,
+        "artifact_root": artifact_root,
+        "serving_target": serving,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+    }
+    eval_run = EvalRun(
+        model_version_id=model.id,
+        status="pending",
+        metrics_json={"deployment_evidence": deployment_evidence},
+        progress_current=0,
+        progress_total=15,
+    )
+    db.add(eval_run)
+    db.commit()
+    db.refresh(eval_run)
+    try:
+        import uuid as _uuid
+        queue = redis.from_url(settings.redis_url, decode_responses=True)
+        queue.rpush(
+            "agent:eval_jobs",
+            json.dumps({
+                "job_id": str(_uuid.uuid4()),
+                "job_type": "run_eval",
+                "payload": {
+                    "eval_run_id": eval_run.id,
+                    "model_version_id": model.id,
+                },
+            }),
+        )
+        _log(log_path, f"quality check queued — eval_run_id={eval_run.id}")
+    except Exception as exc:
+        eval_run.status = "failed"
+        eval_run.error_message = f"Failed to enqueue quality check: {exc}"[:1000]
+        model.eval_status = "failed"
+        metadata = dict(model.metadata_json or {})
+        metadata["lifecycle_status"] = "candidate"
+        metadata["eval_enqueue_error"] = str(exc)[:1000]
+        model.metadata_json = metadata
+        db.query(TrainingCandidate).filter(
+            TrainingCandidate.training_job_id == job.id,
+            TrainingCandidate.model_version_id.is_(None),
+        ).update({"training_job_id": None}, synchronize_session="fetch")
+        db.commit()
+        _log(log_path, f"quality check enqueue failed — {exc}")
+    return eval_run.id
 
 
 def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
     job = db.query(TrainingJob).filter(TrainingJob.id == job_db_id).first()
     if not job:
         logger.error("TrainingJob id=%d not found in DB", job_db_id)
+        return
+    if is_terminal_status(job.status):
+        logger.info(
+            "TrainingJob id=%d is terminal (%s); skipping duplicate delivery",
+            job_db_id,
+            job.status,
+        )
+        return
+    if job.model_version_id is not None:
+        model = db.query(ModelVersion).filter(ModelVersion.id == job.model_version_id).first()
+        if not model:
+            raise ValueError(
+                f"TrainingJob id={job_db_id} references missing ModelVersion id={job.model_version_id}"
+            )
+        log_path = job.logs_path or str(
+            Path(settings.data_dir) / "training_logs" / f"{job_db_id}.log"
+        )
+        artifact = artifacts.directory_manifest(model.merged_path)
+        eval_run_id = _queue_quality_eval(
+            db,
+            job=job,
+            model=model,
+            artifact_sha256=artifact["sha256"],
+            artifact_root=model.merged_path,
+            log_path=log_path,
+        )
+        output = dict(job.output_json or {})
+        output.update({
+            "model_version_id": model.id,
+            "eval_run_id": eval_run_id,
+            "version_name": model.version_name,
+        })
+        _update_job(
+            db,
+            job,
+            status="completed",
+            finished_at=datetime.now(timezone.utc),
+            progress_current=100,
+            output_json=output,
+        )
+        logger.warning(
+            "Recovered training job after model commit: job_id=%d model_id=%d",
+            job_db_id,
+            model.id,
+        )
         return
 
     dataset_version = payload.get("dataset_version", f"ds-job{job_db_id}")
@@ -110,7 +211,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             parent_model_id = None
             base_model_path = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
 
-    new_version_name, _ = _next_version_name(parent_version_name, job_db_id)
+    new_version_name = next_version_name(db, parent_version_name, job_db_id)
 
     dataset_path = str(Path(settings.data_dir) / "datasets" / f"{dataset_version}.jsonl")
     adapter_path = str(Path(settings.model_dir) / "adapters" / new_version_name)
@@ -263,7 +364,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                         "model_name": (
                             new_version_name
                             if settings.training_mode == "mock"
-                            else settings.candidate_model_name
+                            else new_version_name
                         ),
                         "slot": "mock" if settings.training_mode == "mock" else "green",
                     },
@@ -294,58 +395,16 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
         job.model_version_id = model_version_id
         db.commit()
 
-        # Auto-trigger quality eval (both mock and real mode)
-        eval_run_id = None
-        deployment_evidence = {
-            "artifact_sha256": artifact_manifest["merged"].get("sha256", ""),
-            "artifact_root": merged_path,
-            "serving_target": {
-                "mode": "mock" if settings.training_mode == "mock" else "real",
-                "base_url": (
-                    ""
-                    if settings.training_mode == "mock"
-                    else settings.candidate_vllm_base_url
-                ),
-                "model_name": (
-                    new_version_name
-                    if settings.training_mode == "mock"
-                    else settings.candidate_model_name
-                ),
-                "slot": "mock" if settings.training_mode == "mock" else "green",
-            },
-            "captured_at": datetime.now(timezone.utc).isoformat(),
-        }
-        eval_run = EvalRun(
-            model_version_id=model_version_id,
-            status="pending",
-            metrics_json={"deployment_evidence": deployment_evidence},
-            progress_current=0,
-            progress_total=15,
+        # Auto-trigger quality eval (both mock and real mode).
+        model = db.query(ModelVersion).filter(ModelVersion.id == model_version_id).first()
+        eval_run_id = _queue_quality_eval(
+            db,
+            job=job,
+            model=model,
+            artifact_sha256=artifact_manifest["merged"].get("sha256", ""),
+            artifact_root=merged_path,
+            log_path=log_path,
         )
-        db.add(eval_run)
-        db.commit()
-        db.refresh(eval_run)
-        eval_run_id = eval_run.id
-        try:
-            import uuid as _uuid
-            queue = redis.from_url(settings.redis_url, decode_responses=True)
-            queue.rpush(
-                "agent:eval_jobs",
-                json.dumps({
-                    "job_id": str(_uuid.uuid4()),
-                    "job_type": "run_eval",
-                    "payload": {
-                        "eval_run_id": eval_run.id,
-                        "model_version_id": model_version_id,
-                    },
-                }),
-            )
-            _log(log_path, f"quality check queued — eval_run_id={eval_run.id}")
-        except Exception as exc:
-            eval_run.status = "failed"
-            eval_run.error_message = f"Failed to enqueue quality check: {exc}"[:1000]
-            db.commit()
-            _log(log_path, f"quality check enqueue failed — {exc}")
 
         _log(
             log_path,
@@ -417,14 +476,20 @@ HANDLERS = {
 
 def main():
     r = redis.from_url(settings.redis_url, decode_responses=True)
+    recovered = requeue_interrupted_jobs(r)
     logger.info("Training worker started. Queue: %s | mode: %s", QUEUE_NAME, settings.training_mode)
+    if recovered:
+        logger.warning("Recovered %d interrupted training job(s)", recovered)
 
     while True:
-        item = r.blpop(QUEUE_NAME, timeout=POLL_INTERVAL)
-        if item is None:
+        raw = r.brpoplpush(
+            QUEUE_NAME,
+            PROCESSING_QUEUE_NAME,
+            timeout=POLL_INTERVAL,
+        )
+        if raw is None:
             continue
 
-        _, raw = item
         try:
             message = json.loads(raw)
             job_type = message.get("job_type", "")
@@ -449,6 +514,8 @@ def main():
 
         except Exception as exc:
             logger.error("Message processing error: %s", exc)
+        else:
+            r.lrem(PROCESSING_QUEUE_NAME, 1, raw)
 
 
 if __name__ == "__main__":

@@ -51,6 +51,9 @@ cp .env.example .env
 # Servisleri başlat
 docker compose up -d postgres redis agent-backend supervisor-panel
 
+# Mock training/eval worker'larını da başlat
+docker compose --profile workers up -d training-worker eval-worker
+
 # Sağlık kontrolü
 curl http://localhost:8010/health
 # → {"status":"ok","db":true,"redis":true,"vllm_mode":"mock"}
@@ -291,8 +294,9 @@ docker compose up -d postgres redis agent-backend supervisor-panel
 # Ana servisler + vLLM
 docker compose --profile gpu up -d
 
-# Training ve eval worker'ları da başlat
-docker compose --profile gpu --profile workers up -d
+# Gerçek GPU training + eval worker'ları
+docker compose --profile gpu-workers --profile workers \
+  up -d training-worker-gpu eval-worker
 ```
 
 ### Servis Durumu
@@ -448,5 +452,6 @@ Kapsam, bağımlılıklar ve kabul kriterleri için
 
 - Veritabanı hâlâ `create_all` kullanıyor. M5'in `eval_runs` kolonları başlangıçta idempotent
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ile yükseltiliyor; uzun vadede Alembic'e geçilmeli.
-- `training-worker` ve `eval-worker` `--profile workers` ile başlatılır.
+- Lokal mock worker `--profile workers`, gerçek GPU training worker ise
+  `--profile gpu-workers` ile başlatılır.
 - vLLM GPU profili: `docker compose --profile gpu up -d`

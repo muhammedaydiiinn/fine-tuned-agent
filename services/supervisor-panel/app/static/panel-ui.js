@@ -3,6 +3,16 @@
 
   const root = document.querySelector("[data-toast-root]");
   if (!root) return;
+  const confirmModal = document.querySelector("[data-confirm-modal]");
+  const confirmTitle = confirmModal?.querySelector("[data-confirm-title]");
+  const confirmMessage = confirmModal?.querySelector("[data-confirm-message]");
+  const confirmSubmit = confirmModal?.querySelector("[data-confirm-submit]");
+  const confirmIcon = confirmModal?.querySelector("[data-confirm-icon]");
+  const confirmCancelButtons = confirmModal
+    ? Array.from(confirmModal.querySelectorAll("[data-confirm-cancel]"))
+    : [];
+  let activeConfirmation = null;
+  let previousFocus = null;
 
   const ICONS = {
     success: "fa-solid fa-circle-check",
@@ -124,6 +134,54 @@
     return text.slice(0, 220);
   }
 
+  function closeConfirmation(confirmed) {
+    if (!confirmModal || confirmModal.hidden) return;
+    const pending = activeConfirmation;
+    activeConfirmation = null;
+    confirmModal.dataset.state = "closing";
+    document.body.classList.remove("modal-open");
+
+    window.setTimeout(() => {
+      confirmModal.hidden = true;
+      confirmModal.dataset.state = "";
+      if (previousFocus && typeof previousFocus.focus === "function") {
+        previousFocus.focus();
+      }
+      previousFocus = null;
+      if (confirmed && pending) pending.issueRequest(true);
+    }, 140);
+  }
+
+  function openConfirmation(event) {
+    if (!confirmModal || !confirmTitle || !confirmMessage || !confirmSubmit) {
+      return false;
+    }
+    const detail = event.detail || {};
+    const source = detail.elt;
+    const question = String(detail.question || "").trim();
+    if (!question || !source) return false;
+
+    event.preventDefault();
+    activeConfirmation = detail;
+    previousFocus = document.activeElement;
+
+    const kind = source.dataset.confirmKind === "danger" ? "danger" : "warning";
+    confirmTitle.textContent = source.dataset.confirmTitle || "Confirm action";
+    confirmMessage.textContent = question;
+    confirmSubmit.textContent = source.dataset.confirmLabel || "Confirm";
+    confirmSubmit.className = `btn ${kind === "danger" ? "btn-danger" : "btn-warning"}`;
+    confirmIcon.dataset.kind = kind;
+
+    confirmModal.hidden = false;
+    confirmModal.dataset.state = "opening";
+    document.body.classList.add("modal-open");
+    window.requestAnimationFrame(() => {
+      confirmModal.dataset.state = "open";
+      confirmSubmit.focus();
+    });
+    return true;
+  }
+
   document.addEventListener("DOMContentLoaded", showFlashToast);
   document.body.addEventListener("panel-toast", (event) => showToast(event.detail));
 
@@ -185,8 +243,21 @@
     showToast({ kind: "error", message });
   });
 
+  document.body.addEventListener("htmx:confirm", openConfirmation);
+  confirmCancelButtons.forEach((button) => {
+    button.addEventListener("click", () => closeConfirmation(false));
+  });
+  confirmSubmit?.addEventListener("click", () => closeConfirmation(true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && confirmModal && !confirmModal.hidden) {
+      event.preventDefault();
+      closeConfirmation(false);
+    }
+  });
+
   window.agentUI = Object.assign(window.agentUI || {}, {
     showToast,
     convertInlineAlerts,
+    closeConfirmation,
   });
 })();

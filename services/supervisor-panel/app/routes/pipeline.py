@@ -20,6 +20,7 @@ from app.models import (
     TrainingCandidate,
     TrainingJob,
 )
+from app.pipeline_state import select_actionable_candidate
 from app.ui_feedback import toast_fragment, toast_redirect
 
 router = APIRouter()
@@ -76,15 +77,17 @@ def _pipeline_state(db: DBSession) -> dict:
     # Look for the most recent ModelVersion that is eval-completed but not deployed
     candidate_model = None
     if not running_job and not running_eval:
-        candidate_model = (
+        inactive_models = (
             db.query(ModelVersion)
             .filter(
                 ModelVersion.deployment_status == "inactive",
                 ModelVersion.eval_status.in_(("passed", "failed")),
             )
             .order_by(ModelVersion.id.desc())
-            .first()
+            .limit(50)
+            .all()
         )
+        candidate_model = select_actionable_candidate(inactive_models)
 
     # Latest eval for the candidate model
     candidate_eval = None

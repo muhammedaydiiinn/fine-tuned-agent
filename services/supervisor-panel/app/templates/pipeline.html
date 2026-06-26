@@ -19,10 +19,13 @@
       <span class="live-dot" style="margin-right:6px;"></span>Live Model
     </span>
     {% if active_deployment %}
-    <form hx-post="/pipeline/rollback" hx-target="#pipeline-result" hx-swap="innerHTML">
+    <form hx-post="/pipeline/rollback" hx-target="#pipeline-result" hx-swap="innerHTML"
+          hx-confirm="Roll back to the previous model version?"
+          data-confirm-title="Roll back live model?"
+          data-confirm-label="Roll Back"
+          data-confirm-kind="warning">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-      <button class="btn btn-outline btn-sm" type="submit"
-              onclick="return confirm('Roll back to the previous model version?')">
+      <button class="btn btn-outline btn-sm" type="submit">
         <i class="fa-solid fa-rotate-left"></i> Roll Back
       </button>
     </form>
@@ -171,10 +174,13 @@
           </button>
         </form>
         <form hx-post="/pipeline/{{ candidate_model.version_name }}/discard"
-              hx-target="#pipeline-result" hx-swap="innerHTML">
+              hx-target="#pipeline-result" hx-swap="innerHTML"
+              hx-confirm="Discard this version? Its training batch will return to the active queue."
+              data-confirm-title="Discard {{ candidate_model.version_name }}?"
+              data-confirm-label="Discard Version"
+              data-confirm-kind="danger">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-          <button class="btn btn-outline" type="submit"
-                  onclick="return confirm('Discard this version? The training batch will be released.')">
+          <button class="btn btn-outline" type="submit">
             <i class="fa-solid fa-xmark"></i> Discard
           </button>
         </form>
