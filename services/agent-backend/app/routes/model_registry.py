@@ -653,7 +653,7 @@ def discard_model(version_name: str, db: DBSession = Depends(get_db)):
     metadata["lifecycle_status"] = "retired"
     metadata["retired_at"] = datetime.now(timezone.utc).isoformat()
     model.metadata_json = metadata
-    model.deployment_status = "inactive"
+    model.deployment_status = "retired"
     db.commit()
     db.refresh(model)
     logger.info(

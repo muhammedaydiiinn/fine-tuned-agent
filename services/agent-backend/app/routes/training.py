@@ -258,20 +258,22 @@ def create_training_job(
             parent_version_name = parent_mv.version_name
 
     if body.candidate_ids:
-        # Explicit candidate list — validate all exist and are approved
+        # Explicit candidate list — validate all exist, are approved, and are not locked or baked
         candidate_ids = sorted(set(body.candidate_ids))
-        approved_count = (
+        eligible_count = (
             db.query(TrainingCandidate)
             .filter(
                 TrainingCandidate.id.in_(candidate_ids),
                 TrainingCandidate.approved == True,  # noqa: E712
+                TrainingCandidate.training_job_id.is_(None),
+                TrainingCandidate.model_version_id.is_(None),
             )
             .count()
         )
-        if approved_count != len(candidate_ids):
+        if eligible_count != len(candidate_ids):
             raise HTTPException(
                 status_code=422,
-                detail="Every requested candidate must exist and be approved",
+                detail="Every requested candidate must exist, be approved, and not be locked into another job",
             )
         input_data["candidate_ids"] = candidate_ids
     else:
