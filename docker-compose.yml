@@ -11,12 +11,10 @@ services:
     image: nginx:alpine
     ports:
       - "80:80"
-      # Uncomment when SSL certificates are mounted (see infra/nginx/nginx.conf):
-      # - "443:443"
+      - "443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # Uncomment to mount SSL certs for HTTPS:
-      # - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - agent-backend
       - supervisor-panel
