@@ -19,25 +19,6 @@
       const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
       document.body.setAttribute("hx-headers", JSON.stringify({"X-CSRF-Token": token}));
     });
-    function applyLocalTimes(root) {
-      (root || document).querySelectorAll("time[data-utc]").forEach(el => {
-        const iso = el.getAttribute("data-utc");
-        if (!iso) return;
-        const d = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z");
-        if (isNaN(d)) return;
-        const fmt = el.getAttribute("data-fmt") || "datetime";
-        if (fmt === "time") {
-          el.textContent = d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
-        } else if (fmt === "short") {
-          el.textContent = d.toLocaleString([], {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"});
-        } else {
-          el.textContent = d.toLocaleString([], {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
-        }
-        el.title = d.toLocaleString();
-      });
-    }
-    document.addEventListener("DOMContentLoaded", () => applyLocalTimes());
-    document.addEventListener("htmx:afterSwap", e => applyLocalTimes(e.target));
   </script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js" defer></script>
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js" defer></script>

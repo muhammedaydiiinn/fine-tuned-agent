@@ -21,7 +21,7 @@
 </div>
 <div class="info-card">
   <div class="info-label">Started</div>
-  <div class="info-value" style="font-size:14px;font-weight:500;"><time data-utc="{{ session.created_at.isoformat() }}">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }}</time></div>
+  <div class="info-value" style="font-size:14px;font-weight:500;">{{ session.created_at.strftime('%d.%m.%Y %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span></div>
 </div>
 {% if voice_health is defined and voice_health.get('voice_turns') %}
 <div class="info-card">

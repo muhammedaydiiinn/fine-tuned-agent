@@ -86,7 +86,7 @@
         <td class="td-truncate">{{ (c.corrected_agent_response or "—")[:55] }}</td>
         <td class="td-center">{{ '+' if c.apply_immediately else '—' }}</td>
         <td class="td-center">{{ '+' if c.send_to_training else '—' }}</td>
-        <td class="td-muted"><time data-utc="{{ c.created_at.isoformat() }}" data-fmt="short">{{ c.created_at.strftime('%d.%m %H:%M') }}</time></td>
+        <td class="td-muted">{{ c.created_at.strftime('%d.%m %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span></td>
       </tr>
       {% endfor %}
       </tbody>

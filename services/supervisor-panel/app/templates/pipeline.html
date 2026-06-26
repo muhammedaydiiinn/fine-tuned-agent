@@ -41,7 +41,7 @@
       {% if active_deployment and active_deployment.deployed_at %}
       <div class="stat-card">
         <div class="stat-label">Deployed</div>
-        <div class="stat-value" style="font-size:.85rem;"><time data-utc="{{ active_deployment.deployed_at.isoformat() }}">{{ active_deployment.deployed_at.strftime('%Y-%m-%d %H:%M') }}</time></div>
+        <div class="stat-value" style="font-size:.85rem;">{{ active_deployment.deployed_at.strftime('%Y-%m-%d %H:%M') }} <span style="font-size:.75rem;opacity:.5;">GMT</span></div>
       </div>
       {% endif %}
       {% if active_quality_score is not none %}
