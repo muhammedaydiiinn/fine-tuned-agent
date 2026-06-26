@@ -131,6 +131,112 @@ def _assert_deployable(
     return run
 
 
+def _approve_model(db: DBSession, model: ModelVersion) -> EvalRun:
+    """Apply approval invariants without committing the surrounding transaction."""
+    artifact = model_runtime.inspect_artifact(model.merged_path)
+    if not artifact["valid"]:
+        raise HTTPException(status_code=422, detail=artifact["error"])
+    if model.eval_status != "passed":
+        raise HTTPException(status_code=409, detail="Only models with passed eval can be approved")
+    run = _latest_gate_run(db, model.id)
+    gate = (run.metrics_json or {}).get("deployment_gate") if run else None
+    if not isinstance(gate, dict) or not gate.get("passed"):
+        raise HTTPException(status_code=409, detail="Deployment gate has not passed")
+    if gate.get("policy_version") != CURRENT_EVAL_POLICY_VERSION:
+        raise HTTPException(status_code=409, detail="Evaluation gate policy is obsolete")
+    _assert_evidence_matches(model, run, artifact)
+    metadata = _metadata(model)
+    metadata["artifact_manifest"] = artifact
+    metadata["lifecycle_status"] = "approved"
+    metadata["approved_at"] = datetime.now(timezone.utc).isoformat()
+    metadata["approved_eval_run_id"] = run.id
+    model.metadata_json = metadata
+    db.flush()
+    return run
+
+
+def _deploy_approved_model(
+    db: DBSession,
+    model: ModelVersion,
+    body: DeploymentRequest,
+    *,
+    action: str,
+) -> Deployment:
+    """Deploy one approved model and atomically update registry lifecycle state."""
+    gate_run = _assert_deployable(db, model, body.environment)
+    target = model_runtime.serving_target(model)
+    smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
+    health = model_runtime.check_serving_target(target, smoke_messages=smoke)
+    if not health.get("healthy"):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
+        )
+
+    _lock_environment(db, body.environment)
+    current = (
+        db.query(Deployment)
+        .filter(
+            Deployment.environment == body.environment,
+            Deployment.status == "active",
+        )
+        .with_for_update()
+        .order_by(Deployment.deployed_at.desc(), Deployment.id.desc())
+        .first()
+    )
+    previous_model_id = current.model_version_id if current else None
+    if current and current.model_version_id == model.id:
+        raise HTTPException(status_code=409, detail="Model is already active")
+    if current and target["mode"] != "mock":
+        current_slot = model_runtime.serving_target(current.model_version)["slot"]
+        if current_slot == target["slot"]:
+            raise HTTPException(
+                status_code=409,
+                detail="Deployment target must use the inactive blue/green slot",
+            )
+
+    now = datetime.now(timezone.utc)
+    deployment = Deployment(
+        model_version_id=model.id,
+        environment=body.environment,
+        status="active",
+        deployed_at=now,
+        rollback_model_version_id=previous_model_id,
+        metadata_json={
+            "action": action,
+            "eval_run_id": gate_run.id,
+            "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
+            "serving_health": health,
+            "serving_target": target,
+            "actor": body.actor,
+            "deployed_at": now.isoformat(),
+        },
+    )
+    affected_models = [model]
+    if current:
+        current.status = "superseded"
+        affected_models.append(current.model_version)
+
+    metadata = _metadata(model)
+    metadata["deployed_at"] = now.isoformat()
+    model.metadata_json = metadata
+    db.add(deployment)
+    db.flush()
+    for affected_model in {item.id: item for item in affected_models}.values():
+        _sync_model_deployment_state(db, affected_model)
+    _bake_candidates_for_model(db, model.id)
+    db.commit()
+    db.refresh(deployment)
+    logger.info(
+        "Model deployment completed: action=%s version=%s environment=%s previous_model_id=%s",
+        action,
+        model.version_name,
+        body.environment,
+        previous_model_id,
+    )
+    return deployment
+
+
 @router.get("/models", response_model=list[ModelVersionResponse])
 def list_models(
     lifecycle_status: str | None = None,
@@ -273,24 +379,7 @@ def configure_serving_target(
 @router.post("/models/{version_name}/approve", response_model=ModelVersionResponse)
 def approve_model(version_name: str, db: DBSession = Depends(get_db)):
     model = _model_or_404(db, version_name)
-    artifact = model_runtime.inspect_artifact(model.merged_path)
-    if not artifact["valid"]:
-        raise HTTPException(status_code=422, detail=artifact["error"])
-    if model.eval_status != "passed":
-        raise HTTPException(status_code=409, detail="Only models with passed eval can be approved")
-    run = _latest_gate_run(db, model.id)
-    gate = (run.metrics_json or {}).get("deployment_gate") if run else None
-    if not isinstance(gate, dict) or not gate.get("passed"):
-        raise HTTPException(status_code=409, detail="Deployment gate has not passed")
-    if gate.get("policy_version") != CURRENT_EVAL_POLICY_VERSION:
-        raise HTTPException(status_code=409, detail="Evaluation gate policy is obsolete")
-    _assert_evidence_matches(model, run, artifact)
-    metadata = _metadata(model)
-    metadata["artifact_manifest"] = artifact
-    metadata["lifecycle_status"] = "approved"
-    metadata["approved_at"] = datetime.now(timezone.utc).isoformat()
-    metadata["approved_eval_run_id"] = run.id
-    model.metadata_json = metadata
+    _approve_model(db, model)
     db.commit()
     db.refresh(model)
     return model
@@ -307,81 +396,7 @@ def deploy_model(
     db: DBSession = Depends(get_db),
 ):
     model = _model_or_404(db, version_name)
-    gate_run = _assert_deployable(db, model, body.environment)
-    target = model_runtime.serving_target(model)
-    smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
-    health = model_runtime.check_serving_target(target, smoke_messages=smoke)
-    if not health.get("healthy"):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
-        )
-
-    _lock_environment(db, body.environment)
-    current = (
-        db.query(Deployment)
-        .filter(
-            Deployment.environment == body.environment,
-            Deployment.status == "active",
-        )
-        .with_for_update()
-        .order_by(Deployment.deployed_at.desc(), Deployment.id.desc())
-        .first()
-    )
-    previous_model_id = current.model_version_id if current else None
-    if current and current.model_version_id == model.id:
-        raise HTTPException(status_code=409, detail="Model is already active")
-    if current and target["mode"] != "mock":
-        current_slot = model_runtime.serving_target(current.model_version)["slot"]
-        if current_slot == target["slot"]:
-            raise HTTPException(
-                status_code=409,
-                detail="Deployment target must use the inactive blue/green slot",
-            )
-
-    now = datetime.now(timezone.utc)
-    deployment = Deployment(
-        model_version_id=model.id,
-        environment=body.environment,
-        status="active",
-        deployed_at=now,
-        rollback_model_version_id=previous_model_id,
-        metadata_json={
-            "action": "deploy",
-            "eval_run_id": gate_run.id,
-            "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
-            "serving_health": health,
-            "serving_target": target,
-            "actor": body.actor,
-            "deployed_at": now.isoformat(),
-        },
-    )
-    affected_models = [model]
-    if current:
-        current.status = "superseded"
-        affected_models.append(current.model_version)
-
-    metadata = _metadata(model)
-    metadata["deployed_at"] = now.isoformat()
-    model.metadata_json = metadata
-    db.add(deployment)
-    db.flush()
-    for affected_model in {item.id: item for item in affected_models}.values():
-        _sync_model_deployment_state(db, affected_model)
-
-    # Bake candidates: mark all candidates that were locked into the job that
-    # produced this model version as consumed (model_version_id set).
-    _bake_candidates_for_model(db, model.id)
-
-    db.commit()
-    db.refresh(deployment)
-    logger.info(
-        "Model deployed: version=%s environment=%s previous_model_id=%s",
-        model.version_name,
-        body.environment,
-        previous_model_id,
-    )
-    return deployment
+    return _deploy_approved_model(db, model, body, action="deploy")
 
 
 def _bake_candidates_for_model(db: DBSession, model_id: int) -> int:
@@ -523,100 +538,8 @@ def approve_and_deploy(
 ):
     """Combined approve + deploy for the Pipeline UI's 'Onayla & Yayınla' action."""
     model = _model_or_404(db, version_name)
-
-    # Approve step (same logic as /approve, no separate commit needed)
-    artifact = model_runtime.inspect_artifact(model.merged_path)
-    if not artifact["valid"]:
-        raise HTTPException(status_code=422, detail=artifact["error"])
-    if model.eval_status != "passed":
-        raise HTTPException(status_code=409, detail="Only models with passed eval can be approved")
-    run = _latest_gate_run(db, model.id)
-    gate = (run.metrics_json or {}).get("deployment_gate") if run else None
-    if not isinstance(gate, dict) or not gate.get("passed"):
-        raise HTTPException(status_code=409, detail="Deployment gate has not passed")
-    if gate.get("policy_version") != CURRENT_EVAL_POLICY_VERSION:
-        raise HTTPException(status_code=409, detail="Evaluation gate policy is obsolete")
-    _assert_evidence_matches(model, run, artifact)
-    metadata = _metadata(model)
-    metadata["artifact_manifest"] = artifact
-    metadata["lifecycle_status"] = "approved"
-    metadata["approved_at"] = datetime.now(timezone.utc).isoformat()
-    metadata["approved_eval_run_id"] = run.id
-    model.metadata_json = metadata
-    db.flush()
-
-    # Deploy step (reuse _assert_deployable which now sees lifecycle_status=approved)
-    gate_run = _assert_deployable(db, model, body.environment)
-    target = model_runtime.serving_target(model)
-    smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
-    health = model_runtime.check_serving_target(target, smoke_messages=smoke)
-    if not health.get("healthy"):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
-        )
-
-    _lock_environment(db, body.environment)
-    current = (
-        db.query(Deployment)
-        .filter(
-            Deployment.environment == body.environment,
-            Deployment.status == "active",
-        )
-        .with_for_update()
-        .order_by(Deployment.deployed_at.desc(), Deployment.id.desc())
-        .first()
-    )
-    previous_model_id = current.model_version_id if current else None
-    if current and current.model_version_id == model.id:
-        raise HTTPException(status_code=409, detail="Model is already active")
-    if current and target["mode"] != "mock":
-        current_slot = model_runtime.serving_target(current.model_version)["slot"]
-        if current_slot == target["slot"]:
-            raise HTTPException(
-                status_code=409,
-                detail="Deployment target must use the inactive blue/green slot",
-            )
-
-    now = datetime.now(timezone.utc)
-    deployment = Deployment(
-        model_version_id=model.id,
-        environment=body.environment,
-        status="active",
-        deployed_at=now,
-        rollback_model_version_id=previous_model_id,
-        metadata_json={
-            "action": "approve-and-deploy",
-            "eval_run_id": gate_run.id,
-            "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
-            "serving_health": health,
-            "serving_target": target,
-            "actor": body.actor,
-            "deployed_at": now.isoformat(),
-        },
-    )
-    affected_models = [model]
-    if current:
-        current.status = "superseded"
-        affected_models.append(current.model_version)
-
-    deploy_meta = _metadata(model)
-    deploy_meta["deployed_at"] = now.isoformat()
-    model.metadata_json = deploy_meta
-    db.add(deployment)
-    db.flush()
-    for affected_model in {item.id: item for item in affected_models}.values():
-        _sync_model_deployment_state(db, affected_model)
-    _bake_candidates_for_model(db, model.id)
-    db.commit()
-    db.refresh(deployment)
-    logger.info(
-        "Model approve-and-deploy: version=%s environment=%s previous_model_id=%s",
-        model.version_name,
-        body.environment,
-        previous_model_id,
-    )
-    return deployment
+    _approve_model(db, model)
+    return _deploy_approved_model(db, model, body, action="approve-and-deploy")
 
 
 @router.post(

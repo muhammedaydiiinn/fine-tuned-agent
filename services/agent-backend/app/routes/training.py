@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
+from app.core import model_runtime
 from app.core.candidate_builder import build_candidate_from_turn
 from app.db import get_db
 from app.models import Correction, Deployment, ModelVersion, TrainingCandidate, TrainingJob, Turn
@@ -254,6 +255,20 @@ def create_training_job(
             ModelVersion.id == parent_deployment.model_version_id
         ).first()
         if parent_mv:
+            parent_target = model_runtime.serving_target(parent_mv)
+            if (
+                parent_target["mode"] == "real"
+                and parent_target["base_url"].rstrip("/")
+                == settings.candidate_vllm_base_url.rstrip("/")
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Training is blocked because production currently occupies "
+                        "the candidate serving slot. Move production to an alternate "
+                        "blue/green slot before publishing another candidate."
+                    ),
+                )
             parent_model_version_id = parent_mv.id
             parent_version_name = parent_mv.version_name
 
@@ -333,16 +348,23 @@ def create_training_job(
         }
         enqueue_training_job("train_pipeline", payload)
     except Exception as exc:
-        logger.error(
-            "Enqueue failed AFTER commit — job_id=%d is orphaned in DB as pending. "
-            "Re-enqueue or discard manually. error=%s",
+        job.status = "failed"
+        job.error_message = f"Training queue unavailable: {exc}"[:1000]
+        db.query(TrainingCandidate).filter(
+            TrainingCandidate.training_job_id == job.id,
+            TrainingCandidate.model_version_id.is_(None),
+        ).update(
+            {"training_job_id": None},
+            synchronize_session="fetch",
+        )
+        db.commit()
+        logger.exception(
+            "Enqueue failed after job creation; job failed and candidate locks released: id=%d",
             job.id,
-            exc,
         )
         raise HTTPException(
             status_code=503,
-            detail=f"Training job #{job.id} created but could not be queued. "
-                   "Use Pipeline > Discard to release the batch, then retry.",
+            detail="Training queue is unavailable. Candidate data was released; retry safely.",
         ) from exc
 
     logger.info(

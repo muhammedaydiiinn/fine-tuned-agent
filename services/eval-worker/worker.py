@@ -11,6 +11,12 @@ from config import settings
 from db import get_db
 from evals import gate, run_eval
 from models import EvalRun, ModelVersion, TrainingCandidate, TrainingJob
+from queue_recovery import (
+    PROCESSING_QUEUE_NAME,
+    QUEUE_NAME,
+    is_terminal_status,
+    requeue_interrupted_jobs,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,7 +26,6 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("redis").setLevel(logging.WARNING)
 logger = logging.getLogger("eval-worker")
 
-QUEUE_NAME = "anruf:eval_jobs"
 POLL_INTERVAL = 5
 
 
@@ -83,6 +88,13 @@ def handle_eval(
     run = db.query(EvalRun).filter(EvalRun.id == eval_run_id).first()
     if not run:
         logger.error("EvalRun id=%d not found", eval_run_id)
+        return
+    if is_terminal_status(run.status):
+        logger.info(
+            "EvalRun id=%d is terminal (%s); skipping duplicate delivery",
+            eval_run_id,
+            run.status,
+        )
         return
     if run.model_version_id != model_version_id:
         _update_run(
@@ -223,14 +235,20 @@ HANDLERS = {"run_eval": handle_eval}
 
 def main() -> None:
     client = redis.from_url(settings.redis_url, decode_responses=True)
+    recovered = requeue_interrupted_jobs(client)
     logger.info("Eval worker started. Queue: %s", QUEUE_NAME)
+    if recovered:
+        logger.warning("Recovered %d interrupted eval job(s)", recovered)
 
     while True:
-        item = client.blpop(QUEUE_NAME, timeout=POLL_INTERVAL)
-        if item is None:
+        raw = client.brpoplpush(
+            QUEUE_NAME,
+            PROCESSING_QUEUE_NAME,
+            timeout=POLL_INTERVAL,
+        )
+        if raw is None:
             continue
 
-        _, raw = item
         try:
             message = json.loads(raw)
             job_type = message.get("job_type", "")
@@ -253,6 +271,8 @@ def main() -> None:
                 db.close()
         except Exception:
             logger.exception("Eval message processing failed")
+        else:
+            client.lrem(PROCESSING_QUEUE_NAME, 1, raw)
 
 
 if __name__ == "__main__":

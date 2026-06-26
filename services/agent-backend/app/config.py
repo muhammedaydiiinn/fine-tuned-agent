@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     vllm_mode: str = "mock"
     vllm_base_url: str = "http://vllm-server:8000/v1"
     vllm_model_name: str = "anrufblocker-v14"
+    candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     model_health_timeout_seconds: float = 15.0
     allow_mock_production_deploy: bool = False
 

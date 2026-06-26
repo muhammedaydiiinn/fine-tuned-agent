@@ -183,7 +183,9 @@ yapmaz.
 
 ### 2.7 `training-worker`
 
-LoRA fine-tune ve model merge işlerini Redis kuyruğundan alıp çalıştırır. `--profile workers` ile başlar. GPU gerektirir.
+LoRA fine-tune ve model merge işlerini Redis kuyruğundan alıp çalıştırır.
+Lokal mock servis `--profile workers`, gerçek GPU servisi `--profile gpu-workers`
+ile başlar.
 
 ---
 
@@ -569,6 +571,10 @@ docker compose --profile gpu up
 # Training + eval worker ekle
 docker compose --profile workers up
 
+# Gerçek GPU training worker + eval worker
+docker compose --profile gpu-workers --profile workers \
+  up -d training-worker-gpu eval-worker
+
 # Candidate model eval sunucusunu başlat
 docker compose --profile candidate-eval up -d vllm-candidate
 ```
@@ -579,6 +585,7 @@ docker compose --profile candidate-eval up -d vllm-candidate
 | `gpu` | + vllm-server |
 | `candidate-eval` | + vllm-candidate |
 | `workers` | + training-worker, eval-worker |
+| `gpu-workers` | + training-worker-gpu |
 
 ---
 
@@ -613,7 +620,11 @@ docker compose --profile candidate-eval up -d vllm-candidate
    atomik publish edilir
 3. Tek GPU hostta training-worker ve production vLLM'i durdur
 4. Candidate sunucusunu yeni artifact ile başlat veya yeniden oluştur:
-   `docker compose --profile candidate-eval up -d --force-recreate vllm-candidate`
+   ```bash
+   CANDIDATE_MODEL_NAME=<üretilen-versiyon> \
+     docker compose --profile candidate-eval \
+     up -d --force-recreate vllm-candidate
+   ```
 5. Candidate readiness ve `/v1/models` served-model kimliğini doğrula
 6. Model Registry'den candidate için gerçek quality check çalıştır
 7. Gate geçerse modeli approve et; inactive blue/green slot'a deploy et
@@ -622,6 +633,10 @@ docker compose --profile candidate-eval up -d vllm-candidate
 
 `current` dizininin değişmesi çalışan vLLM sürecini güncellemez. Restart/recreate
 adımı bilerek GPU kabul prosedürünün parçasıdır.
+
+Production deployment halen candidate endpoint'ini kullanıyorsa yeni training
+başlatılmaz. Aynı sabit artifact yolunun aktif modeli ezmesini önlemek için önce
+production trafiği diğer blue/green serving slot'una taşınmalıdır.
 
 ---
 

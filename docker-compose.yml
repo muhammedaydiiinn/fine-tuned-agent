@@ -222,15 +222,34 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  # ── Training worker (Milestone 4'te aktif edilecek) ─────────────────────────
-  # GPU reservation is required for TRAINING_MODE=real (QLoRA on Qwen3.5 9B).
-  # Training runs concurrently with vllm-server on the same A6000 48 GB GPU;
-  # vllm-server is capped at 0.60 (28.8 GB) to leave ~14 GB headroom for QLoRA.
+  # ── Training worker — local/mock profile (no GPU reservation) ───────────────
   training-worker:
     build:
       context: ./services/training-worker
     profiles:
       - workers
+    env_file: .env
+    volumes:
+      - ./models:/models
+      - ./data:/data
+    networks:
+      - anruf-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ── Training worker — real GPU profile ─────────────────────────────────────
+  # Start this service on the GPU host instead of training-worker:
+  # docker compose --profile gpu-workers up -d training-worker-gpu eval-worker
+  training-worker-gpu:
+    build:
+      context: ./services/training-worker
+    profiles:
+      - gpu-workers
     env_file: .env
     volumes:
       - ./models:/models

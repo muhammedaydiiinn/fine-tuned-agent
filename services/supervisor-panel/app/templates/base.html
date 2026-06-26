@@ -10,9 +10,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/style.css?v=14">
+  <link rel="stylesheet" href="/static/style.css?v=15">
   <script src="/static/htmx.min.js" defer></script>
-  <script src="/static/panel-ui.js?v=3" defer></script>
+  <script src="/static/panel-ui.js?v=4" defer></script>
   <!-- Send CSRF token on every HTMX mutating request -->
   <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -29,6 +29,24 @@
   {{ request.state.flash_toast | tojson if request.state.flash_toast else 'null' }}
 </script>
 <div class="toast-stack" data-toast-root aria-live="polite" aria-atomic="false"></div>
+<div class="confirm-modal" data-confirm-modal hidden>
+  <button class="confirm-modal-backdrop" type="button" data-confirm-cancel
+          aria-label="Close confirmation"></button>
+  <section class="confirm-modal-card" role="dialog" aria-modal="true"
+           aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+    <div class="confirm-modal-icon" data-confirm-icon aria-hidden="true">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <div class="confirm-modal-content">
+      <h2 id="confirm-modal-title" data-confirm-title>Confirm action</h2>
+      <p id="confirm-modal-message" data-confirm-message></p>
+      <div class="confirm-modal-actions">
+        <button class="btn btn-outline" type="button" data-confirm-cancel>Cancel</button>
+        <button class="btn btn-danger" type="button" data-confirm-submit>Confirm</button>
+      </div>
+    </div>
+  </section>
+</div>
 <div class="layout">
 
   <aside class="sidebar">
