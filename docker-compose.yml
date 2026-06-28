@@ -87,9 +87,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
-    # Lokal geliştirmede port açık; prod'da sadece nginx üzerinden erişilir
+    # Bound to loopback only — reachable from the host for local dev/curl but
+    # not exposed to external networks. nginx proxies /api/ in production.
     ports:
-      - "8010:8010"
+      - "127.0.0.1:8010:8010"
 
   # ── Supervisor panel ────────────────────────────────────────────────────────
   supervisor-panel:
@@ -108,8 +109,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
+    # Bound to loopback only — same rationale as agent-backend above.
     ports:
-      - "8020:8020"
+      - "127.0.0.1:8020:8020"
 
   # ── LiveKit WebRTC media server (Milestone 7) ──────────────────────────────
   livekit-server:

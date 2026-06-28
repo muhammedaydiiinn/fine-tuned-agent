@@ -98,9 +98,9 @@ def login_response(redirect_to: str = "/") -> RedirectResponse:
         key=COOKIE_NAME,
         value=token,
         httponly=True,
+        secure=True,
         samesite="lax",
         max_age=SESSION_TTL_SECONDS,
-        # secure=True,  # Uncomment once HTTPS is configured
     )
     logger.info("Login successful — new session issued")
     return response
