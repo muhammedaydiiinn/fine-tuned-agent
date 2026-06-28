@@ -5,6 +5,59 @@ real audio, GPU Whisper, and Fish Audio TTS. Updated after each milestone.
 
 ---
 
+## Production vLLM Baseline — Completed
+
+Tested on 23 June 2026 using commit `6f20ad7` and an NVIDIA RTX PRO 6000
+Blackwell GPU with 97887 MiB VRAM.
+
+Environment:
+
+```env
+VLLM_MODE=real
+VLLM_BASE_URL=http://vllm-server:8000/v1
+VLLM_MODEL_NAME=fine-tuned-agent-v14
+```
+
+Verified:
+
+- `vllm-server` loaded `fine-tuned-agent-v14` with maximum model length 4096.
+- `/v1/models` returned the expected served-model identity.
+- Direct `/v1/chat/completions` returned HTTP 200 with thinking disabled.
+- Application `/agent-turn` returned a persisted real-model policy.
+- Twenty sequential application turns completed without an upstream error.
+
+Latency baseline:
+
+| Metric | Result |
+|---|---:|
+| LLM minimum | 1526 ms |
+| LLM average | 1897 ms |
+| LLM p50 | 2072 ms |
+| LLM p95 | 2118 ms |
+| LLM maximum | 2135 ms |
+| Total minimum | 1542 ms |
+| Total average | 1926 ms |
+| Total p50 | 2094 ms |
+| Total p95 | 2146 ms |
+| Total maximum | 2155 ms |
+| Request failures | 0 / 20 |
+
+Observations:
+
+- Backend processing adds approximately 28 ms; model generation dominates.
+- Outputs around 340 characters complete in approximately 1.53 seconds.
+- Outputs between 510 and 549 characters complete in approximately 2.03–2.14
+  seconds.
+- The live model produced non-canonical aliases such as `price_inquiry`,
+  `pricing_inquiry`, and `explain_pricing`. Intent/action normalization and a
+  stricter short-output contract must be completed before final production
+  acceptance.
+- This baseline does not complete M5: no isolated candidate eval was run.
+- This baseline does not complete M7/M8: no microphone, GPU Whisper, streaming
+  TTS, first-audio, or interruption measurement was included.
+
+---
+
 ## M7 — Browser Voice Foundation
 
 ### Prerequisites
@@ -68,7 +121,25 @@ Current local verification:
 - LiveKit server/worker registration: passed
 - Token-based room creation and named-agent dispatch: passed
 - Backend turn + voice metrics persistence smoke test: passed
+- Production vLLM application latency baseline: passed (`total p95 = 2146 ms`)
 - Real microphone + Whisper + Fish Audio 10-turn acceptance: **pending on GPU host**
+
+### Next Live Test
+
+The next test is a real-time browser conversation on the GPU host:
+
+1. Start a voice test from the Supervisor Panel.
+2. Complete at least 10 consecutive German turns using the microphone.
+3. Include price, trial-period, security, and activation-link questions.
+4. Confirm transcript, final policy, heard response, and turn index match.
+5. Record STT, LLM, TTS first-audio, speech-end-to-first-audio, and total voice
+   latency for every turn.
+6. Calculate p50/p95 and verify speech-end-to-first-audio p95 is below 2500 ms.
+
+Current risk: the measured backend total p95 is already 2146 ms, leaving about
+354 ms for the remaining first-audio path under the 2500 ms target. The real
+conversation test must therefore be treated as a measurement gate, not an
+assumed pass.
 
 ---
 

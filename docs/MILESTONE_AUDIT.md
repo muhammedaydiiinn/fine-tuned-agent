@@ -23,6 +23,24 @@ The end-to-end run completed 15 scenario groups, wrote the log and result
 artifacts, produced every configured metric, and rendered without browser
 console errors or DataTables warnings.
 
+## Live GPU Addendum — 2026-06-23
+
+The production `fine-tuned-agent-v14` model was loaded by vLLM on the target
+NVIDIA RTX PRO 6000 Blackwell host and verified through `/v1/models`, direct
+chat completion, and the application `/agent-turn` route.
+
+A sequential 20-turn application latency run completed with no request
+failures. LLM p50/p95 were 2072/2118 ms; total backend p50/p95 were 2094/2146
+ms, with a maximum total of 2155 ms. This proves the M1 real-vLLM serving path,
+but it does not prove isolated candidate evaluation, real-time voice latency,
+or interruption acceptance.
+
+The live model also emitted non-canonical price intent/action aliases. Runtime
+normalization and a stricter short-output policy remain required before final
+production quality acceptance. The next live gate is a 10-turn browser
+microphone test covering GPU Whisper, real vLLM, Fish Audio streaming TTS,
+speech-end-to-first-audio latency, and persisted transcript/response matching.
+
 ## Milestone 1 — Core
 
 Status: complete after audit fixes.
@@ -32,6 +50,7 @@ Verified:
 - Backend, PostgreSQL, Redis, health endpoint, sessions, turns and agent turns.
 - Stateful guardrails and fixed product fact templates.
 - Mock/real vLLM switch.
+- Real production vLLM serving and a 20-turn latency baseline on the target GPU.
 - Correction memory is applied after policy repair and before guardrails.
 
 Audit fixes:

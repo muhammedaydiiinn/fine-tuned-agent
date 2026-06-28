@@ -43,6 +43,21 @@ Kabul kriteri:
   çıktısından bağımsız uygulanır.
 - Raw/repaired/final policy ve latency DB'ye yazılır.
 
+GPU canlı doğrulaması (23 Haziran 2026):
+
+- Production `vllm-server`, `fine-tuned-agent-v14` modelini gerçek modda yükledi;
+  `/v1/models`, doğrudan `/v1/chat/completions` ve uygulama `/agent-turn`
+  çağrıları başarılı oldu.
+- 20 ardışık `/agent-turn` ölçümünde hata oranı `0/20`, LLM p50 `2072 ms`,
+  LLM p95 `2118 ms`, toplam p50 `2094 ms`, toplam p95 `2146 ms` ve maksimum
+  toplam süre `2155 ms` ölçüldü.
+- Backend ek yükü yaklaşık `28 ms`; gecikmenin ana kaynağı model üretim süresi.
+- Model çıktıları iki uzunluk kümesine ayrıldı: yaklaşık 340 karakterlik
+  policy'ler `1.53 sn`, 510–549 karakterlik policy'ler `2.03–2.14 sn`.
+- Canlı model `price_inquiry`/`pricing_inquiry` ve `explain_pricing` aliaslarını
+  üretebildi. Platformun canonical `price_question`/`explain_price` değerlerine
+  normalize edilmesi ve kısa policy üretiminin zorlanması takip işidir.
+
 ## M2 — Supervisor panel çekirdeği
 
 **Durum:** Tamamlandı.
@@ -213,6 +228,8 @@ Kalan kabul kapısı:
   konuşulmalı.
 - [ ] Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
   doğrulanmalı.
+- [ ] Gerçek zamanlı testte metin LLM p95 `2146 ms` toplam backend süresinin
+  üzerine STT ve TTS first-audio süreleri eklenerek uçtan uca bütçe ölçülmeli.
 - Canlı kontrol listesi `docs/LIVE_ACCEPTANCE.md` içindedir.
 
 ## M8 — Realtime turn-taking ve interruption
@@ -444,11 +461,13 @@ GPU sunucu hazır (89.105.220.109, NVIDIA RTX PRO 6000 Black, 97887 MiB VRAM).
 Aşağıdaki sırayla ilerlenir:
 
 ```text
+0. [x] M1 — Gerçek production vLLM serving + 20-turn latency baseline
 1. [ ] M4 — Gerçek LoRA eğitimi (training-worker-gpu)
 2. [ ] M5 — Gerçek vLLM candidate eval koşusu
 3. [ ] M6 — Blue/green slot swap + rollback (vllm-candidate)
-4. [ ] M7 — 10-turn browser voice (GPU Whisper + Fish Audio, p95 < 2500ms)
-5. [ ] M8 — Barge-in latency < 600ms + backchannel sınıflandırma
+4. [ ] M7 — 10-turn gerçek zamanlı browser voice (GPU Whisper + Fish Audio,
+       speech-end → first-audio p95 < 2500ms)
+5. [ ] M8 — Gerçek konuşmada barge-in latency < 600ms + backchannel sınıflandırma
 6. [ ] M9 — Supervisor replacement uçtan uca (canlı browser)
 7. [ ] M10 — Load/soak + tracing dashboard + runbook
 8. [ ] M11 — Telefon/SIP pilot
