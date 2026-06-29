@@ -41,6 +41,7 @@ def _set_no_store(response: HTMLResponse) -> HTMLResponse:
 @router.post("/sessions/start")
 def start_session(
     external_session_id: str = Form(""),
+    customer_name: str = Form(""),
     db: DBSession = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
@@ -48,7 +49,10 @@ def start_session(
     try:
         response = httpx.post(
             f"{settings.agent_backend_url}/sessions",
-            json={"external_session_id": external_id},
+            json={
+                "external_session_id": external_id,
+                "customer_name": customer_name.strip(),
+            },
             headers=_backend_headers(),
             timeout=10.0,
         )

@@ -255,6 +255,47 @@
     }
   });
 
+  // Voice launcher modal — session + customer name before starting a test session.
+  const launcherModal = document.querySelector("[data-launcher-modal]");
+  if (launcherModal) {
+    let launcherPrevFocus = null;
+    const openLauncher = () => {
+      launcherPrevFocus = document.activeElement;
+      launcherModal.hidden = false;
+      launcherModal.dataset.state = "opening";
+      document.body.classList.add("modal-open");
+      window.requestAnimationFrame(() => {
+        launcherModal.dataset.state = "open";
+        launcherModal.querySelector("input[name='customer_name']")?.focus();
+      });
+    };
+    const closeLauncher = () => {
+      if (launcherModal.hidden) return;
+      launcherModal.dataset.state = "closing";
+      document.body.classList.remove("modal-open");
+      window.setTimeout(() => {
+        launcherModal.hidden = true;
+        launcherModal.dataset.state = "";
+        if (launcherPrevFocus && typeof launcherPrevFocus.focus === "function") {
+          launcherPrevFocus.focus();
+        }
+        launcherPrevFocus = null;
+      }, 140);
+    };
+    document.querySelectorAll("[data-open-launcher]").forEach((button) => {
+      button.addEventListener("click", openLauncher);
+    });
+    launcherModal.querySelectorAll("[data-launcher-cancel]").forEach((button) => {
+      button.addEventListener("click", closeLauncher);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !launcherModal.hidden) {
+        event.preventDefault();
+        closeLauncher();
+      }
+    });
+  }
+
   window.agentUI = Object.assign(window.agentUI || {}, {
     showToast,
     convertInlineAlerts,

@@ -9,24 +9,51 @@
   </div>
 </div>
 
-<form action="/sessions/start" method="post" class="voice-test-launcher">
-  <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+<div class="voice-test-launcher">
   <div class="voice-test-launcher-copy">
     <div class="voice-test-launcher-title">
       <i class="fa-solid fa-microphone"></i>
       Start Voice Test
     </div>
-    <div class="text-muted">Create a supervisor test session, then speak through this panel.</div>
+    <div class="text-muted">Call a customer by name and speak through this panel.</div>
   </div>
-  <div class="form-group">
-    <label for="external-session-id">Session name</label>
-    <input id="external-session-id" type="text" name="external_session_id" placeholder="Generated automatically">
-  </div>
-  <button class="btn btn-primary" type="submit">
+  <button class="btn btn-primary" type="button" data-open-launcher>
     <i class="fa-solid fa-plus"></i>
-    Create Test Session
+    New Test Session
   </button>
-</form>
+</div>
+
+{# Launcher modal — customer name + optional session name #}
+<div id="voice-launcher-modal" class="confirm-modal" data-launcher-modal hidden>
+  <button class="confirm-modal-backdrop" type="button" data-launcher-cancel
+          aria-label="Close"></button>
+  <section class="confirm-modal-card launcher-card" role="dialog" aria-modal="true"
+           aria-labelledby="launcher-title">
+    <form action="/sessions/start" method="post">
+      <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+      <h2 id="launcher-title">Start Voice Test</h2>
+      <p class="text-muted" style="margin:0 0 16px;">
+        The agent (Anna Weber) will call this customer and open the conversation.
+      </p>
+      <div class="form-group">
+        <label for="launcher-customer-name">Customer name</label>
+        <input id="launcher-customer-name" type="text" name="customer_name"
+               placeholder="e.g. Herr Müller" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="launcher-session-name">Session name</label>
+        <input id="launcher-session-name" type="text" name="external_session_id"
+               placeholder="Generated automatically">
+      </div>
+      <div class="confirm-modal-actions">
+        <button class="btn btn-outline" type="button" data-launcher-cancel>Cancel</button>
+        <button class="btn btn-primary" type="submit">
+          <i class="fa-solid fa-microphone"></i> Create Test Session
+        </button>
+      </div>
+    </form>
+  </section>
+</div>
 
 <div class="stats-row">
   <div class="stat-card blue">

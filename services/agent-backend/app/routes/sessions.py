@@ -16,16 +16,23 @@ logger = logging.getLogger(__name__)
 def create_session(req: CreateSessionRequest, db: DBSession = Depends(get_db)):
     external_id = req.external_session_id or f"session-{uuid.uuid4().hex[:12]}"
 
+    customer_name = (req.customer_name or "").strip()
+
     existing = db.query(SessionModel).filter(
         SessionModel.external_session_id == external_id
     ).first()
     if existing:
+        # Keep the customer name current if it was (re)supplied for this session.
+        if customer_name and (existing.state_json or {}).get("customer_name") != customer_name:
+            existing.state_json = {**(existing.state_json or {}), "customer_name": customer_name}
+            db.commit()
+            db.refresh(existing)
         return existing
 
     session = SessionModel(
         external_session_id=external_id,
         status="active",
-        state_json={},
+        state_json={"customer_name": customer_name} if customer_name else {},
     )
     db.add(session)
     db.commit()
