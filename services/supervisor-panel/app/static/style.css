@@ -472,7 +472,7 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 
 .session-summary-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 14px;
 }

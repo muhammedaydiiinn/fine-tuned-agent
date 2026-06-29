@@ -71,6 +71,11 @@ def build(
             messages.append({"role": "assistant", "content": turn.agent_response})
 
     # 5. Current customer message
+    if not customer_text:
+        messages.append({
+            "role": "system",
+            "content": "The call just connected. No customer input yet. Generate your opening greeting.",
+        })
     user_payload = json.dumps(
         {"customer_message": customer_text, "state": _compact_state(state)},
         ensure_ascii=False,

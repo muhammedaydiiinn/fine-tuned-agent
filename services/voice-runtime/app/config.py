@@ -68,8 +68,6 @@ class Settings(BaseSettings):
     tts_request_timeout_seconds: float = 45.0
     tts_fallback_to_mock: bool = True
 
-    greeting_text: str = "Guten Tag, ich bin Anna Weber von CallShield. Ich erkläre Ihnen kurz, worum es geht."
-    greeting_mock: bool = True
 
     def validate_runtime(self) -> None:
         """Fail fast at startup if required runtime configuration is missing.
