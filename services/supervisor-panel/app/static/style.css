@@ -454,6 +454,13 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 /* ─── Info Cards ─────────────────────────────────────────────────────── */
 .card-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
 
+.session-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 .info-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -518,6 +525,10 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
   flex: 1;
   height: 1px;
   background: var(--border);
+}
+
+.section-title-compact {
+  margin-top: 0;
 }
 
 /* ─── Table ──────────────────────────────────────────────────────────── */
@@ -673,6 +684,9 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 
 .btn-danger { background: var(--red-bg); color: var(--red); border-color: var(--red-bdr); }
 .btn-danger:hover { background: rgba(239,68,68,.16); }
+
+.btn-warning { background: var(--yellow-bg); color: var(--yellow); border-color: var(--yellow-bdr); }
+.btn-warning:hover { background: rgba(234,179,8,.16); }
 
 .btn-outline { background: transparent; color: var(--text-2); border-color: var(--border-2); }
 .btn-outline:hover { background: var(--surface-3); color: var(--text); }
@@ -958,7 +972,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 
 .voice-test-console {
-  margin-bottom: 22px;
+  margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1195,6 +1209,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 
 .voice-diagnostics-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .voice-diagnostics-table {
@@ -1430,6 +1445,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  margin-bottom: 18px;
 }
 
 .collapsible summary {
@@ -1459,6 +1475,35 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   border-top: 1px solid var(--border);
   border-left: none; border-right: none; border-bottom: none;
   border-radius: 0;
+}
+
+.summary-meta {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: auto;
+  text-transform: none;
+}
+
+.diagnostics-drawer {
+  margin-top: 18px;
+}
+
+.diagnostics-stack {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.diagnostics-stack > .voice-event-card,
+.diagnostics-stack > .voice-diagnostics-card,
+.diagnostics-stack > .collapsible {
+  margin: 0;
+}
+
+.nested-collapsible {
+  background: var(--surface-2);
 }
 
 /* ─── Chat Bubbles ───────────────────────────────────────────────────── */
@@ -1502,7 +1547,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
 .supervisor-console {
-  margin: -4px 0 22px;
+  margin: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1525,7 +1570,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 
 .supervisor-console-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 
@@ -1555,6 +1600,55 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
+}
+
+.live-session-workspace {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, .75fr);
+  margin-bottom: 18px;
+}
+
+.live-conversation-panel {
+  min-width: 0;
+}
+
+.latest-turn-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.latest-turn-line {
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 11px;
+}
+
+.latest-turn-line span {
+  color: var(--text-3);
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .45px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.latest-turn-line p {
+  color: var(--text-2);
+  display: -webkit-box;
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.empty-state-compact {
+  min-height: 180px;
+  padding: 28px 18px;
 }
 
 .helper-text {
@@ -1681,6 +1775,7 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
 
 .conversation-turn .chat-bubble {
   margin-top: 8px;
+  overflow-wrap: anywhere;
 }
 
 .turn-meta,
@@ -1847,6 +1942,10 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
     grid-template-columns: 1fr;
   }
 
+  .live-session-workspace {
+    grid-template-columns: 1fr;
+  }
+
   .review-compiler-comparison {
     grid-template-columns: 1fr;
   }
@@ -1914,6 +2013,75 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
 
   .voice-latency {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-summary-strip .info-card {
+    min-width: 0;
+    padding: 10px 11px;
+  }
+
+  .session-summary-strip .info-value {
+    font-size: 16px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .summary-meta {
+    display: none;
+  }
+
+  .voice-event-row {
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 8px minmax(92px, auto) minmax(0, 1fr);
+  }
+
+  .voice-event-name {
+    min-width: 0;
+  }
+
+  .voice-event-detail {
+    white-space: normal;
+  }
+
+  .voice-event-row time {
+    grid-column: 2 / -1;
+    margin-left: 0;
+  }
+
+  .supervisor-console {
+    padding: 14px;
+  }
+
+  .supervisor-console-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .supervisor-console-header .btn,
+  .supervisor-form-actions .btn,
+  .turn-actions .btn,
+  .turn-actions form {
+    width: 100%;
+  }
+
+  .supervisor-console-header .btn,
+  .supervisor-form-actions .btn,
+  .turn-actions .btn {
+    justify-content: center;
+  }
+
+  .turn-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turn-actions a {
+    grid-column: 1 / -1;
   }
 
   .toast-stack {
