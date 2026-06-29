@@ -1086,6 +1086,44 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 .voice-level[data-active="true"] span { background: var(--green); }
 
+.voice-latency-drawer {
+  background: rgba(255,255,255,.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.voice-latency-drawer summary {
+  align-items: center;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 8px;
+  list-style: none;
+  padding: 9px 11px;
+  user-select: none;
+}
+
+.voice-latency-drawer summary::-webkit-details-marker { display: none; }
+
+.voice-latency-drawer summary::before {
+  border-color: transparent transparent transparent var(--text-3);
+  border-style: solid;
+  border-width: 4px 0 4px 5px;
+  content: '';
+  flex-shrink: 0;
+  height: 0;
+  transition: transform .12s;
+  width: 0;
+}
+
+.voice-latency-drawer[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .voice-event-card {
   margin: -10px 0 22px;
   padding: 14px 18px;
@@ -1316,7 +1354,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 0;
+  padding: 0 11px 11px;
 }
 
 .voice-latency > div {
