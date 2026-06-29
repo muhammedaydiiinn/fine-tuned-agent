@@ -400,6 +400,22 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order::after { opacity:
 
 .page-header-left { display: flex; align-items: center; gap: 10px; }
 
+.page-header-meta {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-header-meta .badge {
+  gap: 4px;
+}
+
+.page-header-meta .badge i {
+  font-size: .7rem;
+}
+
 h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; }
 
 .breadcrumb {
@@ -2215,6 +2231,46 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   .page-header-left {
     flex-direction: column;
     gap: 5px;
+  }
+
+  .session-page-header {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .session-page-header .page-header-left {
+    display: grid;
+    gap: 7px;
+    width: 100%;
+  }
+
+  .session-page-header h1 {
+    font-size: 20px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .session-page-header .page-header-meta {
+    gap: 5px;
+  }
+
+  .session-page-header .badge {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .session-page-header .page-header-right {
+    width: auto;
+  }
+
+  .session-page-header .page-header-right form {
+    margin: 0;
+  }
+
+  .session-page-header .btn {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 13px;
   }
 
   .page-header-right,

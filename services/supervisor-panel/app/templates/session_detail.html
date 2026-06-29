@@ -9,29 +9,31 @@
   <span>{{ session.external_session_id or ("#" ~ session.id) }}</span>
 </div>
 
-<div class="page-header">
+<div class="page-header session-page-header">
   <div class="page-header-left">
     <h1>{{ session.external_session_id or ("Session #" ~ session.id) }}</h1>
-    <span class="badge badge-{{ 'active' if session.status == 'active' else 'closed' }}">
-      {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
-      {{ session.status }}
-    </span>
-    {% if active_model_name %}
-    <span class="badge badge-info" title="Active model version" style="margin-left:4px;">
-      <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ active_model_name }}
-    </span>
-    {% elif latest_turn and latest_turn.model_version %}
-    <span class="badge badge-pending" title="Model that produced this turn" style="margin-left:4px;">
-      <i class="fa-solid fa-microchip" style="font-size:.7rem;margin-right:3px;"></i>{{ latest_turn.model_version }}
-    </span>
-    {% endif %}
+    <div class="page-header-meta">
+      <span class="badge badge-{{ 'active' if session.status == 'active' else 'closed' }}">
+        {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
+        {{ session.status }}
+      </span>
+      {% if active_model_name %}
+      <span class="badge badge-info" title="Active model version">
+        <i class="fa-solid fa-microchip"></i>{{ active_model_name }}
+      </span>
+      {% elif latest_turn and latest_turn.model_version %}
+      <span class="badge badge-pending" title="Model that produced this turn">
+        <i class="fa-solid fa-microchip"></i>{{ latest_turn.model_version }}
+      </span>
+      {% endif %}
+    </div>
   </div>
   <div class="page-header-right">
     {% if session.status == 'active' %}
     <form id="end-session-form" action="/sessions/{{ session.id }}/close" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <button class="btn btn-primary" type="submit">
-        <i class="fa-solid fa-stop"></i> End Session & Review
+        <i class="fa-solid fa-stop"></i> End & Review
       </button>
     </form>
     {% else %}
