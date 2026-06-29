@@ -56,6 +56,7 @@
     running: "badge-running",
     completed: "badge-approved",
     failed: "badge-error",
+    blocked: "badge-risk-medium",
     low: "badge-risk-low",
     medium: "badge-risk-medium",
     high: "badge-risk-high",

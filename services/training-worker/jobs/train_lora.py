@@ -166,12 +166,12 @@ def _train_real(
         logging_steps=10,
         save_steps=0,
         report_to="none",
-        max_seq_length=max_seq,
+        max_length=max_seq,
     )
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=dataset,
         args=sft_args,
         callbacks=[ProgressCallback(progress_cb)],

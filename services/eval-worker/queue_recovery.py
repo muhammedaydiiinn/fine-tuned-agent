@@ -8,7 +8,10 @@ PROCESSING_QUEUE_NAME = f"{QUEUE_NAME}:processing"
 
 
 def is_terminal_status(status: str) -> bool:
-    return status in {"completed", "failed"}
+    # "blocked" = infrastructure not ready (e.g. candidate model not served);
+    # it is final for this run — the operator re-triggers a fresh eval once the
+    # candidate is served, rather than this one being auto-reprocessed.
+    return status in {"completed", "failed", "blocked"}
 
 
 def requeue_interrupted_jobs(client: Any) -> int:

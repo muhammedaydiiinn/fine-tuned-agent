@@ -3,10 +3,11 @@ import logging
 from typing import Any
 
 from app.core.product_facts import (
+    CLOSING_BRIEF_TEMPLATE,
     CLOSING_NEXT_ACTIONS,
     DELAY_DEFERRAL_TEMPLATE,
-    FORBIDDEN_DATA_TEMPLATE,
     IDENTITY_NEXT_ACTIONS,
+    PRICE_INTENT_ALIASES,
     PRICE_TEMPLATE,
     SECURITY_TEMPLATE,
     normalize_next_action,
@@ -19,7 +20,7 @@ MAX_REPEATED_ACTION = 3
 PRICE_QUESTION_TOKENS = [
     "was kostet", "wie teuer", "preis danach", "und der preis",
     "was zahle ich", "kosten danach", "monatlich", "gratisfase",
-    "noch einmal die", "den preis noch",
+    "noch einmal die", "den preis noch", "kosteskostes", "kostet das",
 ]
 
 
@@ -39,6 +40,26 @@ def customer_wants_delay(text: str) -> bool:
     )
 
 
+def customer_not_ready_for_install(text: str) -> bool:
+    msg = _lower(text)
+    return any(
+        p in msg
+        for p in (
+            "noch nicht", "nicht einrichten", "nicht installieren",
+            "noch nichts", "nur info", "mehr info", "mehr erfahren",
+            "erst noch", "will noch nicht",
+        )
+    )
+
+
+def customer_skeptical(text: str) -> bool:
+    msg = _lower(text)
+    return any(
+        p in msg
+        for p in ("ja und", "und?", "was genau", "warum rufen", "was wollen sie")
+    )
+
+
 def is_closing_price_question(customer_message: str) -> bool:
     msg = (customer_message or "").lower()
     return any(t in msg for t in PRICE_QUESTION_TOKENS)
@@ -47,9 +68,15 @@ def is_closing_price_question(customer_message: str) -> bool:
 def customer_asked_price_or_trial(text: str) -> bool:
     msg = (text or "").lower()
     return any(p in msg for p in [
-        "was kostet", "kostet", "preis", "monatlich", "euro",
+        "was kostet", "kostet", "kosteskostes", "preis", "monatlich", "euro",
         "nach 14 tagen", "testphase", "probezeit", "14 tagen",
     ])
+
+
+def _is_price_turn(intent: str, customer_message: str) -> bool:
+    if intent in PRICE_INTENT_ALIASES:
+        return True
+    return customer_asked_price_or_trial(customer_message)
 
 
 def apply(policy: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
@@ -63,14 +90,29 @@ def apply_with_context(
 ) -> dict[str, Any]:
     p = dict(policy)
     p["next_action"] = normalize_next_action(p.get("next_action", ""))
+    p = _rule_post_close_brief(p, state, customer_message)
     p = _rule_hard_decline(p, state)
     p = _rule_identity_before_link(p, state)
     p = _rule_delay_no_phone_collection(p, customer_message)
-    p = _rule_price_template(p)
+    p = _rule_price_template(p, customer_message)
     p = _rule_security_template(p)
     p = _rule_closing_flags(p)
     p = _rule_loop_detection(p, state)
     return p
+
+
+def _rule_post_close_brief(
+    policy: dict,
+    state: dict,
+    customer_message: str,
+) -> dict:
+    if state.get("stage") != "closing" or not (customer_message or "").strip():
+        return policy
+    policy["next_action"] = "close_call"
+    policy["allowed_to_continue"] = False
+    policy["agent_response"] = CLOSING_BRIEF_TEMPLATE
+    logger.info("guardrail: post-close -> brief farewell only")
+    return policy
 
 
 def _rule_hard_decline(policy: dict, state: dict) -> dict:
@@ -119,13 +161,14 @@ def _rule_closing_flags(policy: dict) -> dict:
     return policy
 
 
-def _rule_price_template(policy: dict) -> dict:
-    intent = policy.get("intent", "")
+def _rule_price_template(policy: dict, customer_message: str) -> dict:
+    intent = (policy.get("intent") or "").strip()
     next_action = normalize_next_action(policy.get("next_action", ""))
-    if intent in ("price_question", "free_question") or next_action == "explain_offer_terms":
-        logger.info("guardrail: PDF price template applied")
-        policy["agent_response"] = PRICE_TEMPLATE
-        policy["next_action"] = "explain_offer_terms"
+    if not _is_price_turn(intent, customer_message) and next_action != "explain_offer_terms":
+        return policy
+    logger.info("guardrail: PDF price template applied")
+    policy["agent_response"] = PRICE_TEMPLATE
+    policy["next_action"] = "explain_offer_terms"
     return policy
 
 
