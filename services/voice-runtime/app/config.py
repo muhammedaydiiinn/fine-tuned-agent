@@ -40,8 +40,12 @@ class Settings(BaseSettings):
     speech_preroll_ms: int = 240
     utterance_queue_size: int = 8
     duplicate_transcript_window_seconds: float = 2.5
-    backchannel_phrases: str = "mhm,hm,ja,okay,ok,alles klar,verstehe,genau,aha"
-    barge_in_min_ms: int = 450
+    backchannel_phrases: str = (
+        "mhm,hm,hmm,mmh,ja,jaja,ja ja,na ja,naja,na,okay,ok,ah okay,ah ja,"
+        "alles klar,verstehe,genau,aha,ah,schon,klar,ja klar,gut,ja gut,"
+        "ja natürlich,natürlich,ja genau,ja okay,okay okay,ok ok"
+    )
+    barge_in_min_ms: int = 800
     # Per-overlap barge-in windows (None = fall back to barge_in_min_ms)
     backchannel_window_ms: int | None = None
     interrupt_confirm_ms: int | None = None
