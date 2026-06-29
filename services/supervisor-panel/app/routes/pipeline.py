@@ -213,7 +213,7 @@ def pipeline_train(_csrf: None = Depends(require_csrf)):
         result = _backend_post("/training-jobs", {})
         job_id = result.get("id")
         return toast_fragment(
-            f"Eğitim başlatıldı · Job #{job_id}",
+            f"Training started · Job #{job_id}",
             kind="success",
             extra_headers={"HX-Refresh": "true"},
         )
@@ -239,7 +239,7 @@ def pipeline_approve_and_deploy(
             {"environment": "production", "actor": settings.admin_user},
         )
         return toast_fragment(
-            f"{version_name} onaylandı ve yayınlandı.",
+            f"{version_name} approved and deployed.",
             kind="success",
             extra_headers={"HX-Refresh": "true"},
         )
@@ -262,7 +262,7 @@ def pipeline_discard(
     try:
         _backend_post(f"/models/{version_name}/discard")
         return toast_fragment(
-            f"{version_name} iptal edildi · veri serbest bırakıldı.",
+            f"{version_name} discarded · data released.",
             kind="warning",
             extra_headers={"HX-Refresh": "true"},
         )
@@ -282,7 +282,7 @@ def pipeline_rollback(_csrf: None = Depends(require_csrf)):
     try:
         _backend_post("/deployments/production/rollback", {"actor": settings.admin_user})
         return toast_fragment(
-            "Önceki versiyona geri dönüldü.",
+            "Rolled back to previous version.",
             kind="warning",
             extra_headers={"HX-Refresh": "true"},
         )
