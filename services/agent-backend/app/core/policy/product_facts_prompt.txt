@@ -1,0 +1,26 @@
+Product facts (PDF v1.0 — fixed, do not invent other values):
+- Trial: 14 Tage kostenlos
+- Monthly price after trial: 29,99 Euro monatlich
+- One-time check (comparison): 18 Euro — heute einmalig kostenfrei
+- Download: Apple App Store oder Google Play Store
+- Blocked numbers: über 7.000 bekannte Risikonummern
+- Scan result example: 22 auffällige Einträge (vary 18 bis 25)
+- Legal support: Unterstützung bei Anwalts- und Gerichtskosten bis zu 2.500 Euro
+- Support: Support über die App
+
+PDF rules (section 04 — enforced in code):
+- Script möglichst originalgetreu verwenden.
+- 22-Einträge-Zahl gelegentlich variieren (18–25).
+- Keine Adressen, Bankdaten oder persönlichen Informationen vom Kunden verlangen.
+- Immer bestimmt, aber kontrolliert sprechen — klar, selbstbewusst, ruhige Autorität.
+- Rufnummer nur in der App eintragen, nicht am Telefon abfragen.
+- SMS-Bestätigungscode nur in der App eingeben, nicht vorlesen lassen.
+
+Objection themes (use PDF script wording, adapt naturally):
+- "Ich möchte nicht" → consequences clear; ask for explicit NEIN before stopping.
+- "Wie überprüfen Sie das?" → API/database check; 18 Euro check today kostenfrei.
+- "Kein Schreiben bekommen" → call replaces missing letter; guide through app.
+- "Nach 14 Tagen kündigen" → protection stays active only with subscription.
+- "Woher meine Nummer?" → external data sources; no personal data seen.
+- "Virus-Link?" → official App Store / Play Store only.
+- "Ich blockiere schon" → blocking vs knowing where number is listed.

@@ -75,9 +75,7 @@ def update(
         new_state["identity_confirmed"] = True
 
     # Price / offer terms explained
-    if intent in ("price_question", "free_question") and next_action in (
-        "explain_price", "explain_trial"
-    ):
+    if intent in ("price_question", "free_question") and next_action == "explain_offer_terms":
         new_state["price_explained"] = True
         new_state["offer_terms_explained"] = True
 
@@ -96,7 +94,44 @@ def update(
     history.append(next_action)
     new_state["last_next_actions"] = history[-NEXT_ACTION_HISTORY_SIZE:]
 
+    new_state["filled_slots"] = _derive_filled_slots(new_state, policy)
     return new_state
+
+
+def derive_filled_slots(state: dict[str, Any], policy: dict[str, Any] | None = None) -> dict[str, bool]:
+    """Public helper for response repair before state is persisted."""
+    if policy is None:
+        return dict(state.get("filled_slots") or {})
+    return _derive_filled_slots(state, policy)
+
+
+def _derive_filled_slots(state: dict[str, Any], policy: dict[str, Any]) -> dict[str, bool]:
+    """Track sales-flow slots for hard response repairs without blocking soft training."""
+    filled = dict(state.get("filled_slots") or {})
+    if state.get("identity_confirmed"):
+        filled["identity_confirmed"] = True
+    if state.get("offer_terms_explained") or state.get("price_explained"):
+        filled["offer_terms_explained"] = True
+
+    intent = policy.get("intent", "")
+    next_action = policy.get("next_action", "")
+    pitch_actions = {
+        "pitch_product",
+        "present_offer",
+        "explain_service",
+        "differentiate_product",
+        "create_problem_awareness",
+        "explain_product_value",
+    }
+    if intent in ("general_inquiry", "why_calling", "already_blocking") or next_action in pitch_actions:
+        filled["product_value_explained"] = True
+    if intent == "security_objection" or next_action in ("address_security", "explain_safe_app_link"):
+        filled["safe_link_explained"] = True
+    if next_action in ("ask_for_commitment", "ask_for_activation_commitment"):
+        filled["commitment_requested"] = True
+    if next_action == "close_call":
+        filled["final_decision"] = True
+    return filled
 
 
 def persist(db: DBSession, session_model, new_state: dict[str, Any]) -> None:

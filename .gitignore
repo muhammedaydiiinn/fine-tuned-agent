@@ -89,3 +89,5 @@ logs/
 # Node (supervisor-panel ileride)
 node_modules/
 .next/
+
+docs/rules/*

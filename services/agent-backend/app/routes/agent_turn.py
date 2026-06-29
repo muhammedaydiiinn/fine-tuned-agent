@@ -17,6 +17,7 @@ from app.core import (
     vllm_client,
     json_repair,
     guardrails,
+    response_repair,
     latency as latency_mod,
     model_runtime,
 )
@@ -123,8 +124,24 @@ def agent_turn(
         policy_hints or correction_hints,
     )
 
-    # 10. Apply guardrails (including product fact templates)
-    safe_policy = guardrails.apply(after_correction, state)
+    # 10. Apply guardrails (PDF templates + hard limits)
+    safe_policy = guardrails.apply_with_context(
+        after_correction,
+        state,
+        req.customer_text,
+    )
+
+    # 10b. Hard response repairs (SMS code, vague price, premature link, forbidden data)
+    repair_state = {**state, "filled_slots": state_manager.derive_filled_slots(state, safe_policy)}
+    repaired_text, repairs = response_repair.repair_all(
+        safe_policy.get("agent_response", ""),
+        repair_state,
+        req.customer_text,
+    )
+    if repairs:
+        safe_policy = dict(safe_policy)
+        safe_policy["agent_response"] = repaired_text
+        logger.info("response_repair applied — session=%s rules=%s", req.session_id, repairs)
 
     # 11. Update state
     new_state = state_manager.update(state, safe_policy, customer_text=req.customer_text)
