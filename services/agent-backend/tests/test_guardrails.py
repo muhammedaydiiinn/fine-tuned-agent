@@ -5,7 +5,7 @@ from unittest import TestCase
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.core.guardrails import apply, apply_with_context
-from app.core.product_facts import PRICE_TEMPLATE, SECURITY_TEMPLATE
+from app.core.product_facts import CLOSING_BRIEF_TEMPLATE, PRICE_TEMPLATE, SECURITY_TEMPLATE
 
 
 class HardDeclineGuardrailTests(TestCase):
@@ -75,3 +75,29 @@ class PdfGuardrailTests(TestCase):
         )
         self.assertEqual(policy["next_action"], "handle_objection")
         self.assertNotIn("telefonnummer", policy["agent_response"].lower())
+
+    def test_price_inquiry_via_customer_text(self):
+        policy = apply_with_context(
+            {
+                "intent": "skeptical_interest",
+                "next_action": "pitch_product",
+                "allowed_to_continue": True,
+                "agent_response": "Das kostet vielleicht 9 Euro.",
+            },
+            {},
+            "Was kostet das?",
+        )
+        self.assertEqual(policy["agent_response"], PRICE_TEMPLATE)
+
+    def test_post_close_brief(self):
+        policy = apply_with_context(
+            {
+                "intent": "closing",
+                "next_action": "close_call",
+                "allowed_to_continue": False,
+                "agent_response": "Langer Abschied.",
+            },
+            {"stage": "closing"},
+            "Danke, tschüss.",
+        )
+        self.assertEqual(policy["agent_response"], CLOSING_BRIEF_TEMPLATE)

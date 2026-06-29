@@ -113,6 +113,51 @@ FORBIDDEN_DATA_TEMPLATE = (
     "später sicher direkt in der App ein."
 )
 
+CLOSING_BRIEF_TEMPLATE = "Auf Wiederhören."
+
+# Model sometimes invents capabilities not listed in the PDF.
+FORBIDDEN_FACT_PATTERNS: tuple[str, ...] = (
+    "im ausland",
+    "akku",
+    "batterie",
+    "manuell wieder freigeb",
+    "manuell freigeb",
+    "unbegrenzt block",
+    "unlimited",
+)
+
+PRICE_INTENT_ALIASES: frozenset[str] = frozenset({
+    "price_question",
+    "free_question",
+    "price_inquiry",
+    "contract_terms_inquiry",
+})
+
+CHECK_EXPLAIN_TEMPLATE = (
+    "Dabei prüfen wir über verschiedene Schnittstellen, wie häufig Ihre Nummer "
+    "auftaucht und ob Meldungen zu verdächtigen Aktivitäten vorliegen. "
+    f"Normalerweise kostet dieser Check {PRODUCT_FACTS['check_price_normal']}, "
+    f"für Sie ist er {PRODUCT_FACTS['check_price_today']}."
+)
+
+PROBLEM_AWARENESS_TEMPLATE = (
+    "Wir haben festgestellt, dass Ihre Rufnummer für Betrugsversuche missbraucht "
+    "werden kann — wir zeigen Ihnen live, wo sie eingetragen ist und welche "
+    "Versuche laufen."
+)
+
+_LINK_PUSH_TOKENS: tuple[str, ...] = (
+    "app store",
+    "google play",
+    "download-link",
+    "link per sms",
+    "öffnen sie den link",
+    "play store",
+    "sicheren link",
+    "download link",
+    "app-store-link",
+)
+
 
 def normalize_action(raw_action: str) -> str:
     return RAW_ACTION_TO_SALES.get((raw_action or "").strip(), (raw_action or "").strip())

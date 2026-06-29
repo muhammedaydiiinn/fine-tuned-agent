@@ -7,6 +7,8 @@ import logging
 import re
 import time
 import uuid
+
+import numpy as np
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -714,52 +716,91 @@ class VoicePipeline:
     async def _confirm_customer_speech(self) -> bool:
         """Return True only for a genuine customer interruption during playback.
 
-        Transcribes the in-flight speech buffer and rejects audio that is empty,
-        a backchannel, or an echo of the agent's own playback. On STT failure it
-        falls back to the legacy energy-only behaviour (treat as real) so
-        interruption still works when transcription is unavailable.
+        Combines content and energy because the in-flight STT pass is
+        unreliable here — short, shouted or echo-mixed audio often decodes to an
+        empty string. Decision:
+
+        - real words that are not a backchannel and not the agent's own line
+          -> interrupt (loud or quiet);
+        - no decodable words but the audio is loud (>= barge_in_loud_rms)
+          -> interrupt (the customer is clearly talking; STT just failed);
+        - no words and quiet -> suppress (self-echo / ambient noise).
+
+        On STT failure it falls back to the energy test alone.
         """
         pcm = self.segmenter.snapshot()
         if pcm is None:
             return False
+        rms = self._rms(pcm)
         try:
             partial = await self.stt.transcribe_partial(pcm, sample_rate=INPUT_SAMPLE_RATE)
+            text = (partial.text or "").strip()
         except Exception:
             logger.debug(
-                "barge-in verification STT failed — session=%s", self.session_id
+                "barge-in verification STT failed — session=%s rms=%.0f",
+                self.session_id,
+                rms,
+            )
+            text = ""
+
+        if text:
+            if self.backchannels.classify(text).is_backchannel:
+                logger.info(
+                    "barge-in suppressed (backchannel) — session=%s rms=%.0f text=%s",
+                    self.session_id,
+                    rms,
+                    text,
+                )
+                return False
+            if self._looks_like_self_echo(text):
+                logger.info(
+                    "barge-in suppressed (self-echo) — session=%s rms=%.0f text=%s",
+                    self.session_id,
+                    rms,
+                    text,
+                )
+                return False
+            logger.info(
+                "barge-in confirmed (speech) — session=%s rms=%.0f text=%s",
+                self.session_id,
+                rms,
+                text,
             )
             return True
-        text = (partial.text or "").strip()
-        if not text:
+
+        # No decodable words — fall back to loudness.
+        if rms >= self.settings.barge_in_loud_rms:
             logger.info(
-                "barge-in suppressed (no speech content) — session=%s", self.session_id
-            )
-            return False
-        if self.backchannels.classify(text).is_backchannel:
-            logger.info(
-                "barge-in suppressed (backchannel) — session=%s text=%s",
+                "barge-in confirmed (loud, no transcript) — session=%s rms=%.0f",
                 self.session_id,
-                text,
+                rms,
             )
-            return False
-        if self._looks_like_self_echo(text):
-            logger.info(
-                "barge-in suppressed (self-echo) — session=%s text=%s",
-                self.session_id,
-                text,
-            )
-            return False
-        return True
+            return True
+        logger.info(
+            "barge-in suppressed (quiet, no speech content) — session=%s rms=%.0f",
+            self.session_id,
+            rms,
+        )
+        return False
+
+    @staticmethod
+    def _rms(pcm: bytes) -> float:
+        samples = np.frombuffer(pcm, dtype=np.int16)
+        if samples.size == 0:
+            return 0.0
+        return float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
         return [t for t in re.sub(r"[^\w\s]", " ", text.lower()).split() if t]
 
     def _looks_like_self_echo(self, text: str) -> bool:
-        """True when the heard text is mostly words from the agent's current line.
+        """True only when every word heard is one the agent is currently saying.
 
         Self-echo transcribes back to the agent's own words; a real customer
-        interruption introduces words that are not in the agent's script.
+        interruption introduces at least one word the agent did not say. We bias
+        toward letting barge-in through: customer speech mixed with the agent's
+        own echo must still cancel playback, so a single novel word is enough.
         """
         agent_tokens = set(self._tokenize(self._current_agent_text))
         if not agent_tokens:
@@ -767,8 +808,8 @@ class VoicePipeline:
         heard = self._tokenize(text)
         if not heard:
             return False
-        overlap = sum(1 for token in heard if token in agent_tokens)
-        return overlap / len(heard) >= self.settings.barge_in_echo_overlap_ratio
+        novel = [token for token in heard if token not in agent_tokens]
+        return not novel
 
     async def _emit_partials(self, room: rtc.Room) -> None:
         """Emit partial transcript events at regular intervals during speech.

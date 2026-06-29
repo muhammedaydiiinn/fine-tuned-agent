@@ -88,6 +88,13 @@ class FakeSegmenter:
         return None
 
 
+class LoudFakeSegmenter(FakeSegmenter):
+    """Segmenter whose buffered audio is loud (RMS ~3000, above barge_in_loud_rms)."""
+
+    def snapshot(self) -> bytes:
+        return (3000).to_bytes(2, "little", signed=True) * 160
+
+
 # ---------------------------------------------------------------------------
 # Sanity: Phase 0 — pipeline must import without livekit
 # ---------------------------------------------------------------------------
@@ -279,7 +286,8 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._generation, 0)
 
-    async def test_barge_in_suppressed_when_no_speech_content(self):
+    async def test_barge_in_suppressed_when_quiet_without_transcript(self):
+        # Empty STT + quiet audio = self-echo / ambient noise -> do not cancel.
         pipeline = self.make_pipeline("")
         pipeline.segmenter = FakeSegmenter()
         pipeline._speech_overlap_kind = "playback"
@@ -291,6 +299,22 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._generation, 0)
+
+    async def test_barge_in_confirmed_when_loud_without_transcript(self):
+        # Shouted "nein nein nein" that the STT fails to decode: empty text but
+        # loud audio must still cancel playback.
+        pipeline = self.make_pipeline("")
+        pipeline.segmenter = LoudFakeSegmenter()
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._pending_interruption, "playback")
+        self.assertEqual(pipeline._generation, 1)
 
     async def test_real_customer_speech_cancels_despite_agent_text(self):
         # A genuine interruption introduces words not in the agent's line, so
@@ -309,12 +333,12 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pipeline._pending_interruption, "playback")
         self.assertEqual(pipeline._generation, 1)
 
-    async def test_barge_in_falls_back_to_cancel_when_stt_unavailable(self):
-        # If verification STT fails we preserve interruption capability rather
-        # than silently disabling barge-in.
+    async def test_barge_in_falls_back_to_loudness_when_stt_unavailable(self):
+        # If verification STT fails we fall back to the energy test so loud
+        # customer speech still interrupts instead of silently disabling barge-in.
         pipeline = self.make_pipeline()
         pipeline.stt = FailingSTT(STTError("stt down"))
-        pipeline.segmenter = FakeSegmenter()
+        pipeline.segmenter = LoudFakeSegmenter()
         pipeline._speech_overlap_kind = "playback"
         pipeline._speech_started_at = time.perf_counter()
         pipeline._playback_cancel = asyncio.Event()

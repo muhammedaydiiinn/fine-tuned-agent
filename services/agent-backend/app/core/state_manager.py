@@ -75,7 +75,9 @@ def update(
         new_state["identity_confirmed"] = True
 
     # Price / offer terms explained
-    if intent in ("price_question", "free_question") and next_action == "explain_offer_terms":
+    if next_action == "explain_offer_terms" or intent in (
+        "price_question", "free_question", "price_inquiry",
+    ):
         new_state["price_explained"] = True
         new_state["offer_terms_explained"] = True
 
@@ -84,7 +86,7 @@ def update(
         new_state["link_sent"] = True
 
     # Stage update
-    if next_action == "close_call":
+    if next_action in ("close_call", "respect_decline_and_end_call"):
         new_state["stage"] = "closing"
     elif new_state.get("stage") == "initial" and new_state["turn_count"] > 1:
         new_state["stage"] = "conversation"

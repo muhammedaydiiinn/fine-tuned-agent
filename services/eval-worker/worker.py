@@ -42,6 +42,38 @@ def _log(log_path: str, message: str) -> None:
         handle.write(f"{datetime.now(timezone.utc).isoformat()} {message}\n")
 
 
+def _candidate_serving_ready(serving: dict) -> tuple[bool, str]:
+    """Check the candidate's serving endpoint is up and serving the expected model.
+
+    Returns (ready, detail). Mock serving is always ready. For real serving we
+    require the endpoint to answer /models AND to actually serve the expected
+    model name — otherwise every scenario would return invalid output and the
+    model would look like it "failed" the quality gate when it was simply never
+    served (the common single-GPU case where vllm-candidate is not running).
+    """
+    import httpx  # already a dependency (used by run_eval)
+
+    if str(serving.get("mode")) != "real":
+        return True, "mock serving"
+    base_url = str(serving.get("base_url") or "").rstrip("/")
+    model_name = str(serving.get("model_name") or "")
+    if not base_url:
+        return False, "serving target has no base_url"
+    try:
+        resp = httpx.get(f"{base_url}/models", timeout=5.0)
+        resp.raise_for_status()
+        served = {m.get("id") for m in (resp.json().get("data") or [])}
+    except Exception as exc:
+        return False, f"candidate endpoint unreachable at {base_url} ({exc})"
+    if model_name and model_name not in served:
+        return (
+            False,
+            f"endpoint {base_url} is up but not serving '{model_name}' "
+            f"(served: {sorted(s for s in served if s)})",
+        )
+    return True, f"serving '{model_name}' at {base_url}"
+
+
 def _write_results(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
@@ -133,6 +165,43 @@ def handle_eval(
     try:
         if not model_version:
             raise ValueError(f"ModelVersion id={model_version_id} not found")
+
+        # Preflight: the candidate must actually be served before we score it.
+        # Without this, an unserved candidate (e.g. vllm-candidate not running on
+        # a single GPU) makes every scenario return invalid output and the model
+        # is misreported as a quality "failed" when it was never tested. Mark the
+        # run "blocked" with a clear reason instead, leave the model unjudged
+        # ("pending"), and keep its candidates locked so a re-eval can run once
+        # the candidate is served — no retraining needed.
+        preflight_evidence = (run.metrics_json or {}).get("deployment_evidence")
+        preflight_serving = (
+            preflight_evidence.get("serving_target")
+            if isinstance(preflight_evidence, dict)
+            else None
+        )
+        if isinstance(preflight_serving, dict):
+            ready, detail = _candidate_serving_ready(preflight_serving)
+            if not ready:
+                _log(log_path, f"BLOCKED — candidate not served: {detail}")
+                model_version.eval_status = "pending"
+                db.add(model_version)
+                _update_run(
+                    db,
+                    run,
+                    status="blocked",
+                    finished_at=datetime.now(timezone.utc),
+                    error_message=(
+                        "Candidate model not served — start vllm-candidate with the "
+                        f"candidate model before evaluating. {detail}"
+                    )[:1000],
+                )
+                logger.warning(
+                    "Eval blocked (candidate not served): run=%d model=%d — %s",
+                    eval_run_id,
+                    model_version_id,
+                    detail,
+                )
+                return
 
         def progress_cb(current: int, total: int, label: str) -> None:
             _update_run(
