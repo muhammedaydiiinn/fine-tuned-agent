@@ -123,6 +123,8 @@
 
   <main class="main">
     <div class="main-inner">
+      <div id="serving-banner" hx-get="/serving-status"
+           hx-trigger="load, every 5s" hx-swap="innerHTML"></div>
       {% block content %}{% endblock %}
     </div>
   </main>

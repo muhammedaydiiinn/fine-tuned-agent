@@ -28,11 +28,46 @@ logger = logging.getLogger(__name__)
 configure_access_logging()
 
 
+def _kickoff_production_serving() -> None:
+    """Start the production model promote + readiness wait in the background.
+
+    Keeps uvicorn startup non-blocking: /health comes up immediately and the
+    progress is reported through serving_state (read by /health and /serving-status).
+    """
+    from app.core import model_runtime, serving_orchestrator, serving_state
+    from app.db import SessionLocal
+
+    if settings.vllm_mode != "real":
+        serving_state.set(
+            status="ready",
+            detail="Mock mode — no vLLM model load required.",
+            served_model_name=settings.vllm_model_name,
+        )
+        return
+
+    db = SessionLocal()
+    try:
+        model = model_runtime.active_model(db)
+        merged_path = (model.merged_path if model else None) or settings.model_merged_path
+        model_name = model.version_name if model else settings.model_active_version
+    finally:
+        db.close()
+
+    serving_state.set(status="loading", detail="Starting production model…", active_model=model_name)
+    if not serving_orchestrator.start_transition(
+        merged_path=merged_path,
+        model_name=model_name,
+        force_promote=False,
+    ):
+        logger.warning("A serving transition was already running at startup.")
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     logger.info("Anrufblocker Agent Backend starting — mode=%s", settings.vllm_mode)
     create_tables()
     logger.info("Database tables ready.")
+    _kickoff_production_serving()
     yield
     logger.info("Anrufblocker Agent Backend shutting down.")
 
