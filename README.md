@@ -42,17 +42,19 @@ Redis Stack  ←→  Training Worker  ←→  Eval Worker  ←→  Model Registr
 
 ## 1. Mac'te Lokal Geliştirme
 
-GPU gerekmez. `VLLM_MODE=mock` ile tüm akış test edilebilir.
+GPU gerekmez. Local override ile `VLLM_MODE=mock` akışı test edilebilir.
 
 ```bash
-# Ortam dosyasını kopyala (VLLM_MODE=mock olarak kalır)
+# Ortam dosyasını kopyala ve local için mock değerleri kullan
 cp .env.example .env
+# .env içinde: VLLM_MODE=mock, TRAINING_MODE=mock, WHISPER_DEVICE=cpu
 
 # Servisleri başlat
-docker compose up -d postgres redis agent-backend supervisor-panel
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 
 # Mock training/eval worker'larını da başlat
-docker compose --profile workers up -d training-worker eval-worker
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
+  --profile workers up -d training-worker eval-worker
 
 # Sağlık kontrolü
 curl http://localhost:8010/health
@@ -285,18 +287,19 @@ WHISPER_MODEL_PATH=/opt/anrufblocker/models/whisper/whisper-large-v3-turbo-germa
 ### Lokal / Mock Mod (GPU gerekmez)
 
 ```bash
-docker compose up -d postgres redis agent-backend supervisor-panel
+# GPU servislerini dışarıda bırakan override ile başlat
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+
+# İsteğe bağlı mock worker'lar
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
+  --profile workers up -d training-worker eval-worker
 ```
 
 ### GPU Sunucu — Tüm Servisler
 
 ```bash
-# Ana servisler + vLLM
-docker compose --profile gpu up -d
-
-# Gerçek GPU training + eval worker'ları
-docker compose --profile gpu-workers --profile workers \
-  up -d training-worker-gpu eval-worker
+# Ana servisler + vLLM + GPU worker'lar
+docker compose up -d --build
 ```
 
 ### Servis Durumu
@@ -452,6 +455,6 @@ Kapsam, bağımlılıklar ve kabul kriterleri için
 
 - Veritabanı hâlâ `create_all` kullanıyor. M5'in `eval_runs` kolonları başlangıçta idempotent
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ile yükseltiliyor; uzun vadede Alembic'e geçilmeli.
-- Lokal mock worker `--profile workers`, gerçek GPU training worker ise
-  `--profile gpu-workers` ile başlatılır.
-- vLLM GPU profili: `docker compose --profile gpu up -d`
+- Production GPU stack `docker compose up -d --build` ile vLLM ve GPU worker'ları
+  profil gerekmeden başlatır.
+- Lokal mock geliştirme için `docker-compose.local.yml` override'ı kullanılır.

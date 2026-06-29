@@ -28,6 +28,21 @@ def validate_deployment_evidence(
         raise ValueError("Serving target changed after evaluation; run evaluation again")
 
 
+def validate_deployment_artifact_evidence(
+    metrics_json: dict | None,
+    artifact: dict,
+) -> None:
+    evidence = deployment_evidence(metrics_json)
+    if not evidence:
+        raise ValueError(
+            "Evaluation has no immutable deployment evidence; run evaluation again"
+        )
+    if evidence.get("artifact_sha256") != artifact.get("sha256"):
+        raise ValueError("Model artifact changed after evaluation; run evaluation again")
+    if evidence.get("artifact_root") != artifact.get("root"):
+        raise ValueError("Model artifact path changed after evaluation; run evaluation again")
+
+
 def deployment_state(
     environments: list[str],
     metadata: dict[str, Any],

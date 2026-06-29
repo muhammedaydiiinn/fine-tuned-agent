@@ -164,9 +164,25 @@ def _deploy_approved_model(
 ) -> Deployment:
     """Deploy one approved model and atomically update registry lifecycle state."""
     gate_run = _assert_deployable(db, model, body.environment)
-    target = model_runtime.serving_target(model)
+    target = (
+        model_runtime.production_serving_target()
+        if body.environment == "production"
+        else model_runtime.serving_target(model)
+    )
     smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
-    health = model_runtime.check_serving_target(target, smoke_messages=smoke)
+    promotion = None
+    if body.environment == "production" and target["mode"] == "real":
+        try:
+            promotion = model_runtime.promote_production_model(model.merged_path or "")
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        health = model_runtime.wait_for_serving_target(
+            target,
+            timeout_seconds=settings.vllm_start_timeout_seconds,
+            smoke_messages=smoke,
+        )
+    else:
+        health = model_runtime.check_serving_target(target, smoke_messages=smoke)
     if not health.get("healthy"):
         raise HTTPException(
             status_code=503,
@@ -187,7 +203,7 @@ def _deploy_approved_model(
     previous_model_id = current.model_version_id if current else None
     if current and current.model_version_id == model.id:
         raise HTTPException(status_code=409, detail="Model is already active")
-    if current and target["mode"] != "mock":
+    if current and body.environment != "production" and target["mode"] != "mock":
         current_slot = model_runtime.serving_target(current.model_version)["slot"]
         if current_slot == target["slot"]:
             raise HTTPException(
@@ -196,6 +212,13 @@ def _deploy_approved_model(
             )
 
     now = datetime.now(timezone.utc)
+    metadata = _metadata(model)
+    metadata["deployed_at"] = now.isoformat()
+    if body.environment == "production":
+        metadata["production_serving"] = target
+        if promotion is not None:
+            metadata["production_promotion"] = promotion
+    model.metadata_json = metadata
     deployment = Deployment(
         model_version_id=model.id,
         environment=body.environment,
@@ -208,6 +231,7 @@ def _deploy_approved_model(
             "gate_policy_version": CURRENT_EVAL_POLICY_VERSION,
             "serving_health": health,
             "serving_target": target,
+            "production_promotion": promotion,
             "actor": body.actor,
             "deployed_at": now.isoformat(),
         },
@@ -217,9 +241,6 @@ def _deploy_approved_model(
         current.status = "superseded"
         affected_models.append(current.model_version)
 
-    metadata = _metadata(model)
-    metadata["deployed_at"] = now.isoformat()
-    model.metadata_json = metadata
     db.add(deployment)
     db.flush()
     for affected_model in {item.id: item for item in affected_models}.values():
@@ -448,7 +469,19 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
         raise HTTPException(status_code=409, detail="Rollback model no longer exists")
 
     target = model_runtime.serving_target(target_model)
-    health = model_runtime.check_serving_target(target)
+    promotion = None
+    if environment == "production" and target["mode"] == "real":
+        try:
+            promotion = model_runtime.promote_production_model(target_model.merged_path or "")
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        target = model_runtime.production_serving_target()
+        health = model_runtime.wait_for_serving_target(
+            target,
+            timeout_seconds=settings.vllm_start_timeout_seconds,
+        )
+    else:
+        health = model_runtime.check_serving_target(target)
     if not health.get("healthy"):
         raise HTTPException(
             status_code=503,
@@ -467,6 +500,7 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
             "rolled_back_deployment_id": current.id,
             "serving_health": health,
             "serving_target": target,
+            "production_promotion": promotion,
             "actor": body.actor if body else None,
             "deployed_at": now.isoformat(),
         },
@@ -474,6 +508,10 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
     current.status = "rolled_back"
     target_metadata = _metadata(target_model)
     target_metadata["deployed_at"] = now.isoformat()
+    if environment == "production":
+        target_metadata["production_serving"] = target
+        if promotion is not None:
+            target_metadata["production_promotion"] = promotion
     target_model.metadata_json = target_metadata
     db.add(rollback_deployment)
     db.flush()

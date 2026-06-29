@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,17 @@ def lifecycle_status(model: ModelVersion) -> str:
 
 def serving_target(model: ModelVersion) -> dict[str, str]:
     metadata = model.metadata_json or {}
+    production = metadata.get("production_serving")
+    if (
+        str(model.deployment_status).startswith("active_production")
+        and isinstance(production, dict)
+    ):
+        return {
+            "mode": str(production.get("mode") or settings.vllm_mode),
+            "base_url": str(production.get("base_url") or settings.vllm_base_url),
+            "model_name": str(production.get("model_name") or settings.production_served_model_name),
+            "slot": str(production.get("slot") or "production"),
+        }
     serving = metadata.get("serving") if isinstance(metadata.get("serving"), dict) else {}
     return {
         "mode": str(serving.get("mode") or settings.vllm_mode),
@@ -63,8 +75,25 @@ def resolve_for_turn(
     return None, {
         "mode": settings.vllm_mode,
         "base_url": settings.vllm_base_url,
-        "model_name": settings.vllm_model_name,
+        "model_name": (
+            settings.production_served_model_name
+            if settings.vllm_mode == "real"
+            else settings.vllm_model_name
+        ),
         "slot": "production-fallback",
+    }
+
+
+def production_serving_target() -> dict[str, str]:
+    return {
+        "mode": settings.vllm_mode,
+        "base_url": settings.vllm_base_url,
+        "model_name": (
+            settings.production_served_model_name
+            if settings.vllm_mode == "real"
+            else settings.vllm_model_name
+        ),
+        "slot": "production" if settings.vllm_mode == "real" else "mock",
     }
 
 
@@ -164,3 +193,49 @@ def check_serving_target(
             return {"healthy": True, "mode": "real", "models": model_ids}
     except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
         return {"healthy": False, "error": str(exc)}
+
+
+def wait_for_serving_target(
+    target: dict[str, str],
+    *,
+    timeout_seconds: float,
+    smoke_messages: list[dict] | None = None,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last: dict[str, Any] = {"healthy": False, "error": "not checked"}
+    while time.monotonic() < deadline:
+        last = check_serving_target(target, smoke_messages=smoke_messages)
+        if last.get("healthy"):
+            return last
+        time.sleep(5)
+    return {
+        **last,
+        "healthy": False,
+        "error": f"serving target did not become healthy within {timeout_seconds:.0f}s: {last.get('error', 'unknown error')}",
+    }
+
+
+def promote_production_model(source_path: str) -> dict[str, Any]:
+    if settings.vllm_mode == "mock":
+        return {"status": "skipped", "mode": "mock"}
+    headers = (
+        {"X-Model-Manager-Token": settings.model_manager_token}
+        if settings.model_manager_token
+        else {}
+    )
+    payload = {
+        "source_path": source_path,
+        "target_path": settings.production_model_path,
+        "restart": True,
+    }
+    try:
+        with httpx.Client(timeout=settings.vllm_start_timeout_seconds) as client:
+            response = client.post(
+                f"{settings.model_manager_url.rstrip('/')}/promote",
+                json=payload,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Model manager promotion failed: {exc}") from exc

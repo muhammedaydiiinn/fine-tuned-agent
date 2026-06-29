@@ -107,11 +107,8 @@ Use `--llm-only` or `--whisper-only` to download selectively.
 ## Step 5 — Start All Services
 
 ```bash
-# Core services (no GPU profile needed for most testing)
-docker compose up -d postgres redis livekit-server agent-backend supervisor-panel voice-runtime-worker
-
-# Add vLLM (GPU profile)
-docker compose --profile gpu up -d vllm-server
+# Production GPU stack
+docker compose up -d --build
 ```
 
 Verify:

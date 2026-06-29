@@ -1,0 +1,38 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # Local GPU-free override:
+  # docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+
+  model-manager:
+    profiles:
+      - gpu
+
+  agent-backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      model-manager:
+        condition: service_started
+        required: false
+
+  vllm-server:
+    profiles:
+      - gpu
+
+  training-worker-gpu:
+    profiles:
+      - gpu
+
+  training-worker:
+    profiles: null
+
+  voice-runtime-worker:
+    profiles:
+      - gpu

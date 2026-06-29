@@ -93,13 +93,19 @@ def create_tables() -> None:
 
 
 def _bootstrap_active_model() -> None:
-    """Register the configured initial production model when its artifact exists."""
+    """Register and publish the configured initial production model when available."""
     from datetime import datetime, timezone
     from pathlib import Path
 
+    from app.core import model_runtime
     from app.models import Deployment, ModelVersion
 
     if not Path(settings.model_merged_path).is_dir():
+        return
+    artifact = model_runtime.inspect_artifact(settings.model_merged_path)
+    if not artifact["valid"]:
+        if settings.vllm_mode == "real":
+            raise RuntimeError(f"Configured bootstrap model is invalid: {artifact['error']}")
         return
     db = SessionLocal()
     try:
@@ -112,6 +118,13 @@ def _bootstrap_active_model() -> None:
             .first()
         )
         if active:
+            if settings.vllm_mode == "real":
+                model = active.model_version
+                _publish_and_verify_production_model(model_runtime, model.merged_path or "")
+                metadata = dict(model.metadata_json or {})
+                metadata["production_serving"] = model_runtime.production_serving_target()
+                model.metadata_json = metadata
+                db.commit()
             return
         model = (
             db.query(ModelVersion)
@@ -128,6 +141,7 @@ def _bootstrap_active_model() -> None:
                 metadata_json={
                     "lifecycle_status": "deployed",
                     "bootstrap": True,
+                    "artifact_manifest": artifact,
                     "serving": {
                         "mode": settings.vllm_mode,
                         "base_url": (
@@ -138,10 +152,17 @@ def _bootstrap_active_model() -> None:
                         "model_name": settings.vllm_model_name,
                         "slot": "blue" if settings.vllm_mode == "real" else "mock",
                     },
+                    "production_serving": model_runtime.production_serving_target(),
                 },
             )
             db.add(model)
             db.flush()
+        if settings.vllm_mode == "real":
+            _publish_and_verify_production_model(model_runtime, model.merged_path or "")
+            metadata = dict(model.metadata_json or {})
+            metadata["artifact_manifest"] = artifact
+            metadata["production_serving"] = model_runtime.production_serving_target()
+            model.metadata_json = metadata
         deployment = Deployment(
             model_version_id=model.id,
             environment="production",
@@ -153,3 +174,16 @@ def _bootstrap_active_model() -> None:
         db.commit()
     finally:
         db.close()
+
+
+def _publish_and_verify_production_model(model_runtime, merged_path: str) -> None:
+    model_runtime.promote_production_model(merged_path)
+    health = model_runtime.wait_for_serving_target(
+        model_runtime.production_serving_target(),
+        timeout_seconds=settings.vllm_start_timeout_seconds,
+        smoke_messages=[{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}],
+    )
+    if not health.get("healthy"):
+        raise RuntimeError(
+            f"Production model did not become healthy: {health.get('error', 'unknown error')}"
+        )

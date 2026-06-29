@@ -14,6 +14,9 @@ PYTHONPATH=services/voice-runtime python3 -m pytest -q services/voice-runtime/te
 echo "[training-worker] running tests"
 PYTHONPATH=services/training-worker python3 -m pytest -q services/training-worker/tests
 
+echo "[model-manager] running tests"
+PYTHONPATH=services/model-manager python3 -m pytest -q services/model-manager/tests
+
 echo "[eval-worker] running tests"
 PYTHONPATH=services/eval-worker python3 -m pytest -q services/eval-worker/tests
 
