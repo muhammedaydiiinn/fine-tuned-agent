@@ -15,6 +15,14 @@ env/
 .env
 .env.local
 .env.*.local
+.env.bak
+.env.*.bak
+
+# SSL sertifikaları/anahtarları — asla commit etme
+infra/nginx/ssl/
+*.crt
+*.key
+*.pem
 
 # Docker
 .docker/
@@ -35,6 +43,8 @@ models/whisper/**
 !models/candidates/.gitkeep
 !models/approved/.gitkeep
 !models/whisper/.gitkeep
+# /opt altındaki gerçek model deposuna symlink — asla commit etme
+models/models
 # Model binary uzantıları (herhangi bir yerde)
 *.safetensors
 *.bin

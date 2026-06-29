@@ -198,7 +198,9 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
     volumes:
-      - ${PRODUCTION_MODEL_PATH:-./models/production/current}:/model:ro
+      # PRODUCTION_MODEL_PATH is a *container*-internal path (used by model-manager
+      # under its /models mount); the vLLM bind-mount needs the *host* path.
+      - ${MODELS_DIR:-./models}/production/current:/model:ro
     command: >
       --model /model
       --served-model-name ${PRODUCTION_SERVED_MODEL_NAME:-anrufblocker-production}
