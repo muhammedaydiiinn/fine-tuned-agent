@@ -1,13 +1,8 @@
-# Milestone 1–12 Audit — 2026-06-21
+# Milestone 1–12 Denetimi — 2026-06-21
 
-## Result
+## Sonuç
 
-Milestones 1–3 are complete. Milestones 4–6 meet their current platform goals
-in mock mode and are conditionally complete until their GPU/candidate-serving
-acceptance gates are verified. Milestones 7–10 are conditionally complete for
-their local implementation and still require the documented live GPU,
-latency/load, and production-operations acceptance gates. Milestone 12 is
-complete locally. The complete evaluation flow was verified through Docker:
+Milestone 1–3 tamamlandı. Milestone 4–6, mock modunda mevcut platform hedeflerini karşılamakta ve GPU/candidate-serving kabul testleri doğrulanana kadar koşullu olarak tamamlanmış sayılmaktadır. Milestone 7–10, yerel implementasyonları itibarıyla koşullu olarak tamamlanmış olup belgelenen canlı GPU, latency/yük ve production-operations kabul testlerini hâlâ gerektirmektedir. Milestone 12 yerel ortamda tamamlandı. Tam değerlendirme akışı Docker üzerinden doğrulandı:
 
 ```text
 POST /eval-runs
@@ -19,261 +14,200 @@ POST /eval-runs
   -> supervisor panel evaluation list/detail pages
 ```
 
-The end-to-end run completed 15 scenario groups, wrote the log and result
-artifacts, produced every configured metric, and rendered without browser
-console errors or DataTables warnings.
+Uçtan uca çalıştırma 15 senaryo grubunu tamamladı, log ve sonuç artefaktlarını yazdı, yapılandırılmış her metriği üretti ve tarayıcı konsol hatası ya da DataTables uyarısı olmaksızın render edildi.
 
-## Live GPU Addendum — 2026-06-23
+## Canlı GPU Eki — 2026-06-23
 
-The production `anrufblocker-v14` model was loaded by vLLM on the target
-NVIDIA RTX PRO 6000 Blackwell host and verified through `/v1/models`, direct
-chat completion, and the application `/agent-turn` route.
+Production `anrufblocker-v14` modeli, hedef NVIDIA RTX PRO 6000 Blackwell sunucusunda vLLM tarafından yüklendi ve `/v1/models`, doğrudan chat completion ve uygulama `/agent-turn` route'u üzerinden doğrulandı.
 
-A sequential 20-turn application latency run completed with no request
-failures. LLM p50/p95 were 2072/2118 ms; total backend p50/p95 were 2094/2146
-ms, with a maximum total of 2155 ms. This proves the M1 real-vLLM serving path,
-but it does not prove isolated candidate evaluation, real-time voice latency,
-or interruption acceptance.
+Ardışık 20-turn uygulama latency çalıştırması hiç request başarısızlığı olmadan tamamlandı. LLM p50/p95 değerleri 2072/2118 ms; toplam backend p50/p95 değerleri 2094/2146 ms; maksimum toplam ise 2155 ms oldu. Bu durum M1 gerçek-vLLM serving path'ini kanıtlamaktadır; ancak izole candidate değerlendirmesini, gerçek zamanlı ses latency'sini ya da kesme kabulünü kanıtlamamaktadır.
 
-The live model also emitted non-canonical price intent/action aliases. Runtime
-normalization and a stricter short-output policy remain required before final
-production quality acceptance. The next live gate is a 10-turn browser
-microphone test covering GPU Whisper, real vLLM, Fish Audio streaming TTS,
-speech-end-to-first-audio latency, and persisted transcript/response matching.
+Canlı model aynı zamanda standart dışı fiyat intent/action alias'ları da üretti. Çalışma zamanı normalizasyonu ve daha katı kısa-çıktı politikası, nihai production kalite kabulünden önce hâlâ gereklidir. Bir sonraki canlı test, GPU Whisper, gerçek vLLM, Fish Audio streaming TTS, speech-end-to-first-audio latency ve kalıcı transkript/yanıt eşleşmesini kapsayan 10-turn tarayıcı mikrofon testidir.
 
 ## Milestone 1 — Core
 
-Status: complete after audit fixes.
+Durum: denetim düzeltmelerinin ardından tamamlandı.
 
-Verified:
+Doğrulandı:
 
-- Backend, PostgreSQL, Redis, health endpoint, sessions, turns and agent turns.
-- Stateful guardrails and fixed product fact templates.
-- Mock/real vLLM switch.
-- Real production vLLM serving and a 20-turn latency baseline on the target GPU.
-- Correction memory is applied after policy repair and before guardrails.
+- Backend, PostgreSQL, Redis, health endpoint, session'lar, turn'ler ve agent turn'leri.
+- Stateful guardrail'ler ve sabit ürün gerçeği şablonları.
+- Mock/gerçek vLLM geçişi.
+- Gerçek production vLLM serving ve hedef GPU üzerinde 20-turn latency baseline.
+- Düzeltme belleği, policy onarımından sonra ve guardrail'lerden önce uygulanmaktadır.
 
-Audit fixes:
+Denetim düzeltmeleri:
 
-- Turn indexes no longer repeat after the fifth turn.
-- Identity is confirmed only from an explicit customer statement, not when the
-  agent merely asks for confirmation.
-- Mock `free_question` classification is no longer shadowed by the generic
-  price keyword check.
-- Intent-keyed correction memory now matches the repaired policy intent.
+- Turn index'leri artık beşinci turn'den sonra tekrar etmiyor.
+- Kimlik, yalnızca açık bir müşteri beyanından doğrulanıyor; agent yalnızca onay istediğinde değil.
+- Mock `free_question` sınıflandırması artık genel fiyat anahtar kelimesi kontrolü tarafından gölgelenmiyor.
+- Intent anahtarlı düzeltme belleği artık onarılmış policy intent'iyle eşleşiyor.
 
 ## Milestone 2 — Supervisor Panel
 
-Status: complete.
+Durum: tamamlandı.
 
-Verified:
+Doğrulandı:
 
-- Sessions, turn details, corrections, training data and training job pages.
-- Authentication, declarative DataTables configuration and AJAX data sources.
-- No browser console errors or unknown-column warnings on the checked pages.
+- Session'lar, turn detayları, düzeltmeler, eğitim verisi ve eğitim işi sayfaları.
+- Kimlik doğrulama, bildirimsel DataTables yapılandırması ve AJAX veri kaynakları.
+- Kontrol edilen sayfalarda tarayıcı konsol hatası veya bilinmeyen-sütun uyarısı yok.
 
-Audit fixes:
+Denetim düzeltmeleri:
 
-- Internal backend proxy requests now include `X-API-Key` when configured.
-- Correction memory records created from the panel include matching context.
+- Dahili backend proxy istekleri artık yapılandırıldığında `X-API-Key` içeriyor.
+- Panel üzerinden oluşturulan düzeltme belleği kayıtları eşleşen bağlam içeriyor.
 
-## Milestone 3 — Correction and Training Candidates
+## Milestone 3 — Düzeltme ve Eğitim Candidate'leri
 
-Status: complete after correction-memory matching fix.
+Durum: düzeltme-belleği eşleştirme düzeltmesinin ardından tamamlandı.
 
-Verified:
+Doğrulandı:
 
-- Corrections are traceable to sessions and turns.
-- Immediate corrections can affect later policy output.
-- Training candidates are generated and exported as JSONL.
+- Düzeltmeler session'lara ve turn'lere izlenebilir.
+- Anlık düzeltmeler sonraki policy çıktısını etkileyebiliyor.
+- Eğitim candidate'leri üretilip JSONL olarak dışa aktarılıyor.
 
-## Milestone 4 — Training Worker
+## Milestone 4 — Eğitim Worker'ı
 
-Status: conditionally complete for the implemented mock/real pipeline.
+Durum: uygulanan mock/gerçek pipeline için koşullu olarak tamamlandı.
 
-Verified:
+Doğrulandı:
 
-- Redis job dispatch, progress, logs, dataset build, LoRA train, merge and model
-  registration paths completed end-to-end in Docker mock mode.
-- Real-mode merged artifacts are atomically published to the stable candidate
-  serving path. The prior tree remains recoverable until ModelVersion commit;
-  a commit failure restores it.
-- Queue failures now mark the database job failed instead of leaving it pending.
-- Mock Docker builds install only worker/runtime dependencies; GPU training
-  dependencies are isolated in `requirements-gpu.txt`.
+- Redis iş dispatch'i, ilerleme, log'lar, dataset oluşturma, LoRA eğitimi, birleştirme ve model kayıt path'leri Docker mock modunda uçtan uca tamamlandı.
+- Gerçek-modda birleştirilen artefaktlar atomik olarak kararlı candidate serving path'ine yayınlanıyor. Önceki ağaç, ModelVersion commit'ine kadar kurtarılabilir durumda kalıyor; bir commit başarısızlığı geri yükler.
+- Kuyruk başarısızlıkları artık veritabanı işini beklemede bırakmak yerine başarısız olarak işaretliyor.
+- Mock Docker build'leri yalnızca worker/runtime bağımlılıklarını yükler; GPU eğitim bağımlılıkları `requirements-gpu.txt` içinde izole edilmiştir.
 
-Limitation:
+Sınırlılık:
 
-- Real GPU/Unsloth training was not executed on this Mac. It still requires the
-  target NVIDIA host and model files.
-- Real GPU artifacts must be verified against the same manifest and atomic
-  publication rules.
+- Bu Mac üzerinde gerçek GPU/Unsloth eğitimi çalıştırılmadı. Hedef NVIDIA sunucusunu ve model dosyalarını hâlâ gerektirmektedir.
+- Gerçek GPU artefaktları aynı manifest ve atomik yayın kurallarına göre doğrulanmalıdır.
 
-## Milestone 5 — Evaluation Worker
+## Milestone 5 — Değerlendirme Worker'ı
 
-Status: conditionally complete.
+Durum: koşullu olarak tamamlandı.
 
-Implemented:
+Uygulandı:
 
-- Eval run CRUD/log/result endpoints.
-- Idempotent `eval_runs` schema upgrade.
-- Redis worker with DB progress, logs, atomic result writes and failure states.
-- Ten fixed single-turn and five multi-turn scenario groups through `/agent-turn`.
-- JSON validity, required-key coverage, next-action accuracy, hard-decline,
-  identity-before-link, price, security, loop repetition and latency metrics.
-- Quality score and model pass/fail status.
-- Evaluation list/detail pages with scenario results and live logs.
+- Eval run CRUD/log/sonuç endpoint'leri.
+- Idempotent `eval_runs` şema yükseltmesi.
+- Veritabanı ilerleme, log'lar, atomik sonuç yazma ve başarısızlık durumlarını içeren Redis worker.
+- `/agent-turn` üzerinden on sabit single-turn ve beş multi-turn senaryo grubu.
+- JSON geçerliliği, zorunlu-anahtar kapsamı, next-action doğruluğu, hard-decline, identity-before-link, fiyat, güvenlik, döngü tekrarı ve latency metrikleri.
+- Kalite skoru ve model geçti/kaldı durumu.
+- Senaryo sonuçları ve canlı log'larla değerlendirme liste/detay sayfaları.
 
-Limitation:
+Sınırlılık:
 
-- A real isolated candidate vLLM run remains to be executed on the GPU host.
+- GPU sunucusunda gerçek izole candidate vLLM çalıştırması hâlâ yapılmadı.
 
-## Milestone 6 — Model Lifecycle and Deployment
+## Milestone 6 — Model Yaşam Döngüsü ve Deployment
 
-Status: conditionally complete.
+Durum: koşullu olarak tamamlandı.
 
-Verified in Docker mock mode:
+Docker mock modunda doğrulandı:
 
-- Candidate-specific eval routing and turn-level model version evidence.
-- Versioned `m6-gate-v1` deployment checks.
-- Artifact verification, approval lifecycle and deployment audit.
-- Two sequential deployments followed by rollback.
-- Normal agent traffic switched to the deployed model and back after rollback.
-- Production configuration rejects mock-only eval evidence.
-- Supervisor UI reduced to Sessions, Review & Train and Models workspaces.
-- Session review created a candidate-ID-scoped training batch and automatically
-  started its quality check.
-- Redis AOF persistence is enabled on a persistent volume.
-- Candidate publication removes the manual copy step. A running vLLM process
-  still requires start/restart because model weights are loaded at process
-  startup; publication is not hot reload.
+- Candidate'e özgü eval yönlendirmesi ve turn düzeyinde model versiyonu kanıtı.
+- Sürümlendirilmiş `m6-gate-v1` deployment kontrolleri.
+- Artefakt doğrulama, onay yaşam döngüsü ve deployment denetimi.
+- İki ardışık deployment ve ardından rollback.
+- Normal agent trafiği deploy edilen modele geçirildi ve rollback sonrası geri döndürüldü.
+- Production yapılandırması yalnızca mock değerlendirme kanıtını reddediyor.
+- Supervisor UI, Sessions, Review & Train ve Models çalışma alanlarına indirgendi.
+- Session review, candidate-ID kapsamlı bir eğitim batch'i oluşturup kalite kontrolünü otomatik olarak başlattı.
+- Redis AOF kalıcılığı, kalıcı bir volume üzerinde etkinleştirildi.
+- Candidate yayınlama, manuel kopyalama adımını kaldırıyor. Çalışan bir vLLM işlemi hâlâ start/restart gerektiriyor çünkü model ağırlıkları işlem başlangıcında yükleniyor; yayınlama hot reload değildir.
 
-Limitation:
+Sınırlılık:
 
-- Blue/green vLLM serving and rollback require final verification on the target
-  NVIDIA host.
+- Blue/green vLLM serving ve rollback, hedef NVIDIA sunucusunda nihai doğrulamayı gerektiriyor.
 
-## Milestone 7 — Browser Voice Foundation
+## Milestone 7 — Tarayıcı Ses Temeli
 
-Status: conditionally complete.
+Durum: koşullu olarak tamamlandı.
 
-Verified locally:
+Yerel olarak doğrulandı:
 
-- LiveKit 1.9.12 server and LiveKit Agents 1.6.2 worker started in Docker.
-- The named worker registered and accepted an explicit room dispatch created by
-  a browser token.
-- Supervisor Sessions UI now owns scenario selection, microphone start/stop,
-  transcript/response events, remote audio and latency display.
-- The authenticated panel creates the LiveKit room token. The temporary
-  standalone voice UI/API and port 8030 were removed.
-- Faster Whisper German STT, `/agent-turn`, Fish Audio streaming PCM TTS and
-  LiveKit audio publication are connected in one runtime.
-- Voice and backend sessions share one external session ID.
-- Voice turns persist `stt_ms`, `backend_ms`, `llm_ms`,
-  `tts_first_audio_ms`, `speech_end_to_first_audio_ms` and
-  `total_voice_turn_ms` against the same turn.
-- Metric persistence rejects mismatched final transcripts or heard responses.
-- Voice runtime unit tests and Docker imports passed.
+- LiveKit 1.9.12 sunucusu ve LiveKit Agents 1.6.2 worker'ı Docker'da başlatıldı.
+- Adlandırılmış worker kaydoldu ve bir tarayıcı token'ının oluşturduğu açık oda dispatch'ini kabul etti.
+- Supervisor Sessions UI artık senaryo seçimini, mikrofon start/stop işlemlerini, transkript/yanıt olaylarını, uzak ses ve latency görüntülemeyi yönetiyor.
+- Kimliği doğrulanmış panel, LiveKit oda token'ını oluşturuyor. Geçici bağımsız ses UI/API ve port 8030 kaldırıldı.
+- Faster Whisper Almanca STT, `/agent-turn`, Fish Audio streaming PCM TTS ve LiveKit ses yayınlama tek bir çalışma zamanında bağlandı.
+- Ses ve backend session'ları tek bir harici session ID paylaşıyor.
+- Ses turn'leri, `stt_ms`, `backend_ms`, `llm_ms`, `tts_first_audio_ms`, `speech_end_to_first_audio_ms` ve `total_voice_turn_ms` değerlerini aynı turn'e karşı kalıcı olarak kaydediyor.
+- Metrik kalıcılığı, eşleşmeyen nihai transkriptleri veya duyulan yanıtları reddediyor.
+- Ses çalışma zamanı birim testleri ve Docker import'ları başarıyla geçti.
 
-Current live evidence:
+Mevcut canlı kanıt:
 
-- A real browser microphone → local Whisper → backend → Fish Audio turn was
-  persisted for session `voice-test-91f4c3b395` with matching transcript,
-  response and latency data.
+- Gerçek bir tarayıcı mikrofonu → yerel Whisper → backend → Fish Audio turn'ü, eşleşen transkript, yanıt ve latency verisiyle `voice-test-91f4c3b395` session'ı için kalıcı olarak kaydedildi.
 
-Limitation:
+Sınırlılık:
 
-- The target GPU host must still pass the 10-turn browser test and p95
-  speech-end-to-first-audio threshold in
-  `services/voice-runtime/LIVE_ACCEPTANCE.md`.
+- Hedef GPU sunucusunun hâlâ 10-turn tarayıcı testini ve `services/voice-runtime/LIVE_ACCEPTANCE.md` içindeki p95 speech-end-to-first-audio eşiğini geçmesi gerekiyor.
 
-The canonical scope and remaining milestones are defined in `MILESTONES.md`.
+Kanonik kapsam ve kalan milestone'lar `MILESTONES.md` içinde tanımlanmıştır.
 
-## Milestone 8 — Realtime Turn-taking and Interruption
+## Milestone 8 — Gerçek Zamanlı Sıra Değişimi ve Kesme
 
-Status: conditionally complete for the local/mock implementation.
+Durum: yerel/mock implementasyon için koşullu olarak tamamlandı.
 
-Implemented and verified:
+Uygulandı ve doğrulandı:
 
-- Bounded utterance queue replaces the previous overlap-drop behavior.
-- Sustained customer speech cancels active agent playback.
-- Conservative German backchannel classification avoids treating short
-  acknowledgements as new agent turns.
-- Duplicate final transcript and stale response guards.
-- In-flight backend responses are invalidated when sustained overlap begins;
-  playback that starts during the overlap debounce is cancelled as well.
-- Durable, idempotent `voice_events` audit records and a live panel timeline.
-- Listening, hearing, processing, speaking and interrupted UI states with a
-  real microphone level meter.
-- Pipeline-level cancellation/stale-response tests and a deterministic catalog
-  of 20 backchannels plus 20 true interruptions.
+- Sınırlı utterance kuyruğu, önceki örtüşme-bırakma davranışının yerini aldı.
+- Sürekli müşteri konuşması, aktif agent oynatmasını iptal ediyor.
+- Muhafazakâr Almanca backchannel sınıflandırması, kısa onay ifadelerinin yeni agent turn'leri olarak değerlendirilmesini önlüyor.
+- Yinelenen nihai transkript ve eski yanıt koruyucuları.
+- Sürekli örtüşme başladığında yürütmedeki backend yanıtları geçersiz kılınıyor; örtüşme debounce'u sırasında başlayan oynatma da iptal ediliyor.
+- Dayanıklı, idempotent `voice_events` denetim kayıtları ve canlı panel zaman çizelgesi.
+- Gerçek mikrofon seviyesi ölçerli dinleme, duyma, işleme, konuşma ve kesilen kullanıcı arayüzü durumları.
+- Pipeline düzeyinde iptal/eski-yanıt testleri ve 20 backchannel ile 20 gerçek kesmeyi içeren deterministik katalog.
 
-Remaining live acceptance:
+Kalan canlı kabul testleri:
 
-- Browser/Fish Audio interruption latency and false-interrupt thresholds need
-  a real voice run.
-- Text partial hypotheses are not emitted yet; the runtime currently emits
-  speech-boundary and final-transcript events.
+- Tarayıcı/Fish Audio kesme latency'si ve yanlış-kesme eşikleri gerçek bir ses çalıştırması gerektiriyor.
+- Metin kısmi hipotezleri henüz üretilmiyor; çalışma zamanı şu anda speech-boundary ve final-transcript olayları yayınlıyor.
 
-## Milestone 9 — Live Supervisor Control
+## Milestone 9 — Canlı Supervisor Kontrolü
 
-Status: conditionally complete for the implemented local/mock flow.
+Durum: uygulanan yerel/mock akış için koşullu olarak tamamlandı.
 
-Verified:
+Doğrulandı:
 
-- The panel can issue `Stop Agent` and `Replace Answer` commands against the
-  active voice room.
-- A live replacement persists one linked correction request, optional
-  `apply_immediately`, optional `send_to_training`, and a supervisor audit
-  event before publishing the runtime control command.
-- The voice runtime applies `stop_agent` and `replace_answer` commands through
-  the LiveKit data channel and emits durable supervisor events for the panel
-  timeline.
-- Replacement playback is synthesized by the voice runtime and delivered as
-  audio in the same session path used by normal agent responses.
+- Panel, aktif ses odasına karşı `Stop Agent` ve `Replace Answer` komutları verebiliyor.
+- Canlı bir değiştirme, çalışma zamanı kontrol komutunu yayınlamadan önce isteğe bağlı `apply_immediately`, isteğe bağlı `send_to_training` ve bir supervisor denetim olayıyla birlikte bağlantılı bir düzeltme isteği kalıcı olarak kaydediyor.
+- Ses çalışma zamanı, `stop_agent` ve `replace_answer` komutlarını LiveKit veri kanalı üzerinden uyguluyor ve panel zaman çizelgesi için dayanıklı supervisor olayları yayınlıyor.
+- Değiştirme oynatması, ses çalışma zamanı tarafından sentezleniyor ve normal agent yanıtlarının kullandığı aynı session path'i üzerinden ses olarak iletiliyor.
 
-Limitation:
+Sınırlılık:
 
-- A real browser microphone session on the target host still needs a manual
-  acceptance pass for the stop/replacement UX and operator workflow.
+- Hedef sunucuda gerçek bir tarayıcı mikrofon session'ının, durdurma/değiştirme kullanıcı deneyimi ve operatör iş akışı için hâlâ manuel bir kabul testinden geçmesi gerekiyor.
 
-## Milestone 10 — Voice Hardening
+## Milestone 10 — Ses Sağlamlaştırma
 
-Status: partial progress only.
+Durum: yalnızca kısmi ilerleme.
 
-Verified:
+Doğrulandı:
 
-- Agent-backend calls in `voice-runtime` now use a circuit breaker so repeated
-  backend failures fail fast instead of stalling every turn.
-- STT failures emit `stt_unavailable` and return the session to listening
-  state instead of collapsing into a generic runtime error.
-- TTS failures can fall back to mock PCM output, with an explicit
-  `tts_fallback_activated` event and panel warning.
-- Session detail now shows voice health summary cards, a recent-turn latency
-  table, and an acceptance-readiness checklist derived from persisted turns and
-  voice events.
-- The browser voice console now persists lightweight recovery state and
-  automatically retries resume-token reconnects after unexpected room
-  disconnects, while manual stop/end-session actions disable recovery.
+- `voice-runtime` içindeki agent-backend çağrıları artık bir circuit breaker kullanıyor; böylece tekrarlayan backend başarısızlıkları her turn'ü durdurmak yerine hızlıca başarısız oluyor.
+- STT başarısızlıkları `stt_unavailable` yayınlıyor ve session'ı genel bir çalışma zamanı hatasına düşürmek yerine dinleme durumuna döndürüyor.
+- TTS başarısızlıkları, açık bir `tts_fallback_activated` olayı ve panel uyarısıyla birlikte mock PCM çıktısına geri dönebiliyor.
+- Session detayı artık ses sağlığı özet kartlarını, son-turn latency tablosunu ve kalıcı turn'lerden ile ses olaylarından türetilen bir kabul-hazırlığı denetim listesini gösteriyor.
+- Tarayıcı ses konsolu artık hafif kurtarma durumunu kalıcı olarak kaydediyor ve beklenmedik oda bağlantı kesilmelerinden sonra resume-token yeniden bağlantılarını otomatik olarak yeniden deniyor; manuel durdurma/session-sonlandırma eylemleri ise kurtarmayı devre dışı bırakıyor.
 
-Remaining:
+Kalan:
 
-- Concurrency/load evidence, restart recovery, security/retention policy, and
-  production operations runbooks are not complete yet.
+- Eşzamanlılık/yük kanıtı, yeniden başlatma kurtarması, güvenlik/saklama politikası ve production operasyonları runbook'ları henüz tamamlanmadı.
 
-## Milestone 12 — Natural-language Review Compiler
+## Milestone 12 — Doğal Dil İnceleme Derleyicisi
 
-Status: complete.
+Durum: tamamlandı.
 
-Verified locally:
+Yerel olarak doğrulandı:
 
-- Deterministic Turkish/German rules compile supervisor notes into
-  `product_fact_correction`, `missing_step`, `wrong_next_action`, or
-  `tone_correction`.
-- Price/trial and link-security corrections use agent-backend's authoritative
-  `product_facts.py` templates.
-- Review & Train renders an editable original-versus-proposed preview.
-- Approval uses the existing correction transaction with optional correction
-  memory and training candidate creation.
-- Rejection or an unmatched note produces no persisted correction or training
-  data.
+- Deterministik Türkçe/Almanca kurallar, supervisor notlarını `product_fact_correction`, `missing_step`, `wrong_next_action` veya `tone_correction` olarak derliyor.
+- Fiyat/deneme ve link-security düzeltmeleri, agent-backend'in yetkili `product_facts.py` şablonlarını kullanıyor.
+- Review & Train, düzenlenebilir orijinal-ve-önerilen önizlemesi render ediyor.
+- Onay, isteğe bağlı düzeltme belleği ve eğitim candidate'i oluşturma ile mevcut düzeltme işlemini kullanıyor.
+- Reddetme veya eşleşmeyen bir not, kalıcı düzeltme veya eğitim verisi üretmiyor.
