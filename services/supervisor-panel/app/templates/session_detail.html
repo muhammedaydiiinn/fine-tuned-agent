@@ -89,120 +89,170 @@
   <div id="voice-audio" hidden></div>
 </section>
 
-<section
-  id="voice-event-timeline"
-  hx-get="/sessions/{{ session.id }}/voice-events"
-  hx-trigger="load, every 2s, voice-event from:body"
-  hx-swap="innerHTML"
-></section>
-
-<section class="supervisor-console">
-  <div class="supervisor-console-header">
-    <div>
-      <div class="supervisor-console-title">Supervisor Quick Actions</div>
-      <div class="helper-text">Apply fast feedback to the latest turn without leaving the live session view.</div>
-    </div>
-    {% if latest_turn %}
-    <a class="btn btn-outline" href="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}">
-      <i class="fa-solid fa-pen"></i> Open Full Turn
-    </a>
-    {% endif %}
-  </div>
-
-  {% if latest_turn %}
-  <div class="supervisor-console-grid">
-    <article class="supervisor-snapshot">
-      <div class="turn-meta">
-        <span>Latest turn</span>
-        <span class="badge badge-intent">Turn {{ latest_turn.turn_index }}</span>
-        {% if latest_turn.intent %}<span class="badge badge-intent">{{ latest_turn.intent }}</span>{% endif %}
-        {% if latest_turn.next_action %}<span class="badge badge-action">{{ latest_turn.next_action }}</span>{% endif %}
-      </div>
-      <div class="supervisor-snapshot-copy">
-        <div class="chat-bubble chat-customer">
-          <div class="bubble-label">Customer</div>
-          {{ latest_turn.customer_text }}
-        </div>
-        <div class="chat-bubble chat-agent">
-          <div class="bubble-label">Agent</div>
-          {{ latest_turn.agent_response or "—" }}
-        </div>
-      </div>
-    </article>
-
-    <form
-      class="supervisor-form"
-      hx-post="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}/correct"
-      hx-target="#quick-action-feedback"
-      hx-swap="innerHTML"
-    >
-      <div id="quick-action-feedback" data-toast-only="true" data-refresh-on-toast="panel-refresh"></div>
-      <div class="form-group">
-        <label for="quick-corrected-response">Replacement response</label>
-        <textarea id="quick-corrected-response" name="corrected_response" rows="4">{{ latest_turn.agent_response or "" }}</textarea>
-      </div>
-      <div class="form-group">
-        <label for="quick-corrected-action">Next action</label>
-        <input id="quick-corrected-action" name="corrected_next_action" type="text" value="{{ latest_turn.next_action or '' }}" placeholder="for example: explain_price">
-      </div>
-      <div class="supervisor-form-actions">
-        <button class="btn btn-success" type="submit" name="mark_good" value="1">
-          <i class="fa-solid fa-check"></i> Mark Good
-        </button>
-        <button class="btn btn-danger" type="submit" name="mark_bad" value="1">
-          <i class="fa-solid fa-flag"></i> Mark Bad
-        </button>
-        <button class="btn btn-warning" id="live-stop-agent" type="button">
-          <i class="fa-solid fa-hand"></i> Stop Agent
-        </button>
-        <button class="btn btn-primary" id="live-send-replacement" type="button">
-          <i class="fa-solid fa-volume-high"></i> Send This Instead
-        </button>
-        <button class="btn btn-primary" type="submit">
-          <i class="fa-solid fa-floppy-disk"></i> Save Correction
-        </button>
-      </div>
-    </form>
-  </div>
-  {% else %}
-  <div class="empty-state" style="padding: 32px 20px;">
-    <div class="empty-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-    <div>Quick actions will appear after the first live turn is captured.</div>
-  </div>
-  {% endif %}
-</section>
-{% endif %}
-
-<div class="card-row"
+<div class="card-row session-summary-strip"
      hx-get="/sessions/{{ session.id }}/live-summary"
-     hx-trigger="{% if session.status == 'active' %}every 2s, voice-turn-complete from:body, panel-refresh from:body{% else %}load{% endif %}"
+     hx-trigger="every 2s, voice-turn-complete from:body, panel-refresh from:body"
      hx-swap="innerHTML">
   {% include "_session_summary.html" %}
 </div>
 
-<section
-  id="voice-diagnostics"
-  hx-get="/sessions/{{ session.id }}/voice-diagnostics"
-  hx-trigger="{% if session.status == 'active' %}load, every 5s, voice-turn-complete from:body, voice-event from:body{% else %}load{% endif %}"
-  hx-swap="innerHTML"
-></section>
+<section class="live-session-workspace">
+  <div class="live-conversation-panel">
+    <div class="section-title section-title-compact">
+      Live Conversation
+      <span class="badge badge-active"><span class="live-dot"></span> updating</span>
+    </div>
 
-<details class="collapsible" style="margin-bottom:20px;">
-  <summary>State JSON</summary>
-  <pre class="json-block">{{ state_pretty }}</pre>
+    <div id="session-conversation"
+         hx-get="/sessions/{{ session.id }}/conversation"
+         hx-trigger="load, every 2s, voice-turn-complete from:body, panel-refresh from:body"
+         hx-swap="innerHTML">
+      {% include "_session_conversation.html" %}
+    </div>
+  </div>
+
+  <section class="supervisor-console">
+    <div class="supervisor-console-header">
+      <div>
+        <div class="supervisor-console-title">Supervisor Quick Actions</div>
+        <div class="helper-text">Fast feedback for the latest captured turn.</div>
+      </div>
+      {% if latest_turn %}
+      <a class="btn btn-outline" href="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}">
+        <i class="fa-solid fa-pen"></i> Full Turn
+      </a>
+      {% endif %}
+    </div>
+
+    {% if latest_turn %}
+    <div class="supervisor-console-grid">
+      <article class="supervisor-snapshot">
+        <div class="turn-meta">
+          <span>Latest turn</span>
+          <span class="badge badge-intent">Turn {{ latest_turn.turn_index }}</span>
+          {% if latest_turn.intent %}<span class="badge badge-intent">{{ latest_turn.intent }}</span>{% endif %}
+          {% if latest_turn.next_action %}<span class="badge badge-action">{{ latest_turn.next_action }}</span>{% endif %}
+        </div>
+        <div class="latest-turn-preview">
+          <div class="latest-turn-line">
+            <span>Customer</span>
+            <p>{{ latest_turn.customer_text }}</p>
+          </div>
+          <div class="latest-turn-line">
+            <span>Agent</span>
+            <p>{{ latest_turn.agent_response or "—" }}</p>
+          </div>
+        </div>
+      </article>
+
+      <form
+        class="supervisor-form"
+        hx-post="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}/correct"
+        hx-target="#quick-action-feedback"
+        hx-swap="innerHTML"
+      >
+        <div id="quick-action-feedback" data-toast-only="true" data-refresh-on-toast="panel-refresh"></div>
+        <div class="form-group">
+          <label for="quick-corrected-response">Replacement response</label>
+          <textarea id="quick-corrected-response" name="corrected_response" rows="4">{{ latest_turn.agent_response or "" }}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="quick-corrected-action">Next action</label>
+          <input id="quick-corrected-action" name="corrected_next_action" type="text" value="{{ latest_turn.next_action or '' }}" placeholder="for example: explain_price">
+        </div>
+        <div class="supervisor-form-actions">
+          <button class="btn btn-success" type="submit" name="mark_good" value="1">
+            <i class="fa-solid fa-check"></i> Good
+          </button>
+          <button class="btn btn-danger" type="submit" name="mark_bad" value="1">
+            <i class="fa-solid fa-flag"></i> Bad
+          </button>
+          <button class="btn btn-warning" id="live-stop-agent" type="button">
+            <i class="fa-solid fa-hand"></i> Stop Agent
+          </button>
+          <button class="btn btn-primary" id="live-send-replacement" type="button">
+            <i class="fa-solid fa-volume-high"></i> Send Instead
+          </button>
+          <button class="btn btn-primary" type="submit">
+            <i class="fa-solid fa-floppy-disk"></i> Save
+          </button>
+        </div>
+      </form>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state-compact">
+      <div class="empty-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+      <div>Quick actions will appear after the first live turn is captured.</div>
+    </div>
+    {% endif %}
+  </section>
+</section>
+
+<details class="collapsible diagnostics-drawer">
+  <summary>
+    <span>Diagnostics and raw state</span>
+    <span class="summary-meta">voice events, latency table, acceptance checks, JSON</span>
+  </summary>
+  <div class="diagnostics-stack">
+    <section
+      id="voice-event-timeline"
+      hx-get="/sessions/{{ session.id }}/voice-events"
+      hx-trigger="load, every 2s, voice-event from:body"
+      hx-swap="innerHTML"
+    ></section>
+
+    <section
+      id="voice-diagnostics"
+      hx-get="/sessions/{{ session.id }}/voice-diagnostics"
+      hx-trigger="load, every 5s, voice-turn-complete from:body, voice-event from:body"
+      hx-swap="innerHTML"
+    ></section>
+
+    <details class="collapsible nested-collapsible">
+      <summary>State JSON</summary>
+      <pre class="json-block">{{ state_pretty }}</pre>
+    </details>
+  </div>
 </details>
+{% else %}
+<div class="card-row session-summary-strip"
+     hx-get="/sessions/{{ session.id }}/live-summary"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+  {% include "_session_summary.html" %}
+</div>
 
 <div class="section-title">
-  Live Conversation
-  {% if session.status == 'active' %}<span class="badge badge-active"><span class="live-dot"></span> updating</span>{% endif %}
+  Conversation
 </div>
 
 <div id="session-conversation"
      hx-get="/sessions/{{ session.id }}/conversation"
-     hx-trigger="load{% if session.status == 'active' %}, every 2s, voice-turn-complete from:body{% endif %}, panel-refresh from:body"
+     hx-trigger="load, panel-refresh from:body"
      hx-swap="innerHTML">
   {% include "_session_conversation.html" %}
 </div>
+
+<details class="collapsible diagnostics-drawer">
+  <summary>
+    <span>Diagnostics and raw state</span>
+    <span class="summary-meta">latency table, acceptance checks, JSON</span>
+  </summary>
+  <div class="diagnostics-stack">
+    <section
+      id="voice-diagnostics"
+      hx-get="/sessions/{{ session.id }}/voice-diagnostics"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    ></section>
+
+    <details class="collapsible nested-collapsible">
+      <summary>State JSON</summary>
+      <pre class="json-block">{{ state_pretty }}</pre>
+    </details>
+  </div>
+</details>
+{% endif %}
 
 {% endblock %}
 
