@@ -272,7 +272,7 @@
         row.id +
         '/reject" ' +
         dis +
-        ' title="Training verisinden çıkar">' +
+        ' title="Remove from training data">' +
         '<i class="fa-solid fa-xmark" style="font-size:10px;"></i> Remove</button>'
       );
     },

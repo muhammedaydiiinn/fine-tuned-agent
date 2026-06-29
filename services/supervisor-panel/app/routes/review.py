@@ -251,7 +251,7 @@ def save_review(
     if rating not in {"good", "mixed", "bad"}:
         return toast_redirect(
             f"/review/{session_id}",
-            "Kaydetmeden önce bir değerlendirme seçin.",
+            "Select a rating before saving.",
             kind="warning",
             title="Review not saved",
         )
@@ -284,7 +284,7 @@ def save_review(
     db.commit()
 
     n = len(candidate_ids)
-    msg = f"Değerlendirme kaydedildi · {n} turn training verisine eklendi." if n > 0 else "Değerlendirme kaydedildi."
+    msg = f"Review saved · {n} turns added to training data." if n > 0 else "Review saved."
     return toast_redirect("/review", msg, title="Review saved")
 
 
