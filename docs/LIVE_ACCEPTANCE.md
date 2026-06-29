@@ -122,24 +122,47 @@ Current local verification:
 - Token-based room creation and named-agent dispatch: passed
 - Backend turn + voice metrics persistence smoke test: passed
 - Production vLLM application latency baseline: passed (`total p95 = 2146 ms`)
-- Real microphone + Whisper + Fish Audio 10-turn acceptance: **pending on GPU host**
+- Real microphone + Whisper + Fish Audio 10-turn acceptance: **partial — see below**
 
-### Next Live Test
+### First Live Voice Test — 23 June 2026
 
-The next test is a real-time browser conversation on the GPU host:
+Tested with commit `d642208`, CUDA 12.9.2 base image, GPU Whisper
+`whisper-large-v3-turbo-german-ct2`, Fish Audio TTS, real microphone.
 
-1. Start a voice test from the Supervisor Panel.
-2. Complete at least 10 consecutive German turns using the microphone.
-3. Include price, trial-period, security, and activation-link questions.
-4. Confirm transcript, final policy, heard response, and turn index match.
-5. Record STT, LLM, TTS first-audio, speech-end-to-first-audio, and total voice
-   latency for every turn.
-6. Calculate p50/p95 and verify speech-end-to-first-audio p95 is below 2500 ms.
+Latency (warm turns, cold first-turn excluded):
 
-Current risk: the measured backend total p95 is already 2146 ms, leaving about
-354 ms for the remaining first-audio path under the 2500 ms target. The real
-conversation test must therefore be treated as a measurement gate, not an
-assumed pass.
+| Turn | STT ms | Backend ms | TTS first ms | Speech→audio ms |
+|---|---:|---:|---:|---:|
+| 23 | 87 | 25 | 491 | 603 |
+| 24 | 128 | 17 | 444 | 589 |
+| 27 | 193 | 24 | 485 | 702 |
+| **p95** | **193** | **25** | **666** | **702** |
+
+Turn 25 first-turn cold load: STT 5986 ms (Whisper GPU warm-up — excluded from
+p95).
+
+Verified:
+
+- GPU Whisper loaded and transcribed correctly.
+- Fish Audio TTS produced German speech playback.
+- Barge-in triggered and generation counter advanced (1→2→3).
+- Speech-end → first-audio p95 **702 ms** — well below 2500 ms target.
+
+Issues found:
+
+- `source=probe` caused false barge-in interruptions when the user was not
+  speaking. Probe VAD threshold must be tuned before M8 is complete.
+- LLM produced garbled German on the price question
+  (`"Haben wir bieten Ihnen eine Kosten?"`). Intent/action normalization needed.
+- LLM switched to English in one turn (`"Thanks a lot to the app."`). Language
+  constraint must be enforced in the system prompt or training.
+
+### Remaining Gates
+
+- [ ] Complete 10 consecutive turns in a single session without interruption errors.
+- [ ] Fix `source=probe` false barge-in (M8 scope).
+- [ ] Fix LLM German-only constraint and price response quality.
+- [ ] Re-run latency measurement on a clean 10-turn session and record p50/p95.
 
 ---
 
