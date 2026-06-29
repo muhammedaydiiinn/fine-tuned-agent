@@ -197,15 +197,23 @@ services:
               capabilities: [gpu]
     environment:
       NVIDIA_VISIBLE_DEVICES: all
+      # Allow loading/unloading candidate LoRA adapters at runtime so candidate
+      # evaluation runs on this same server (no second 24B model, no downtime).
+      VLLM_ALLOW_RUNTIME_LORA_UPDATING: "True"
     volumes:
       # PRODUCTION_MODEL_PATH is a *container*-internal path (used by model-manager
       # under its /models mount); the vLLM bind-mount needs the *host* path.
       - ${MODELS_DIR:-./models}/production/current:/model:ro
+      # Candidate LoRA adapters, loaded on demand for evaluation.
+      - ${MODELS_DIR:-./models}/adapters:/adapters:ro
     command: >
       --model /model
       --served-model-name ${PRODUCTION_SERVED_MODEL_NAME:-fine-tuned-agent-production}
       --max-model-len 4096
       --gpu-memory-utilization 0.60
+      --enable-lora
+      --max-lora-rank 32
+      --max-loras 2
       --port 8000
     networks:
       - agent-net

@@ -354,20 +354,27 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     "dataset_manifest": ds_result,
                     "pipeline_artifacts": artifact_manifest,
                     "candidate_publish_manifest": candidate_publish_manifest,
-                    "serving": {
-                        "mode": serving_mode,
-                        "base_url": (
-                            ""
-                            if settings.training_mode == "mock"
-                            else settings.candidate_vllm_base_url
-                        ),
-                        "model_name": (
-                            new_version_name
-                            if settings.training_mode == "mock"
-                            else settings.candidate_model_name
-                        ),
-                        "slot": "mock" if settings.training_mode == "mock" else "green",
-                    },
+                    # Candidate is evaluated as a runtime LoRA adapter on the
+                    # shared production vLLM server: same base, only the small
+                    # adapter is loaded, so eval needs no second model and no
+                    # production downtime. The adapter dir is mounted at
+                    # /adapters/<version> inside that server.
+                    "serving": (
+                        {
+                            "mode": "mock",
+                            "base_url": "",
+                            "model_name": new_version_name,
+                            "slot": "mock",
+                        }
+                        if settings.training_mode == "mock"
+                        else {
+                            "mode": "real",
+                            "base_url": settings.candidate_lora_base_url,
+                            "model_name": new_version_name,
+                            "slot": "candidate-lora",
+                            "lora_path": f"/adapters/{Path(adapter_path).name}",
+                        }
+                    ),
                 },
             )
             model_version_id = model_registration.commit_model_version(

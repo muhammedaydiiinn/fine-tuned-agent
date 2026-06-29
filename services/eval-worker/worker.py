@@ -42,6 +42,41 @@ def _log(log_path: str, message: str) -> None:
         handle.write(f"{datetime.now(timezone.utc).isoformat()} {message}\n")
 
 
+def _ensure_candidate_loaded(serving: dict) -> None:
+    """Load the candidate's LoRA adapter onto the shared vLLM server, if needed.
+
+    When the candidate is served as a runtime LoRA adapter (serving.lora_path
+    set), the adapter must be registered on the shared server before the model
+    name resolves. Idempotent: an already-loaded adapter is treated as success.
+    Non-fatal on failure — the readiness preflight reports a clear reason.
+    """
+    import httpx
+
+    lora_path = serving.get("lora_path")
+    if str(serving.get("mode")) != "real" or not lora_path:
+        return
+    base_url = str(serving.get("base_url") or "").rstrip("/")
+    name = str(serving.get("model_name") or "")
+    if not base_url or not name:
+        return
+    try:
+        resp = httpx.post(
+            f"{base_url}/load_lora_adapter",
+            json={"lora_name": name, "lora_path": str(lora_path)},
+            timeout=180.0,
+        )
+        if resp.status_code == 200:
+            logger.info("LoRA adapter loaded for eval: %s", name)
+        elif "already" in (resp.text or "").lower():
+            logger.info("LoRA adapter already loaded: %s", name)
+        else:
+            logger.warning(
+                "LoRA adapter load returned %s: %s", resp.status_code, resp.text[:200]
+            )
+    except Exception as exc:
+        logger.warning("LoRA adapter load attempt failed for %s: %s", name, exc)
+
+
 def _candidate_serving_ready(serving: dict) -> tuple[bool, str]:
     """Check the candidate's serving endpoint is up and serving the expected model.
 
@@ -180,6 +215,7 @@ def handle_eval(
             else None
         )
         if isinstance(preflight_serving, dict):
+            _ensure_candidate_loaded(preflight_serving)
             ready, detail = _candidate_serving_ready(preflight_serving)
             if not ready:
                 _log(log_path, f"BLOCKED — candidate not served: {detail}")

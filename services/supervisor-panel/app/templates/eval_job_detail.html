@@ -13,7 +13,7 @@
   <div class="stat-card">
     <div class="stat-label">Status</div>
     <div class="stat-value" style="font-size:1rem;">
-      <span class="badge {% if run.status == 'completed' %}badge-approved{% elif run.status == 'failed' %}badge-error{% else %}badge-running{% endif %}">
+      <span class="badge {% if run.status == 'completed' %}badge-approved{% elif run.status == 'failed' %}badge-error{% elif run.status == 'blocked' %}badge-warning{% else %}badge-running{% endif %}">
         {{ run.status }}
       </span>
     </div>
@@ -24,7 +24,19 @@
   <div class="stat-card"><div class="stat-label">Quality Score</div><div class="stat-value">{{ (metrics.get('quality_score', 0) * 100)|round|int }}%</div></div>
 </div>
 
-{% if run.error_message %}
+{% if run.status == 'blocked' %}
+  <div class="alert alert-warning" style="margin-bottom:20px;">
+    <strong>This evaluation could not run — it is not a model failure.</strong><br>
+    A newly trained model has to be loaded on the candidate serving engine before
+    it can be tested, and that engine was not available when this run started, so
+    there was no model to send the test prompts to. No quality verdict was made;
+    the model stays <code>pending</code> and is evaluated again automatically once
+    candidate serving comes online.
+    <div class="text-muted" style="font-size:.8rem;margin-top:8px;">
+      Technical detail: {{ run.error_message }}
+    </div>
+  </div>
+{% elif run.error_message %}
   <div class="alert alert-error" style="margin-bottom:20px;">{{ run.error_message }}</div>
 {% endif %}
 
