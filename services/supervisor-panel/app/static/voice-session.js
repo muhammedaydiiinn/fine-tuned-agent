@@ -202,7 +202,12 @@
     startButton.disabled = true;
     setStatus("Connecting to voice runtime...", "working");
 
-    const isResume = opts.forceResume || hasConnectedBefore;
+    // Only the automatic silent-recovery path (forceResume) rejoins without
+    // re-dispatching the agent — there the agent is still in the room after a brief
+    // network blip. A user-initiated Start/Resume must always dispatch the agent,
+    // otherwise reconnecting to a room the agent has already left (e.g. after a
+    // worker restart) leaves no agent in the room and nothing is ever spoken.
+    const isResume = opts.forceResume === true;
     const tokenPath = isResume
       ? `/sessions/${sessionId}/voice-token-resume`
       : `/sessions/${sessionId}/voice-token`;
