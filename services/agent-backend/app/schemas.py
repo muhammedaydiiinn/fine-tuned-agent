@@ -28,7 +28,9 @@ class PolicyOutput(BaseModel):
 
 class AgentTurnRequest(BaseModel):
     session_id: str = Field(..., description="External session ID")
-    customer_text: str = Field(..., min_length=1)
+    # Empty string is the opening turn: the call just connected, no customer input
+    # yet, and prompt_builder asks the model to produce the opening greeting.
+    customer_text: str = Field(default="", description="Customer utterance; empty for the opening turn")
 
 
 class LatencyInfo(BaseModel):
