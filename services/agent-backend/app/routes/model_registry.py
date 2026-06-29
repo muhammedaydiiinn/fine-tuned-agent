@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
-from app.core import deployment_policy, model_runtime
+from app.core import deployment_policy, model_runtime, serving_orchestrator, serving_state
 from app.config import settings
 from app.db import get_db
 from app.models import Deployment, EvalRun, ModelVersion, TrainingCandidate, TrainingJob
@@ -171,23 +171,24 @@ def _deploy_approved_model(
     )
     smoke = [{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}]
     promotion = None
-    if body.environment == "production" and target["mode"] == "real":
-        try:
-            promotion = model_runtime.promote_production_model(model.merged_path or "")
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        health = model_runtime.wait_for_serving_target(
-            target,
-            timeout_seconds=settings.vllm_start_timeout_seconds,
-            smoke_messages=smoke,
-        )
+    is_prod_real = body.environment == "production" and target["mode"] == "real"
+    if is_prod_real:
+        # The 19 GB promote + vLLM readiness wait run in a background thread so this
+        # request returns immediately; progress is shown in the panel banner. The
+        # eval gate (_assert_deployable, above) still controls what may be deployed.
+        if serving_orchestrator.is_busy():
+            raise HTTPException(
+                status_code=409,
+                detail="A model serving transition is already in progress",
+            )
+        health = {"healthy": None, "serving_status": "pending", "detail": "deploy queued"}
     else:
         health = model_runtime.check_serving_target(target, smoke_messages=smoke)
-    if not health.get("healthy"):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
-        )
+        if not health.get("healthy"):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Pre-deploy health check failed: {health.get('error', 'unknown error')}",
+            )
 
     _lock_environment(db, body.environment)
     current = (
@@ -248,6 +249,18 @@ def _deploy_approved_model(
     _bake_candidates_for_model(db, model.id)
     db.commit()
     db.refresh(deployment)
+    if is_prod_real:
+        serving_state.set(
+            status="loading",
+            detail=f"Deploying {model.version_name}…",
+            active_model=model.version_name,
+        )
+        serving_orchestrator.start_transition(
+            merged_path=model.merged_path or "",
+            model_name=model.version_name,
+            force_promote=True,
+            deployment_id=deployment.id,
+        )
     logger.info(
         "Model deployment completed: action=%s version=%s environment=%s previous_model_id=%s",
         action,
@@ -470,23 +483,24 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
 
     target = model_runtime.serving_target(target_model)
     promotion = None
-    if environment == "production" and target["mode"] == "real":
-        try:
-            promotion = model_runtime.promote_production_model(target_model.merged_path or "")
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+    is_prod_real = environment == "production" and target["mode"] == "real"
+    if is_prod_real:
+        # Promote + readiness wait run in the background; the request returns at once
+        # and the panel banner reports progress.
+        if serving_orchestrator.is_busy():
+            raise HTTPException(
+                status_code=409,
+                detail="A model serving transition is already in progress",
+            )
         target = model_runtime.production_serving_target()
-        health = model_runtime.wait_for_serving_target(
-            target,
-            timeout_seconds=settings.vllm_start_timeout_seconds,
-        )
+        health = {"healthy": None, "serving_status": "pending", "detail": "rollback queued"}
     else:
         health = model_runtime.check_serving_target(target)
-    if not health.get("healthy"):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Rollback target is unhealthy: {health.get('error', 'unknown error')}",
-        )
+        if not health.get("healthy"):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Rollback target is unhealthy: {health.get('error', 'unknown error')}",
+            )
 
     now = datetime.now(timezone.utc)
     rollback_deployment = Deployment(
@@ -542,6 +556,18 @@ def rollback(environment: str, body: RollbackRequest | None = None, db: DBSessio
 
     db.commit()
     db.refresh(rollback_deployment)
+    if is_prod_real:
+        serving_state.set(
+            status="loading",
+            detail=f"Rolling back to {target_model.version_name}…",
+            active_model=target_model.version_name,
+        )
+        serving_orchestrator.start_transition(
+            merged_path=target_model.merged_path or "",
+            model_name=target_model.version_name,
+            force_promote=True,
+            deployment_id=rollback_deployment.id,
+        )
     logger.warning(
         "Deployment rolled back: environment=%s from=%d to=%d",
         environment,

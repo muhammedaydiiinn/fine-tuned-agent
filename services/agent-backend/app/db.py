@@ -102,7 +102,8 @@ def _bootstrap_active_model() -> None:
 
     if not Path(settings.model_merged_path).is_dir():
         return
-    artifact = model_runtime.inspect_artifact(settings.model_merged_path)
+    # Cheap check only — full hashing (inspect_artifact) over ~19 GB must not block startup.
+    artifact = model_runtime.artifact_is_valid(settings.model_merged_path)
     if not artifact["valid"]:
         if settings.vllm_mode == "real":
             raise RuntimeError(f"Configured bootstrap model is invalid: {artifact['error']}")
@@ -119,8 +120,11 @@ def _bootstrap_active_model() -> None:
         )
         if active:
             if settings.vllm_mode == "real":
+                # The actual promote + vLLM readiness wait runs in a background
+                # thread (started from the lifespan); see serving_orchestrator. Here
+                # we only keep the registry metadata current so the panel can show
+                # the active model immediately.
                 model = active.model_version
-                _publish_and_verify_production_model(model_runtime, model.merged_path or "")
                 metadata = dict(model.metadata_json or {})
                 metadata["production_serving"] = model_runtime.production_serving_target()
                 model.metadata_json = metadata
@@ -158,7 +162,8 @@ def _bootstrap_active_model() -> None:
             db.add(model)
             db.flush()
         if settings.vllm_mode == "real":
-            _publish_and_verify_production_model(model_runtime, model.merged_path or "")
+            # Promote + readiness wait happen in the background (serving_orchestrator);
+            # commit the deployment now so the active model is visible immediately.
             metadata = dict(model.metadata_json or {})
             metadata["artifact_manifest"] = artifact
             metadata["production_serving"] = model_runtime.production_serving_target()
@@ -174,16 +179,3 @@ def _bootstrap_active_model() -> None:
         db.commit()
     finally:
         db.close()
-
-
-def _publish_and_verify_production_model(model_runtime, merged_path: str) -> None:
-    model_runtime.promote_production_model(merged_path)
-    health = model_runtime.wait_for_serving_target(
-        model_runtime.production_serving_target(),
-        timeout_seconds=settings.vllm_start_timeout_seconds,
-        smoke_messages=[{"role": "user", "content": "Antworte mit einem kurzen JSON-Objekt."}],
-    )
-    if not health.get("healthy"):
-        raise RuntimeError(
-            f"Production model did not become healthy: {health.get('error', 'unknown error')}"
-        )

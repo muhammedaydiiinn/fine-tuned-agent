@@ -97,6 +97,34 @@ def production_serving_target() -> dict[str, str]:
     }
 
 
+def artifact_is_valid(path_value: str | None) -> dict[str, Any]:
+    """Cheap structural validity check — no hashing.
+
+    ``inspect_artifact`` reads and sha256-hashes every file in the model directory
+    (~19 GB), which takes minutes and must never run on a hot path like startup.
+    This verifies only that the directory exists and contains the required files.
+    """
+    if not path_value:
+        return {"valid": False, "error": "merged_path is not configured"}
+    root = Path(path_value).resolve()
+    model_root = Path(settings.model_dir).resolve()
+    if root != model_root and model_root not in root.parents:
+        return {"valid": False, "error": f"artifact path must be inside {model_root}"}
+    if not root.is_dir():
+        return {"valid": False, "error": "artifact directory does not exist"}
+    missing = [name for name in REQUIRED_MODEL_FILES if not (root / name).is_file()]
+    has_weights = any(
+        file.is_file()
+        for pattern in WEIGHT_PATTERNS
+        for file in root.glob(pattern)
+    )
+    if not has_weights:
+        missing.append("*.safetensors or *.bin")
+    if missing:
+        return {"valid": False, "error": f"missing required artifact files: {', '.join(missing)}"}
+    return {"valid": True, "root": str(root)}
+
+
 def inspect_artifact(path_value: str | None) -> dict[str, Any]:
     if not path_value:
         return {"valid": False, "error": "merged_path is not configured", "files": []}

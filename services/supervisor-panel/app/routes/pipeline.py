@@ -138,6 +138,25 @@ def _pipeline_state(db: DBSession) -> dict:
     }
 
 
+@router.get("/serving-status", response_class=HTMLResponse)
+def serving_status_banner(request: Request):
+    """Render the live production model serving banner (polled by base.html)."""
+    snap = None
+    try:
+        response = httpx.get(
+            f"{settings.agent_backend_url}/serving-status",
+            headers=_headers(),
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        snap = response.json()
+    except Exception:  # noqa: BLE001 — banner is best-effort; never break the page
+        logger.debug("serving-status fetch failed", exc_info=True)
+    return templates.TemplateResponse(
+        "_serving_banner.html", {"request": request, "s": snap}
+    )
+
+
 @router.get("/pipeline", response_class=HTMLResponse)
 def pipeline(request: Request, db: DBSession = Depends(get_db)):
     # Active deployment

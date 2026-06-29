@@ -1,0 +1,35 @@
+{# Live production model serving banner. Polled by base.html every few seconds.
+   `s` is the agent-backend /serving-status snapshot (or None if unreachable). #}
+{% if s and s.vllm_mode == "real" %}
+  {% set st = s.status %}
+  {% if st in ("promoting", "loading", "idle") %}
+  <div class="alert alert-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <i class="fa-solid fa-spinner fa-spin"></i>
+    <div>
+      <strong>Model loading…</strong>
+      {% if s.active_model %}
+      <span style="font-family:var(--font-mono);">{{ s.active_model }}</span>
+      {% endif %}
+      <div style="font-size:12px;opacity:.8;">{{ s.detail or "Preparing the vLLM model." }}</div>
+    </div>
+  </div>
+  {% elif st == "error" %}
+  <div class="alert alert-error" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <div>
+      <strong>Model serving error</strong>
+      {% if s.active_model %}
+      <span style="font-family:var(--font-mono);">{{ s.active_model }}</span>
+      {% endif %}
+      <div style="font-size:12px;opacity:.85;">{{ s.error or s.detail }}</div>
+    </div>
+  </div>
+  {% elif st == "ready" %}
+  <div style="margin-bottom:12px;">
+    <span class="badge badge-active">
+      <span class="live-dot" style="margin-right:5px;"></span>Model ready{% if s.active_model %}
+      · <span style="font-family:var(--font-mono);">{{ s.active_model }}</span>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+{% endif %}
