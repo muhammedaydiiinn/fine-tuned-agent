@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.1-cudnn9-runtime-ubuntu22.04
+FROM nvidia/cuda:12.9.2-cudnn-runtime-ubuntu24.04
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,13 +8,13 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       python3.11 python3.11-venv libgomp1 \
-    && python3.11 -m ensurepip --upgrade \
+       python3 python3-pip libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
+# --break-system-packages: Docker container is isolated, no venv needed
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 COPY app ./app
 
-CMD ["python3.11", "-m", "app.worker", "start"]
+CMD ["python3", "-m", "app.worker", "start"]
