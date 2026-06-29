@@ -1,14 +1,14 @@
-# Testing Guide
+# Test Rehberi
 
-Each service keeps its tests next to its own code. The root script is the single entry point.
+Her service kendi testlerini kendi kodu yanında tutar. Root script tek giriş noktasıdır.
 
-## Run All Tests
+## Tüm Testleri Çalıştır
 
 ```bash
 bash scripts/run_unit_tests.sh
 ```
 
-Runs six suites in order:
+Altı suite'i sırayla çalıştırır:
 
 | Suite | Runner | Path |
 |-------|--------|------|
@@ -19,7 +19,7 @@ Runs six suites in order:
 | supervisor-panel | pytest | `services/supervisor-panel/tests/` |
 | supervisor-panel (JS) | node --test | `services/supervisor-panel/tests/node/` |
 
-## Run a Single Service
+## Tek Bir Service Çalıştır
 
 ```bash
 # Python
@@ -29,51 +29,51 @@ PYTHONPATH=services/<name> python3 -m pytest -q services/<name>/tests
 node --test services/supervisor-panel/tests/node/*.test.js
 ```
 
-## Test Map
+## Test Haritası
 
 ### agent-backend (`services/agent-backend/tests/`)
 
-| File | What it covers |
-|------|----------------|
-| `test_m6_hardening.py` | Model registry deploy/rollback hardening |
-| `test_review_compiler.py` | Deterministic M12 instruction classification and approved templates |
-| `test_voice_events.py` | Voice event persistence and retrieval |
+| Dosya | Kapsam |
+|-------|--------|
+| `test_m6_hardening.py` | Model registry deploy/rollback sağlamlaştırma |
+| `test_review_compiler.py` | Deterministik M12 talimat sınıflandırması ve onaylı template'ler |
+| `test_voice_events.py` | Ses olaylarının kalıcılığı ve sorgulanması |
 
 ### voice-runtime (`services/voice-runtime/tests/`)
 
-| File | What it covers |
-|------|----------------|
-| `test_pipeline.py` | Turn-taking, barge-in probe, supervisor commands, backchannel classification |
-| `test_backend_client.py` | Circuit breaker state machine (open/half-open/reset) |
-| `test_stt.py` | STT error wrapping (model load failure, transcription failure) |
-| `test_tts.py` | `pace_to_speed` mapping, TTS fallback behaviour |
-| `test_segmenter.py` | VAD segmenter logic |
-| `test_turn_taking.py` | Turn-taking scenario catalogue |
+| Dosya | Kapsam |
+|-------|--------|
+| `test_pipeline.py` | Turn-taking, barge-in testi, supervisor komutları, backchannel sınıflandırması |
+| `test_backend_client.py` | Circuit breaker durum makinesi (open/half-open/reset) |
+| `test_stt.py` | STT hata sarmalama (model yükleme hatası, transkripsiyon hatası) |
+| `test_tts.py` | `pace_to_speed` eşlemesi, TTS fallback davranışı |
+| `test_segmenter.py` | VAD segmenter mantığı |
+| `test_turn_taking.py` | Turn-taking senaryo kataloğu |
 
 ### training-worker (`services/training-worker/tests/`)
 
-| File | What it covers |
-|------|----------------|
-| `test_build_dataset.py` | Dataset validation, candidate scoping and manifests |
-| `test_artifacts.py` | Atomic candidate publication, checksum, rollback and backup cleanup |
-| `test_worker_publication.py` | ModelVersion commit success/failure coordination with candidate publication |
+| Dosya | Kapsam |
+|-------|--------|
+| `test_build_dataset.py` | Dataset doğrulama, aday kapsam belirleme ve manifest'ler |
+| `test_artifacts.py` | Atomik aday yayınlama, checksum, rollback ve backup temizliği |
+| `test_worker_publication.py` | Aday yayınlamayla ModelVersion commit başarı/hata koordinasyonu |
 
 ### supervisor-panel (`services/supervisor-panel/tests/`)
 
-| File | What it covers |
-|------|----------------|
-| `test_ui_feedback.py` | Panel UI feedback and toast notifications |
-| `test_review_compiler.py` | Accepted compiler correction types and safe fallback |
-| `test_voice_actions.py` | Stop-agent and replace-answer action routing |
-| `test_voice_observability.py` | `build_voice_health`, `build_recent_voice_turns`, `build_voice_acceptance` aggregation |
+| Dosya | Kapsam |
+|-------|--------|
+| `test_ui_feedback.py` | Panel UI geri bildirimi ve toast bildirimleri |
+| `test_review_compiler.py` | Kabul edilen compiler düzeltme türleri ve güvenli fallback |
+| `test_voice_actions.py` | Stop-agent ve replace-answer aksiyon yönlendirmesi |
+| `test_voice_observability.py` | `build_voice_health`, `build_recent_voice_turns`, `build_voice_acceptance` toplaması |
 
 ### supervisor-panel JS (`services/supervisor-panel/tests/node/`)
 
-| File | What it covers |
-|------|----------------|
-| `voice-session-recovery.test.js` | Recovery state machine: connect/disconnect tracking, retry limit, exponential backoff delays |
+| Dosya | Kapsam |
+|-------|--------|
+| `voice-session-recovery.test.js` | Recovery durum makinesi: bağlantı/kopukluk takibi, retry limiti, üstel geri çekilme gecikmeleri |
 
-## Live Acceptance Tests
+## Canlı Kabul Testleri
 
-Manual tests that require a real GPU, real Whisper, and Fish Audio TTS are documented in
-`docs/LIVE_ACCEPTANCE.md`. These cannot run in CI — they are performed on the GPU host.
+Gerçek GPU, gerçek Whisper ve Fish Audio TTS gerektiren manuel testler
+`docs/LIVE_ACCEPTANCE.md` dosyasında belgelenmiştir. Bu testler CI'da çalışamaz — GPU host üzerinde gerçekleştirilir.

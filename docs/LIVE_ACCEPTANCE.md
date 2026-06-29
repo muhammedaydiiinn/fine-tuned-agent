@@ -1,16 +1,16 @@
-# Live Acceptance Tests (GPU Host)
+# Canlı Kabul Testleri (GPU Host)
 
-This file lists acceptance criteria that cannot be verified by mock/unit tests — they require
-real audio, GPU Whisper, and Fish Audio TTS. Updated after each milestone.
+Bu dosya, mock/birim testlerle doğrulanamayan kabul kriterlerini listeler — gerçek ses,
+GPU Whisper ve Fish Audio TTS gerektirir. Her milestone sonrasında güncellenir.
 
 ---
 
-## Production vLLM Baseline — Completed
+## Production vLLM Baseline — Tamamlandı
 
-Tested on 23 June 2026 using commit `6f20ad7` and an NVIDIA RTX PRO 6000
-Blackwell GPU with 97887 MiB VRAM.
+23 Haziran 2026 tarihinde `6f20ad7` commit'i ve NVIDIA RTX PRO 6000
+Blackwell GPU (97887 MiB VRAM) ile test edildi.
 
-Environment:
+Ortam:
 
 ```env
 VLLM_MODE=real
@@ -18,13 +18,13 @@ VLLM_BASE_URL=http://vllm-server:8000/v1
 VLLM_MODEL_NAME=fine-tuned-agent-v14
 ```
 
-Verified:
+Doğrulandı:
 
-- `vllm-server` loaded `fine-tuned-agent-v14` with maximum model length 4096.
-- `/v1/models` returned the expected served-model identity.
-- Direct `/v1/chat/completions` returned HTTP 200 with thinking disabled.
-- Application `/agent-turn` returned a persisted real-model policy.
-- Twenty sequential application turns completed without an upstream error.
+- `vllm-server`, `fine-tuned-agent-v14` modelini maksimum 4096 token uzunluğuyla yükledi.
+- `/v1/models` beklenen servis model kimliğini döndürdü.
+- Doğrudan `/v1/chat/completions` isteği, thinking devre dışıyken HTTP 200 döndürdü.
+- Uygulama `/agent-turn` endpoint'i, kalıcı bir gerçek model politikası döndürdü.
+- Arka arkaya yirmi uygulama turu, upstream hatası olmadan tamamlandı.
 
 Latency baseline:
 
@@ -42,27 +42,25 @@ Latency baseline:
 | Total maximum | 2155 ms |
 | Request failures | 0 / 20 |
 
-Observations:
+Gözlemler:
 
-- Backend processing adds approximately 28 ms; model generation dominates.
-- Outputs around 340 characters complete in approximately 1.53 seconds.
-- Outputs between 510 and 549 characters complete in approximately 2.03–2.14
-  seconds.
-- The live model produced non-canonical aliases such as `price_inquiry`,
-  `pricing_inquiry`, and `explain_pricing`. Intent/action normalization and a
-  stricter short-output contract must be completed before final production
-  acceptance.
-- This baseline does not complete M5: no isolated candidate eval was run.
-- This baseline does not complete M7/M8: no microphone, GPU Whisper, streaming
-  TTS, first-audio, or interruption measurement was included.
+- Backend işleme yaklaşık 28 ms ekliyor; model üretimi baskın süreyi oluşturuyor.
+- Yaklaşık 340 karakter uzunluğundaki çıktılar yaklaşık 1.53 saniyede tamamlanıyor.
+- 510–549 karakter arasındaki çıktılar yaklaşık 2.03–2.14 saniyede tamamlanıyor.
+- Canlı model, `price_inquiry`, `pricing_inquiry` ve `explain_pricing` gibi standart dışı
+  alias'lar üretti. Niyet/aksiyon normalizasyonu ve daha katı kısa çıktı sözleşmesi, nihai
+  production kabulünden önce tamamlanmalıdır.
+- Bu baseline M5'i tamamlamıyor: izole aday değerlendirmesi yapılmadı.
+- Bu baseline M7/M8'i tamamlamıyor: mikrofon, GPU Whisper, streaming TTS, ilk ses veya
+  kesinti ölçümü dahil edilmedi.
 
 ---
 
-## M7 — Browser Voice Foundation
+## M7 — Tarayıcı Ses Temeli
 
-### Prerequisites
+### Ön Koşullar
 
-1. Configure the acceptance environment in `.env`:
+1. Kabul ortamını `.env` dosyasında yapılandırın:
 
    ```env
    LIVEKIT_PUBLIC_URL=wss://<voice-host>
@@ -75,23 +73,23 @@ Observations:
    FISH_TTS_REFERENCE_ID=<approved German voice>
    ```
 
-2. Verify Whisper model is present at `WHISPER_MODEL_PATH`.
-3. Verify TCP `7880/7881` and UDP `7882` access.
-4. Check `voice-runtime-worker` logs for worker registration and model load success.
+2. Whisper modelinin `WHISPER_MODEL_PATH` konumunda mevcut olduğunu doğrulayın.
+3. TCP `7880/7881` ve UDP `7882` erişimini doğrulayın.
+4. Worker kaydı ve model yükleme başarısı için `voice-runtime-worker` loglarını kontrol edin.
 
-### Functional Acceptance
+### Fonksiyonel Kabul
 
-- Open a session via `Sessions → Start Voice Test` in the Supervisor Panel.
-- Complete at least 10 consecutive turns without typing.
-- Verify each customer sentence appears as a final transcript in the conversation flow.
-- Verify the heard response matches `agent_response` for the same turn.
-- Verify turn indexes advance from 0 to 9 without gaps.
-- Use at least three sentences containing German numbers, prices, and product names.
-- Browser reconnect / page reload is NOT a criterion here; it is covered in M8.
+- Supervisor Panel'de `Sessions → Start Voice Test` üzerinden bir oturum açın.
+- Klavyeye dokunmadan en az 10 ardışık tur tamamlayın.
+- Her müşteri cümlesinin konuşma akışında nihai transkript olarak göründüğünü doğrulayın.
+- Duyulan yanıtın aynı tur için `agent_response` ile eşleştiğini doğrulayın.
+- Tur indekslerinin 0'dan 9'a boşluk olmadan ilerlediğini doğrulayın.
+- Almanca sayılar, fiyatlar ve ürün adları içeren en az üç cümle kullanın.
+- Tarayıcı yeniden bağlantısı / sayfa yenileme burada kriter DEĞİLDİR; bu M8 kapsamında ele alınmaktadır.
 
-### Latency Acceptance
+### Latency Kabulü
 
-For the last 10 voice turns:
+Son 10 ses turu için:
 
 ```sql
 SELECT
@@ -103,33 +101,33 @@ WHERE lm.metric_name = 'speech_end_to_first_audio_ms'
   AND s.external_session_id = '<browser-session-id>';
 ```
 
-Acceptance:
+Kabul kriterleri:
 
 - `turn_count >= 10`
-- Speech end → first audio `p95_ms < 2500`
-- No voice metrics request rejected due to transcript/response mismatch
+- Konuşma sonu → ilk ses `p95_ms < 2500`
+- Transkript/yanıt uyuşmazlığı nedeniyle reddedilen ses metrik isteği yok
 
-### Result Record
+### Sonuç Kaydı
 
-Record test date, commit SHA, GPU, Whisper model, Fish model/reference ID,
-browser version, session ID, p50/p95 values, and notes on any failed turns here
-or in a separate dated operations log.
+Test tarihini, commit SHA'sını, GPU'yu, Whisper modelini, Fish modeli/referans ID'sini,
+tarayıcı sürümünü, oturum ID'sini, p50/p95 değerlerini ve başarısız turlara ilişkin notları
+buraya veya ayrı bir tarihli operasyon loguna kaydedin.
 
-Current local verification:
+Mevcut yerel doğrulama:
 
 - Voice runtime image build: passed
 - LiveKit server/worker registration: passed
-- Token-based room creation and named-agent dispatch: passed
-- Backend turn + voice metrics persistence smoke test: passed
-- Production vLLM application latency baseline: passed (`total p95 = 2146 ms`)
-- Real microphone + Whisper + Fish Audio 10-turn acceptance: **partial — see below**
+- Token tabanlı oda oluşturma ve adlandırılmış agent dispatch: passed
+- Backend tur + ses metrik kalıcılığı duman testi: passed
+- Production vLLM uygulama latency baseline: passed (`total p95 = 2146 ms`)
+- Gerçek mikrofon + Whisper + Fish Audio 10-tur kabulü: **kısmi — aşağıya bakın**
 
-### First Live Voice Test — 23 June 2026
+### İlk Canlı Ses Testi — 23 Haziran 2026
 
-Tested with commit `d642208`, CUDA 12.9.2 base image, GPU Whisper
-`whisper-large-v3-turbo-german-ct2`, Fish Audio TTS, real microphone.
+`d642208` commit'i, CUDA 12.9.2 base image, GPU Whisper
+`whisper-large-v3-turbo-german-ct2`, Fish Audio TTS ve gerçek mikrofon ile test edildi.
 
-Latency (warm turns, cold first-turn excluded):
+Latency (ısınmış turlar, ilk soğuk tur hariç):
 
 | Turn | STT ms | Backend ms | TTS first ms | Speech→audio ms |
 |---|---:|---:|---:|---:|
@@ -138,41 +136,71 @@ Latency (warm turns, cold first-turn excluded):
 | 27 | 193 | 24 | 485 | 702 |
 | **p95** | **193** | **25** | **666** | **702** |
 
-Turn 25 first-turn cold load: STT 5986 ms (Whisper GPU warm-up — excluded from
-p95).
+Tur 25 ilk tur cold load: STT 5986 ms (Whisper GPU warmup — p95'ten hariç tutuldu).
 
-Verified:
+Doğrulandı:
 
-- GPU Whisper loaded and transcribed correctly.
-- Fish Audio TTS produced German speech playback.
-- Barge-in triggered and generation counter advanced (1→2→3).
-- Speech-end → first-audio p95 **702 ms** — well below 2500 ms target.
+- GPU Whisper yüklendi ve doğru şekilde transkribe etti.
+- Fish Audio TTS Almanca ses oynatımı üretti.
+- Barge-in tetiklendi ve üretim sayacı ilerledi (1→2→3).
+- Speech-end → first-audio p95 **702 ms** — 2500 ms hedefinin çok altında.
 
-Issues found:
+Bulunan sorunlar:
 
-- `source=probe` caused false barge-in interruptions when the user was not
-  speaking. Probe VAD threshold must be tuned before M8 is complete.
-- LLM produced garbled German on the price question
-  (`"Haben wir bieten Ihnen eine Kosten?"`). Intent/action normalization needed.
-- LLM switched to English in one turn (`"Thanks a lot to the app."`). Language
-  constraint must be enforced in the system prompt or training.
+- `source=probe`, kullanıcı konuşmadığında sahte barge-in kesintilerine yol açtı. M8
+  tamamlanmadan önce probe VAD eşiği ayarlanmalıdır.
+- LLM, fiyat sorusunda bozuk Almanca üretti
+  (`"Haben wir bieten Ihnen eine Kosten?"`). Niyet/aksiyon normalizasyonu gerekli.
+- LLM bir turda İngilizce'ye geçti (`"Thanks a lot to the app."`). Dil kısıtlaması
+  sistem prompt'unda veya eğitimde zorunlu kılınmalıdır.
 
-### Remaining Gates
+### İkinci Canlı Ses Testi — 29 Haziran 2026 (kısmi)
 
-- [ ] Complete 10 consecutive turns in a single session without interruption errors.
-- [ ] Fix `source=probe` false barge-in (M8 scope).
-- [ ] Fix LLM German-only constraint and price response quality.
-- [ ] Re-run latency measurement on a clean 10-turn session and record p50/p95.
+Panel latency metriklerinde gözlemlendi (tek oturum, `20d5f42` commit'i):
+
+| Metric | Value |
+|---|---:|
+| STT | 210 ms |
+| Backend | 20 ms |
+| LLM | 2304 ms |
+| TTS First Audio | 513 ms |
+| End → First Audio | 3185 ms |
+| Total Turn | **22677 ms** ← anormal |
+| Barge-in Latency | — (kaydedilmedi) |
+
+Sorunlar:
+
+- End → First Audio 3185 ms, 2500 ms kabul hedefinin üzerinde.
+- Total Turn 22677 ms anormal — first audio ile tur sonu arasında ~19 saniyelik boşluk.
+  Kök neden bilinmiyor; muhtemelen TTS streaming'in tüm sesi Total Turn'e dahil etmesi
+  veya `turn_end` zaman damgasının son TTS chunk gönderildikten sonra değil, ses oynatımı
+  bittikten sonra yazılması.
+- Barge-in latency metriği hâlâ kaydedilmedi (test bir kesinti turu değildi).
+- LLM p95 yükseliyor (2304 ms, 2135 ms baseline'a karşı). Soğuk cache veya daha uzun
+  çıktı olabilir; ısınmış bir oturumda yeniden ölçün.
+
+### Kalan Geçiş Kriterleri
+
+- [ ] Total Turn 22677 ms'yi araştır — `turn_end`'in audio-dispatch'te mi yoksa
+      audio-playback tamamlanmasında mı damgalandığını belirle; ikinciyse düzelt.
+- [ ] 10 turlu bir oturumda End → First Audio değerini p95 < 2500 ms'ye çek.
+      Mevcut darboğaz: LLM 2304 ms. Seçenekler: ilk cümle için TTS streaming veya
+      daha kısa LLM çıktı sözleşmesi.
+- [ ] Tek bir oturumda kesinti hatası olmadan 10 ardışık turu tamamla.
+- [ ] `source=probe` sahte barge-in'i düzelt (M8 kapsamı).
+- [ ] LLM yalnızca Almanca kısıtlamasını ve fiyat yanıt kalitesini düzelt.
+- [ ] Temiz bir 10 turlu oturumda latency ölçümünü yeniden yap ve p50/p95'i kaydet.
+- [ ] En az bir barge-in turunda `interruption_latency_ms` değerini kaydet.
 
 ---
 
-## M8 — Interruption Hardening
+## M8 — Kesinti Sertleştirme
 
-Unit tests: 43/43 passed. The following are verified manually on the GPU host.
+Birim testleri: 56/56 passed (voice-runtime 56 + 76 alt test). Aşağıdakiler GPU host'ta manuel olarak doğrulanır.
 
-### Environment
+### Ortam
 
-`.env` values to update:
+Güncellenecek `.env` değerleri:
 
 ```bash
 WHISPER_DEVICE=cuda
@@ -180,7 +208,7 @@ WHISPER_COMPUTE_TYPE=float16
 VLLM_MODE=real
 ```
 
-Start the required services (GPU profile is not needed for audio testing alone):
+Gerekli servisleri başlatın (ses testi için GPU profile gerekmez):
 
 ```bash
 docker compose up -d postgres redis livekit-server agent-backend supervisor-panel voice-runtime-worker
@@ -195,26 +223,26 @@ POSTGRES_PASSWORD=123456 POSTGRES_USER=fine_tuned_agent POSTGRES_DB=fine_tuned_a
 
 ### Test 1 — Barge-in Latency Baseline
 
-**Goal:** Verify that `interruption_latency_ms` produces realistic values.
+**Amaç:** `interruption_latency_ms` metriğinin gerçekçi değerler ürettiğini doğrula.
 
-**Steps:**
-1. Open a voice session in the panel.
-2. Interrupt the agent while it is speaking ("Moment, was kostet das?").
-3. After the turn completes, read the `interruption_latency_ms` metric in session detail.
+**Adımlar:**
+1. Panel'de bir ses oturumu aç.
+2. Agent konuşurken onu kes ("Moment, was kostet das?").
+3. Tur tamamlandıktan sonra oturum detayındaki `interruption_latency_ms` metriğini oku.
 
-**Acceptance:** `interruption_latency_ms` < 600ms.
-If > 1000ms, there is probe lag or STT thread contention — lower `barge_in_min_ms`.
+**Kabul:** `interruption_latency_ms` < 600ms.
+1000ms üzerindeyse probe gecikmesi veya STT thread çakışması var — `barge_in_min_ms` değerini düşür.
 
-### Test 2 — Multi-token Backchannel
+### Test 2 — Çok Token Backchannel
 
-**Goal:** Verify that two-token acknowledgements such as "ja ja" and "mhm okay" do not stop the agent.
+**Amaç:** "ja ja" ve "mhm okay" gibi iki token'lık onaylamaların agent'ı durdurmadığını doğrula.
 
-**Steps:**
-1. Say "ja ja" while the agent is speaking.
-2. The agent should continue without interruption.
-3. The last event in the panel should be `backchannel_detected`, not `interruption_detected`.
+**Adımlar:**
+1. Agent konuşurken "ja ja" söyle.
+2. Agent kesintisiz devam etmeli.
+3. Panel'deki son event `interruption_detected` değil `backchannel_detected` olmalı.
 
-**Phrases to test:**
+**Test edilecek ifadeler:**
 
 | Utterance | Expected |
 |-----------|----------|
@@ -222,35 +250,35 @@ If > 1000ms, there is probe lag or STT thread contention — lower `barge_in_min
 | "mhm okay" | backchannel |
 | "ja genau" | backchannel |
 | "alles klar ja" | backchannel |
-| "ja aber nein" | interruption (agent must stop) |
+| "ja aber nein" | interruption (agent durmalı) |
 | "okay aber warum" | interruption |
 
-**Risk:** STT may transcribe "ja ja" as "Jaja" or "ja, ja". Punctuation is normalised,
-but if an unexpected form appears, add it to `turn_taking_scenarios.jsonl`.
+**Risk:** STT, "ja ja"yı "Jaja" veya "ja, ja" olarak transkribe edebilir. Noktalama normalleştirilir;
+ancak beklenmedik bir form belirirse `turn_taking_scenarios.jsonl` dosyasına ekleyin.
 
-### Test 3 — Adaptive VAD (Optional)
+### Test 3 — Adaptif VAD (İsteğe Bağlı)
 
-**Goal:** Measure false barge-in rate in the presence of background noise.
+**Amaç:** Arka plan gürültüsü varlığında sahte barge-in oranını ölç.
 
-Add to `.env`:
+`.env` dosyasına ekle:
 
 ```bash
 SPEECH_ADAPTIVE_VAD=true
 ```
 
-**Steps:**
-1. Stay silent in an environment with keyboard noise or room noise while the agent speaks.
-2. The agent must not be interrupted (no false barge-in).
-3. When you actually speak, the agent must stop.
+**Adımlar:**
+1. Agent konuşurken klavye gürültüsü veya ortam gürültüsü olan bir ortamda sessiz kal.
+2. Agent kesintiye uğramamalı (sahte barge-in olmamalı).
+3. Gerçekten konuştuğunda agent durmalı.
 
-**Acceptance:** No `speech_started` event while silent.
-If false positives occur, increase `SPEECH_NOISE_FLOOR_MARGIN` (default 2.5).
+**Kabul:** Sessizken hiçbir `speech_started` event'i yok.
+Yanlış pozitifler oluşursa `SPEECH_NOISE_FLOOR_MARGIN` değerini artır (varsayılan 2.5).
 
-### Test 4 — Partial Transcript Early Cancel (Optional)
+### Test 4 — Kısmi Transkript Erken İptal (İsteğe Bağlı)
 
-**Goal:** Measure whether partial-transcript barge-in fires earlier than the probe.
+**Amaç:** Kısmi transkript barge-in'inin probe'dan daha erken tetiklenip tetiklenmediğini ölç.
 
-Add to `.env`:
+`.env` dosyasına ekle:
 
 ```bash
 ENABLE_PARTIAL_TRANSCRIPTS=true
@@ -258,26 +286,142 @@ PARTIAL_INTERVAL_MS=300
 EARLY_INTERRUPT_MIN_SPEECH_MS=500
 ```
 
-**Steps:**
-1. Speak for more than 500ms while the agent is delivering a long sentence.
-2. Compare `interruption_latency_ms` with the Test 1 baseline.
-3. Docker logs should contain `barge-in triggered ... source=partial`.
+**Adımlar:**
+1. Agent uzun bir cümle sunarken 500ms'den fazla konuş.
+2. `interruption_latency_ms` değerini Test 1 baseline'ıyla karşılaştır.
+3. Docker logları `barge-in triggered ... source=partial` içermeli.
 
-**Risk:** If GPU Whisper cannot decode at 300ms intervals under CPU contention,
-set `PARTIAL_INTERVAL_MS=600` or disable the feature entirely. If partial text
-flickers across intervals, `EARLY_INTERRUPT_MIN_SPEECH_MS` may need to increase.
+**Risk:** GPU Whisper, CPU yükü altında 300ms aralıklarla decode edemezse
+`PARTIAL_INTERVAL_MS=600` yap veya özelliği tamamen devre dışı bırak. Kısmi metin
+aralıklar arasında titreşiyorsa `EARLY_INTERRUPT_MIN_SPEECH_MS` artırılması gerekebilir.
 
-### Panel Checklist
+### Panel Kontrol Listesi
 
-After each test, verify in the panel:
+Her testten sonra panel'de doğrula:
 
-- [ ] `interruption_latency_ms` metric cell is populated
-- [ ] Barge-in counter visible in the voice events header ("N barge-ins")
-- [ ] `backchannel_detected` event shown in accent colour (not green)
-- [ ] `interruption_detected` event shown in red
+- [ ] `interruption_latency_ms` metrik hücresi dolu
+- [ ] Barge-in sayacı ses event başlığında görünüyor ("N barge-ins")
+- [ ] `backchannel_detected` event'i vurgu rengiyle gösteriliyor (yeşil değil)
+- [ ] `interruption_detected` event'i kırmızıyla gösteriliyor
 
 ---
 
-## Upcoming Milestones
+## Yarınki Test Planı — 30 Haziran 2026
 
-M9 (live supervisor control) acceptance tests will be added here.
+Tüm birim testleri geçiyor (toplam 111). Aşağıdakiler GPU host'ta yapılmalıdır.
+
+### Uçuş Öncesi Kontrol (5 dk)
+
+```bash
+docker compose up -d postgres redis livekit-server agent-backend supervisor-panel voice-runtime-worker
+# Doğrula:
+curl http://localhost:8001/health          # agent-backend → {"status":"ok"}
+curl http://localhost:8000/v1/models       # vllm-server → fine-tuned-agent-v14 listed
+```
+
+---
+
+### Kontrol 1 — Total Turn Anomalisi (En Yüksek Öncelik)
+
+**Amaç:** Total Turn = 22677 ms nedenini bul.
+
+**Adımlar:**
+
+1. Bir ses oturumu aç ve 2–3 turu normal şekilde tamamla.
+2. `voice-runtime-worker` için docker loglarını kontrol et:
+   ```bash
+   docker logs voice-runtime-worker 2>&1 | grep -E "turn_end|turn_start|total_turn"
+   ```
+3. Panel oturum detayını kontrol et: "End → First Audio" ile "Total Turn"ü yan yana karşılaştır.
+4. Total Turn = End→FirstAudio + tam TTS oynatma süresi ise, `turn_end` zaman damgası
+   gönderimden sonra değil oynatma bittikten sonra yazılıyor demektir.
+
+**Kabul:** Total Turn < End→FirstAudio + 2000 ms.
+Başarısız olursa: `voice_pipeline.py` dosyasında `turn_end`'in nerede emit edildiğini bul ve
+bunu oynatma sonrasına değil son TTS chunk'ı gönderildikten hemen sonraya taşı.
+
+---
+
+### Kontrol 2 — End → First Audio < 2500 ms (M7 geçiş kriteri)
+
+Mevcut: 3185 ms. Hedef: p95 < 2500 ms.
+
+**Adımlar:**
+
+1. 10 ardışık tur çalıştır (ısınmış oturum, soğuk ilk turu atla).
+2. Oturum sonrası panel DB'de çalıştır:
+   ```sql
+   SELECT
+     percentile_cont(0.5) WITHIN GROUP (ORDER BY value_ms) AS p50,
+     percentile_cont(0.95) WITHIN GROUP (ORDER BY value_ms) AS p95,
+     count(*) AS n
+   FROM latency_metrics
+   WHERE metric_name = 'speech_end_to_first_audio_ms'
+     AND session_id = <your_session_id>;
+   ```
+3. p95 > 2500 ms ise, LLM darboğazdır (2304 ms).
+   Hızlı kazanım: sistem prompt'unda daha kısa bir çıktı sözleşmesi uygula
+   (maksimum 2 cümle) ve yeniden ölç.
+
+**Kabul:** `p95 < 2500`, `n >= 10`.
+
+---
+
+### Kontrol 3 — Barge-in Latency (M8 Test 1)
+
+**Adımlar:**
+
+1. Agent'ın uzun bir cümle sunmasına izin ver (fiyat açıklaması).
+2. "Moment, was kostet das genau?" diyerek kes.
+3. Panel oturum detayında `interruption_latency_ms` değerini oku.
+
+**Kabul:** `interruption_latency_ms < 600 ms`.
+
+---
+
+### Kontrol 4 — Backchannel ve Kesinti (M8 Test 2)
+
+Her ifadeyi test et, beklenen event'in panel ses eventlerinde göründüğünü doğrula:
+
+| Utterance | Expected event |
+|---|---|
+| "ja ja" | `backchannel_detected` |
+| "mhm okay" | `backchannel_detected` |
+| "ja genau" | `backchannel_detected` |
+| "ja aber nein" | `interruption_detected` |
+| "okay aber warum" | `interruption_detected` |
+
+**Kabul:** 5 ifadenin tamamı doğru event'i üretiyor. Agent, backchannel ifadelerinde durmuyor.
+
+---
+
+### Kontrol 5 — Review → Pipeline Veri Akışı
+
+**Raporlanan sorunu yeniden üret:**
+
+1. Tamamlanmış turları olan bir oturum aç.
+2. Review'e git, **Good** seç, düzeltme yapmadan kaydet.
+3. Pipeline'a git — Training Data sayısının > 0 olduğunu doğrula.
+
+**Sayı 0 kalırsa:**  
+`_collect_review_candidates` fonksiyonu yalnızca `rating == "good"` VEYA düzeltme mevcut olduğunda aday ekliyor.
+Test sırasında rating'in "Good" olduğunu doğrula. Düzeltme olmadan "Mixed" veya "Bad" ise, 0 mevcut
+kasıtlı davranıştır — ancak bunun değişip değişmemesi gerektiğini değerlendirin.
+
+---
+
+### Panel Kontrol Listesi (Her Ses Testinin Ardından)
+
+- [ ] Oturum detayında `interruption_latency_ms` dolu
+- [ ] Oturum detayında `speech_end_to_first_audio_ms` dolu
+- [ ] `total_turn_ms` değeri anormal derecede büyük değil (normal bir tur için < 8000 ms)
+- [ ] Barge-in sayacı görünüyor ("N barge-ins")
+- [ ] `backchannel_detected` vurgu rengiyle gösteriliyor
+- [ ] `interruption_detected` kırmızıyla gösteriliyor
+- [ ] Review → Pipeline: "Good" review sonrası Training Data sayısı artıyor
+
+---
+
+## Yaklaşan Milestone'lar
+
+M9 (canlı supervisor kontrolü) kabul testleri buraya eklenecek.
