@@ -140,21 +140,23 @@ class VoicePipeline:
         disconnect_task: asyncio.Task | None = None
         graceful_audio_end = False
         try:
-            if self.settings.greeting_mock and self.settings.greeting_text:
+            try:
+                opening = await self.backend.agent_turn(self.session_id, "")
+                opening_text = opening["agent_response"]
                 await self._emit(
                     room,
                     "agent_response",
-                    turn_id=None,
-                    turn_index=0,
-                    text=self.settings.greeting_text,
-                    policy=None,
-                    latency={},
+                    turn_id=opening["turn_id"],
+                    turn_index=opening["turn_index"],
+                    text=opening_text,
+                    policy=opening.get("policy"),
+                    latency=opening.get("latency", {}),
                 )
                 self._playback_task = asyncio.create_task(
                     self._speak(
                         room,
-                        self.settings.greeting_text,
-                        {},
+                        opening_text,
+                        opening.get("voice_style", {}),
                         "agent-greeting",
                     )
                 )
@@ -162,9 +164,13 @@ class VoicePipeline:
                 await self._emit(
                     room,
                     "voice_turn_complete",
-                    turn_id=None,
+                    turn_id=opening["turn_id"],
                     metrics={},
                     state="listening",
+                )
+            except BackendError:
+                logger.warning(
+                    "Opening turn backend call failed — session=%s", self.session_id
                 )
 
             stream = _rtc().AudioStream(
