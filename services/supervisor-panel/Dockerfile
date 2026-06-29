@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 #   curl -sL "https://cdn.jsdelivr.net/npm/livekit-client@2.15.6/dist/livekit-client.umd.min.js" \
 #        -o services/supervisor-panel/app/static/livekit-client.umd.min.js
 COPY app/ ./app/
+COPY tests/ ./tests/
 
 EXPOSE 8020
 
