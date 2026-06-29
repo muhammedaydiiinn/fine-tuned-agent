@@ -222,14 +222,26 @@ Doğrulanan:
 - Konuşma sonu → first audio metriği tüm playback süresinden ayrıldı; p95 kabul
   sorgusu `speech_end_to_first_audio_ms` kullanıyor.
 
+GPU canlı doğrulaması (23 Haziran 2026):
+
+- `voice-runtime-worker` CUDA 12.9.2 + Ubuntu 24.04 base image ile yeniden
+  build edildi; `libcublas.so.12` hatası giderildi.
+- GPU Whisper (`whisper-large-v3-turbo-german-ct2`) soğuk yüklemede ~6 sn,
+  ısındıktan sonra STT p95 `193 ms` ölçüldü.
+- Fish Audio TTS first-audio p95 `666 ms`, speech-end → first-audio p95 `702 ms`
+  — 2500 ms hedefinin çok altında.
+- Barge-in tetiklendi; ancak `source=probe` kaynaklı yanlış kesintiler gözlemlendi
+  (kullanıcı konuşmadan interrupt oluştu). Probe eşiği M8 kapsamında ayarlanacak.
+- LLM iki kalite sorunu üretiyor: fiyat sorusunda bozuk Almanca cümle ve bir
+  turda İngilizceye geçiş. Bu sorunlar model/normalizasyon kapsamındadır.
+
 Kalan kabul kapısı:
 
-- [ ] Gerçek GPU Whisper modeli ve Fish Audio ile browser üzerinden en az 10 turn
-  konuşulmalı.
-- [ ] Aynı testte konuşma sonu → first audio p95 değeri 2.5 saniyenin altında
-  doğrulanmalı.
-- [ ] Gerçek zamanlı testte metin LLM p95 `2146 ms` toplam backend süresinin
-  üzerine STT ve TTS first-audio süreleri eklenerek uçtan uca bütçe ölçülmeli.
+- [ ] Tek session'da kesintisiz en az 10 turn tamamlanmalı (şu ana kadar
+  farklı session'larda toplam 4 turn ölçüldü).
+- [ ] Fiyat sorusunda doğru Almanca yanıt üretilmeli; LLM dil kayması giderilmeli.
+- [ ] `source=probe` kaynaklı yanlış barge-in'ler giderilmeli veya eşik
+  ayarlanmalı (M8 ile örtüşür).
 - Canlı kontrol listesi `docs/LIVE_ACCEPTANCE.md` içindedir.
 
 ## M8 — Realtime turn-taking ve interruption
@@ -275,8 +287,17 @@ Doğrulanan:
 - Pipeline cancellation/stale-response testleri ile 20 backchannel ve 20 gerçek
   interruption örneğinden oluşan deterministik test seti repoda tutuluyor.
 
+GPU canlı doğrulaması (23 Haziran 2026):
+
+- Barge-in mekanizması canlı testte tetiklendi (`generation` sayacı 1→2→3
+  ilerledi, eski yanıt düşürüldü).
+- `source=probe` kaynaklı yanlış kesintiler gözlemlendi: kullanıcı konuşmadan
+  interrupt oluştu. Probe VAD eşiği ayarlanmadan M8 kabul kriteri tamamlanamaz.
+
 Kalan kabul kapısı:
 
+- [ ] `source=probe` yanlış barge-in'leri giderilmeli; gerçek sessizlikte
+  interrupt tetiklenmemeli.
 - [ ] Gerçek browser/Fish Audio akışında interruption-to-cancel latency ölçülmeli
   (`interruption_latency_ms` < 600ms).
 - [ ] Backchannel frases ("ja ja", "mhm okay", "ja genau") gerçek mikrofon/STT
@@ -465,9 +486,11 @@ Aşağıdaki sırayla ilerlenir:
 1. [ ] M4 — Gerçek LoRA eğitimi (training-worker-gpu)
 2. [ ] M5 — Gerçek vLLM candidate eval koşusu
 3. [ ] M6 — Blue/green slot swap + rollback (vllm-candidate)
-4. [ ] M7 — 10-turn gerçek zamanlı browser voice (GPU Whisper + Fish Audio,
-       speech-end → first-audio p95 < 2500ms)
-5. [ ] M8 — Gerçek konuşmada barge-in latency < 600ms + backchannel sınıflandırma
+4. [~] M7 — GPU Whisper + Fish Audio ilk canlı test geçti (STT p95 193ms,
+       speech-end → first-audio p95 702ms). Kalan: tek session'da 10 ardışık
+       turn + LLM dil/fiyat kalitesi + probe false barge-in düzeltmesi
+5. [~] M8 — Barge-in tetiklendi; probe kaynaklı yanlış kesintiler giderilmeli,
+       interruption-to-cancel latency ölçülmeli (< 600ms)
 6. [ ] M9 — Supervisor replacement uçtan uca (canlı browser)
 7. [ ] M10 — Load/soak + tracing dashboard + runbook
 8. [ ] M11 — Telefon/SIP pilot
