@@ -8,29 +8,34 @@ from app import logging_config as _lc
 _lc._install()
 
 from livekit import agents
-from livekit.agents import AgentServer
+from livekit.agents import AgentServer, JobProcess
 
 from app.config import get_settings
 from app.pipeline import VoicePipeline
+from app.stt_shared import get_or_create_stt
 
 settings = get_settings()
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-# Validate required config before accepting any LiveKit jobs.
-# Raises RuntimeError with a clear message if something is missing.
 settings.validate_runtime()
 
+
+def _prewarm_whisper(proc: JobProcess) -> None:
+    """Load Whisper once per idle worker process before any room job starts."""
+    stt = get_or_create_stt(settings, proc)
+    asyncio.run(stt.warmup())
+    logger.info("Voice worker prewarm complete — whisper ready in idle process")
+
+
 server = AgentServer(
-    # The M7 target is one browser session on one GPU. More warm processes would
-    # add idle overhead and can create competing Whisper model allocations.
     num_idle_processes=1,
-    # Faster Whisper CPU mode settles around 1.3–1.5 GB in current acceptance
-    # runs. Keep the warning above normal model residency so it signals growth.
     job_memory_warn_mb=settings.job_memory_warn_mb,
     shutdown_process_timeout=5.0,
+    initialize_process_timeout=120.0,
 )
+server.setup_fnc = _prewarm_whisper
 
 
 @server.rtc_session(agent_name=settings.livekit_agent_name)
@@ -48,7 +53,8 @@ async def anrufblocker_voice(ctx: agents.JobContext):
         session_id,
         participant.identity,
     )
-    pipeline = VoicePipeline(settings, session_id)
+    stt = get_or_create_stt(settings, ctx.proc)
+    pipeline = VoicePipeline(settings, session_id, stt=stt)
     try:
         await pipeline.run(ctx.room, participant)
     except asyncio.TimeoutError:
@@ -61,9 +67,6 @@ async def anrufblocker_voice(ctx: agents.JobContext):
             raise
         logger.info("Voice room disconnected — session=%s", session_id)
     except Exception:
-        # Catch-all: log with full traceback so the failure is visible in logs
-        # rather than silently disappearing. The job process exits normally
-        # and the AgentServer starts a new idle process.
         logger.exception("Unhandled error in voice pipeline — session=%s", session_id)
 
 

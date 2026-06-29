@@ -6,67 +6,10 @@ correction hints + customer text -> OpenAI chat messages format.
 import json
 from typing import Any
 
-from app.core.product_facts import format_for_prompt
+from app.core.policy_prompt import build_system_content
 
 # Number of previous turns included in the prompt
 HISTORY_WINDOW = 5
-
-SYSTEM_INSTRUCTION = """You are Anna Weber, a sales agent for Anrufblocker Gold Paket.
-For each customer message return ONLY a single JSON object in this format:
-
-{
-  "intent": "<customer intent>",
-  "emotion": "<customer emotion>",
-  "risk": "<low|medium|high>",
-  "next_action": "<next sales step>",
-  "behavior_strategy": "<approach strategy>",
-  "allowed_to_continue": <true|false>,
-  "agent_response": "<German customer response>",
-  "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"}
-}
-
---- STRICT RULES ---
-
-OUTPUT FORMAT
-- Return only JSON, nothing else. No prose before or after.
-- agent_response must always be in German. Never switch to another language.
-- Keep agent_response to 1-2 sentences maximum. Do not over-explain.
-- Use the product facts below for all pricing information. Never invent numbers.
-
-HARD LIMITS
-- Never promise features the product does not have.
-- Never claim the call is a "Gewinnspiel" or contest.
-- Never use pressure phrases like "letzte Chance" or "nur heute".
-- Never ask for payment card details on the phone.
-- Never continue after allowed_to_continue=false.
-
-PERSISTENCE STRATEGY
-Use hard_decline_count from current state to guide your approach:
-- 0 declines so far: explain the core value clearly and naturally.
-- 1st decline (hard_decline_count=1): acknowledge the concern, reframe with the
-  14-day free trial — no commitment, no cost to try.
-- 2nd decline (hard_decline_count=2): ask one specific question to understand the
-  real objection (price? trust? timing?), address it directly and briefly.
-- 3rd decline (hard_decline_count=3): accept gracefully. Thank the customer, wish
-  them well, set next_action="close_call" and allowed_to_continue=false. Do NOT
-  continue selling after 3 hard declines.
-
-SOFT SIGNALS
-- If customer says "ja", "okay", "mhm", "alles klar", "ja genau" — they are
-  acknowledging, not necessarily agreeing to buy. Do not treat acknowledgement
-  as a confirmed sale. Continue moving the conversation forward naturally.
-- If customer is hesitant or asks a question mid-explanation: pause, answer the
-  question directly, then continue.
-- If customer sounds irritated (emotion=angry/frustrated): lower the pace,
-  acknowledge feelings first before any sales content.
-
-CONVERSATION FLOW
-- Always confirm the customer's name before making the offer.
-- Always explain the 14-day free trial before mentioning price.
-- Only send the App Store/Play Store link after the customer expresses interest.
-- After sending the link, wait for confirmation before moving to activation.
-- Do not repeat the same fact or argument twice in a row.
-""".strip()
 
 
 def build(
@@ -78,11 +21,8 @@ def build(
     """Return the OpenAI chat messages list."""
     messages: list[dict] = []
 
-    # 1. System instruction
-    system_content = SYSTEM_INSTRUCTION + "\n\n" + format_for_prompt()
-    messages.append({"role": "system", "content": system_content})
+    messages.append({"role": "system", "content": build_system_content()})
 
-    # 2. Current state summary (separate system message)
     state_summary = _format_state(state)
     if state_summary:
         messages.append({
@@ -90,7 +30,6 @@ def build(
             "content": f"Current state:\n{state_summary}",
         })
 
-    # 3. Correction hints
     if correction_hints:
         hints_text = "Correction memory (these instructions take priority):\n"
         for h in correction_hints:
@@ -100,26 +39,27 @@ def build(
                 hints_text += f"  next_action: {h['correct_next_action']}\n"
         messages.append({"role": "system", "content": hints_text.strip()})
 
-    # 4. Conversation history (last N turns)
     for turn in recent_turns[-HISTORY_WINDOW:]:
         messages.append({"role": "user", "content": turn.customer_text})
         if turn.agent_response:
             messages.append({"role": "assistant", "content": turn.agent_response})
 
-    # 5. Current customer message
     if not customer_text:
         customer_name = (state.get("customer_name") or "").strip()
         if customer_name:
             opening = (
                 f"The call just connected — you are calling {customer_name}. "
-                "There is no customer input yet. Generate your opening greeting: "
-                f"address {customer_name} by name, introduce yourself as Anna Weber "
-                "from Anrufblocker, and briefly state why you are calling."
-            )
+                "The customer may already be speaking; keep the greeting to one or two "
+                "short sentences. Address {name} by name, introduce yourself as Anna Weber, "
+                "Sicherheitsberaterin von Anrufblocker, and briefly mention that their "
+                "number may be exposed to fraud misuse and you will help them check it safely."
+            ).format(name=customer_name)
         else:
             opening = (
-                "The call just connected. No customer input yet. Generate your opening "
-                "greeting and introduce yourself as Anna Weber from Anrufblocker."
+                "The call just connected. The customer may already be speaking; keep the "
+                "greeting to one or two short sentences. Introduce yourself as Anna Weber, "
+                "Sicherheitsberaterin von Anrufblocker, and briefly mention safe number "
+                "protection."
             )
         messages.append({"role": "system", "content": opening})
     user_payload = json.dumps(

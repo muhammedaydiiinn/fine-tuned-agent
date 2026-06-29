@@ -18,10 +18,44 @@ from models import TrainingCandidate, Turn
 
 logger = logging.getLogger(__name__)
 
+_RESOLVED = Path(__file__).resolve()
+# Dev source tree: services/training-worker/jobs/build_dataset.py -> repo root is
+# parents[3]. In the container the tree is flattened to /app/jobs/... where
+# parents[3] does not exist, so fall back to the highest available parent. The
+# container ships its policy files under parents[1]/policy (see _*_CANDIDATES).
+_REPO_ROOT = _RESOLVED.parents[3] if len(_RESOLVED.parents) > 3 else _RESOLVED.parents[-1]
+_POLICY_CANDIDATES = (
+    _REPO_ROOT / "agent-backend" / "app" / "core" / "policy" / "system_instruction.txt",
+    Path(__file__).resolve().parents[1] / "policy" / "system_instruction.txt",
+)
+_FACTS_CANDIDATES = (
+    _REPO_ROOT / "agent-backend" / "app" / "core" / "policy" / "product_facts_prompt.txt",
+    Path(__file__).resolve().parents[1] / "policy" / "product_facts_prompt.txt",
+)
+
 LEGACY_SYSTEM_INSTRUCTION = (
     "You are an Anrufblocker Gold Paket sales policy agent. "
     "Return ONLY a valid JSON policy object."
 )
+
+
+def _first_existing(paths: tuple[Path, ...]) -> Path | None:
+    for path in paths:
+        if path.is_file():
+            return path
+    return None
+
+
+def _canonical_system_content() -> str:
+    instruction_path = _first_existing(_POLICY_CANDIDATES)
+    facts_path = _first_existing(_FACTS_CANDIDATES)
+    instruction = (
+        instruction_path.read_text(encoding="utf-8").strip()
+        if instruction_path
+        else LEGACY_SYSTEM_INSTRUCTION
+    )
+    facts = facts_path.read_text(encoding="utf-8").strip() if facts_path else ""
+    return instruction + ("\n\n" + facts if facts else "")
 
 def _validate_messages(messages: list, source: str) -> None:
     if not isinstance(messages, list) or len(messages) < 3:
@@ -80,11 +114,7 @@ def _normalize_legacy_candidate(candidate: TrainingCandidate, db: Session) -> li
     normalized = [
         {
             "role": "system",
-            "content": (
-                messages[0].get("content")
-                if isinstance(messages[0], dict) and messages[0].get("content")
-                else LEGACY_SYSTEM_INSTRUCTION
-            ),
+            "content": _canonical_system_content(),
         },
         {
             "role": "user",

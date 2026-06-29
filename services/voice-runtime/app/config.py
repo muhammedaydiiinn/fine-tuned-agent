@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # Per-overlap barge-in windows (None = fall back to barge_in_min_ms)
     backchannel_window_ms: int | None = None
     interrupt_confirm_ms: int | None = None
+    # Before cancelling playback, transcribe the buffered audio and only
+    # cancel on genuine customer speech. Rejects self-echo (the agent hearing
+    # its own playback through the caller's speaker) and ambient noise.
+    barge_in_verify_content: bool = True
+    # Fraction of heard tokens that must appear in the agent's currently
+    # playing text for the audio to be treated as self-echo (and suppressed).
+    barge_in_echo_overlap_ratio: float = 0.6
     # Partial transcript settings (master switch default OFF)
     enable_partial_transcripts: bool = False
     partial_interval_ms: int = 300

@@ -247,6 +247,10 @@
           setVoiceState("processing", "Heard: " + (event.text || ""));
         } else if (event.event === "agent_response") {
           setVoiceState("speaking");
+        } else if (event.event === "agent_playback_started") {
+          setVoiceState("speaking");
+        } else if (event.event === "possible_barge_in") {
+          setVoiceState("interrupted", "Possible interruption — listening...");
         } else if (event.event === "interruption_detected") {
           setVoiceState("interrupted");
         } else if (event.event === "playback_cancelled") {
@@ -286,7 +290,7 @@
         } else if (event.event === "tts_fallback_activated") {
           showToast("warning", "Primary TTS failed, mock PCM fallback was used for this turn.", "TTS fallback");
         }
-        if (window.htmx && !["speech_started", "speech_ended", "partial_transcript"].includes(event.event)) {
+        if (window.htmx && !["speech_started", "speech_ended", "partial_transcript", "possible_barge_in", "agent_playback_started"].includes(event.event)) {
           window.htmx.trigger(document.body, "voice-event");
         }
       });

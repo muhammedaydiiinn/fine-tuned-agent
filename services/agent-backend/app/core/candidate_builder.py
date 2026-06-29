@@ -5,14 +5,9 @@ Used by both routes/corrections.py and routes/training.py to avoid duplication.
 import json
 import logging
 
-from app.core.product_facts import format_for_prompt
+from app.core.policy_prompt import build_system_content
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_INSTRUCTION = (
-    "You are an Anrufblocker Gold Paket sales policy agent. "
-    "Return ONLY a valid JSON policy object."
-)
 
 
 def build_candidate_from_turn(
@@ -43,7 +38,7 @@ def build_candidate_from_turn(
     messages = [
         {
             "role": "system",
-            "content": SYSTEM_INSTRUCTION + "\n\n" + format_for_prompt(),
+            "content": build_system_content(),
         },
         {
             "role": "user",

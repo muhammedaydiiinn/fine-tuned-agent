@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import time
 import uuid
 from typing import TYPE_CHECKING
@@ -31,11 +32,17 @@ def _rtc():
 
 
 class VoicePipeline:
-    def __init__(self, settings: Settings, session_id: str):
+    def __init__(
+        self,
+        settings: Settings,
+        session_id: str,
+        *,
+        stt: FasterWhisperSTT | None = None,
+    ):
         self.settings = settings
         self.session_id = session_id
         self.backend = AgentBackend(settings)
-        self.stt = FasterWhisperSTT(settings)
+        self.stt = stt or FasterWhisperSTT(settings)
         self.tts = FishTTS(settings)
         self.segmenter = UtteranceSegmenter(
             SegmentationConfig(
@@ -73,9 +80,14 @@ class VoicePipeline:
         self._agent_speaking = False
         self._pending_interruption: str | None = None
         self._speech_overlap_kind: str | None = None
+        self._current_agent_text: str = ""
         self._barge_in_probe_task: asyncio.Task | None = None
         self._sequence = 0
         self._generation = 0
+        self._playback_seq = 0
+        self._current_playback_id: str | None = None
+        self._room: rtc.Room | None = None
+        self._opening_task: asyncio.Task | None = None
         self._speech_started_at: float | None = None
         self._interruption_latency_ms: float | None = None
         self._last_partial_text: str = ""
@@ -83,6 +95,7 @@ class VoicePipeline:
         self._supervisor_lock = asyncio.Lock()
 
     async def run(self, room: rtc.Room, participant: rtc.RemoteParticipant) -> None:
+        self._room = room
         try:
             await self.backend.create_session(self.session_id)
         except BackendError:
@@ -138,47 +151,26 @@ class VoicePipeline:
         room.on("data_received", on_data_received)
         stream_task: asyncio.Task | None = None
         disconnect_task: asyncio.Task | None = None
+        warmup_task: asyncio.Task | None = None
         graceful_audio_end = False
         try:
-            try:
-                opening = await self.backend.agent_turn(self.session_id, "")
-                opening_text = opening["agent_response"]
-                await self._emit(
-                    room,
-                    "agent_response",
-                    turn_id=opening["turn_id"],
-                    turn_index=opening["turn_index"],
-                    text=opening_text,
-                    policy=opening.get("policy"),
-                    latency=opening.get("latency", {}),
-                )
-                self._playback_task = asyncio.create_task(
-                    self._speak(
-                        room,
-                        opening_text,
-                        opening.get("voice_style", {}),
-                        "agent-greeting",
-                    )
-                )
-                await self._playback_task
-                await self._emit(
-                    room,
-                    "voice_turn_complete",
-                    turn_id=opening["turn_id"],
-                    metrics={},
-                    state="listening",
-                )
-            except BackendError:
-                logger.warning(
-                    "Opening turn backend call failed — session=%s", self.session_id
-                )
-
             stream = _rtc().AudioStream(
                 track,
                 sample_rate=INPUT_SAMPLE_RATE,
                 num_channels=1,
             )
-            stream_task = asyncio.create_task(self._consume_audio_stream(room, stream))
+            stream_task = asyncio.create_task(
+                self._consume_audio_stream(room, stream),
+                name=f"voice-stream-{self.session_id}",
+            )
+            warmup_task = asyncio.create_task(
+                self.stt.warmup(),
+                name=f"voice-stt-warmup-{self.session_id}",
+            )
+            self._opening_task = asyncio.create_task(
+                self._run_opening_turn(room),
+                name=f"voice-opening-{self.session_id}",
+            )
             disconnect_task = asyncio.create_task(disconnected.wait())
             done, _ = await asyncio.wait(
                 {stream_task, disconnect_task},
@@ -192,10 +184,11 @@ class VoicePipeline:
         except asyncio.CancelledError:
             logger.info("Voice pipeline cancelled — session=%s", self.session_id)
         finally:
+            self._room = None
             room.off("disconnected", on_disconnected)
             room.off("participant_disconnected", on_participant_disconnected)
             room.off("data_received", on_data_received)
-            for task in (stream_task, disconnect_task):
+            for task in (stream_task, disconnect_task, warmup_task, self._opening_task):
                 if task and not task.done():
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -209,6 +202,61 @@ class VoicePipeline:
             with contextlib.suppress(asyncio.CancelledError):
                 await consumer
             await self._cancel_active_work(room, reason="session_closed")
+
+    async def _run_opening_turn(self, room: rtc.Room) -> None:
+        """Play the agent greeting while microphone capture is already active."""
+        try:
+            opening = await self.backend.agent_turn(self.session_id, "")
+            opening_text = opening["agent_response"]
+            response_generation_id = self._generation
+            await self._emit(
+                room,
+                "agent_response",
+                turn_id=opening["turn_id"],
+                turn_index=opening["turn_index"],
+                text=opening_text,
+                policy=opening.get("policy"),
+                latency=opening.get("latency", {}),
+                response_generation_id=response_generation_id,
+            )
+            self._playback_task = asyncio.create_task(
+                self._speak(
+                    room,
+                    opening_text,
+                    opening.get("voice_style", {}),
+                    "agent-greeting",
+                    turn_id=opening["turn_id"],
+                    response_generation_id=response_generation_id,
+                )
+            )
+            first_audio_ms, cancelled, playback_id = await self._playback_task
+            self._playback_task = None
+            if cancelled:
+                await self._emit(
+                    room,
+                    "playback_cancelled",
+                    turn_id=opening["turn_id"],
+                    playback_id=self._current_playback_id,
+                    response_generation_id=response_generation_id,
+                    reason="customer_speech",
+                    state="processing",
+                )
+                return
+            await self._emit(
+                room,
+                "voice_turn_complete",
+                turn_id=opening["turn_id"],
+                playback_id=self._current_playback_id,
+                response_generation_id=response_generation_id,
+                metrics={"tts_first_audio_ms": first_audio_ms or 0.0},
+                state="listening",
+            )
+        except BackendError:
+            logger.warning(
+                "Opening turn backend call failed — session=%s", self.session_id
+            )
+        except asyncio.CancelledError:
+            raise
 
     async def _consume_audio_stream(
         self,
@@ -367,6 +415,7 @@ class VoicePipeline:
                     room,
                     "stale_response_discarded",
                     turn_id=turn.get("turn_id"),
+                    response_generation_id=generation,
                     state="listening",
                 )
                 return
@@ -379,6 +428,7 @@ class VoicePipeline:
                 text=turn["agent_response"],
                 policy=turn["policy"],
                 latency=turn["latency"],
+                response_generation_id=generation,
                 state="speaking",
             )
 
@@ -389,15 +439,19 @@ class VoicePipeline:
                     turn["agent_response"],
                     turn.get("voice_style", {}),
                     f"agent-audio-{turn['turn_id']}",
+                    turn_id=turn["turn_id"],
+                    response_generation_id=generation,
                 )
             )
-            first_audio_ms, cancelled = await self._playback_task
+            first_audio_ms, cancelled, playback_id = await self._playback_task
             self._playback_task = None
             if cancelled:
                 await self._emit(
                     room,
                     "playback_cancelled",
                     turn_id=turn["turn_id"],
+                    playback_id=playback_id,
+                    response_generation_id=generation,
                     reason="customer_speech",
                     state="processing",
                 )
@@ -423,6 +477,8 @@ class VoicePipeline:
                     room,
                     "stale_response_discarded",
                     turn_id=turn["turn_id"],
+                    playback_id=playback_id,
+                    response_generation_id=generation,
                     state="listening",
                 )
                 return
@@ -448,6 +504,8 @@ class VoicePipeline:
                 room,
                 "voice_turn_complete",
                 turn_id=turn["turn_id"],
+                playback_id=playback_id,
+                response_generation_id=generation,
                 metrics={**metrics, "backend_roundtrip_ms": backend_roundtrip_ms},
                 state="listening",
             )
@@ -482,11 +540,29 @@ class VoicePipeline:
         text: str,
         voice_style: dict,
         track_label: str,
-    ) -> tuple[float | None, bool]:
+        *,
+        turn_id: int | None = None,
+        response_generation_id: int | None = None,
+    ) -> tuple[float | None, bool, str | None]:
         tts_started = time.perf_counter()
         first_audio_ms: float | None = None
         self._playback_cancel = asyncio.Event()
+        self._current_agent_text = text
         self._agent_speaking = True
+        self._playback_seq += 1
+        playback_id = f"{self.session_id}:pb:{self._playback_seq}"
+        self._current_playback_id = playback_id
+        generation_id = (
+            self._generation if response_generation_id is None else response_generation_id
+        )
+        await self._emit(
+            room,
+            "agent_playback_started",
+            turn_id=turn_id,
+            playback_id=playback_id,
+            response_generation_id=generation_id,
+            state="speaking",
+        )
         audio_source = _rtc().AudioSource(self.settings.tts_sample_rate, 1)
         audio_track = _rtc().LocalAudioTrack.create_audio_track(track_label, audio_source)
         publication = None
@@ -537,10 +613,11 @@ class VoicePipeline:
                 await audio_source.wait_for_playout()
         finally:
             self._agent_speaking = False
+            self._current_agent_text = ""
             if publication is not None:
                 with contextlib.suppress(Exception):
                     await room.local_participant.unpublish_track(publication.sid)
-        return first_audio_ms, cancelled
+        return first_audio_ms, cancelled, playback_id
 
     def _request_playback_cancel(self) -> None:
         if self._playback_cancel is not None:
@@ -560,6 +637,7 @@ class VoicePipeline:
                 time.perf_counter() - self._speech_started_at
             ) * 1000
         self._pending_interruption = overlap_kind
+        captured_generation = self._generation
         self._generation += 1
         logger.info(
             "barge-in triggered — session=%s overlap=%s source=%s new_generation=%d",
@@ -568,6 +646,21 @@ class VoicePipeline:
             source,
             self._generation,
         )
+        if self._room is not None:
+            task = asyncio.create_task(
+                self._emit(
+                    self._room,
+                    "possible_barge_in",
+                    overlap_kind=overlap_kind,
+                    source=source,
+                    playback_id=self._current_playback_id,
+                    response_generation_id=captured_generation,
+                    interruption_latency_ms=self._interruption_latency_ms,
+                    state="hearing" if self._agent_speaking else "processing",
+                )
+            )
+            self._event_tasks.add(task)
+            task.add_done_callback(self._event_tasks.discard)
         self._request_playback_cancel()
 
     def _probe_delay_ms(self, overlap_kind: str) -> int:
@@ -591,26 +684,91 @@ class VoicePipeline:
             await asyncio.sleep(delay)
             # Re-read live state after sleep
             current_overlap = self._speech_overlap_kind
-            if (current_overlap or overlap_kind) and self.segmenter.speech_active:
-                # Only cancel playback and invalidate the in-flight backend
-                # response when audio is actually audible. A pure
-                # "active_turn" overlap (backend busy but agent not yet
-                # speaking) must NOT discard the in-flight turn — doing so
-                # causes every turn after the first to be silently dropped as
-                # stale_response_discarded. In that case the new utterance
-                # is already queued and will run naturally after the current
-                # turn completes.
-                effective = current_overlap or overlap_kind
-                if effective == "playback" or self._agent_speaking:
-                    self._trigger_barge_in(effective, source="probe")
-                else:
-                    # active_turn only, not yet speaking — record latency only
-                    if self._speech_started_at is not None:
-                        self._interruption_latency_ms = (
-                            time.perf_counter() - self._speech_started_at
-                        ) * 1000
+            if not ((current_overlap or overlap_kind) and self.segmenter.speech_active):
+                return
+            # Only cancel playback and invalidate the in-flight backend
+            # response when audio is actually audible. A pure
+            # "active_turn" overlap (backend busy but agent not yet
+            # speaking) must NOT discard the in-flight turn — doing so
+            # causes every turn after the first to be silently dropped as
+            # stale_response_discarded. In that case the new utterance
+            # is already queued and will run naturally after the current
+            # turn completes.
+            effective = current_overlap or overlap_kind
+            if not (effective == "playback" or self._agent_speaking):
+                # active_turn only, not yet speaking — record latency only
+                if self._speech_started_at is not None:
+                    self._interruption_latency_ms = (
+                        time.perf_counter() - self._speech_started_at
+                    ) * 1000
+                return
+            # About to cancel audible playback. Energy alone can be self-echo
+            # (the agent hearing its own voice through the caller's speaker) or
+            # ambient noise, so confirm there is genuine customer speech first.
+            if self.settings.barge_in_verify_content and not await self._confirm_customer_speech():
+                return
+            self._trigger_barge_in(effective, source="probe")
 
         self._barge_in_probe_task = asyncio.create_task(probe())
+
+    async def _confirm_customer_speech(self) -> bool:
+        """Return True only for a genuine customer interruption during playback.
+
+        Transcribes the in-flight speech buffer and rejects audio that is empty,
+        a backchannel, or an echo of the agent's own playback. On STT failure it
+        falls back to the legacy energy-only behaviour (treat as real) so
+        interruption still works when transcription is unavailable.
+        """
+        pcm = self.segmenter.snapshot()
+        if pcm is None:
+            return False
+        try:
+            partial = await self.stt.transcribe_partial(pcm, sample_rate=INPUT_SAMPLE_RATE)
+        except Exception:
+            logger.debug(
+                "barge-in verification STT failed — session=%s", self.session_id
+            )
+            return True
+        text = (partial.text or "").strip()
+        if not text:
+            logger.info(
+                "barge-in suppressed (no speech content) — session=%s", self.session_id
+            )
+            return False
+        if self.backchannels.classify(text).is_backchannel:
+            logger.info(
+                "barge-in suppressed (backchannel) — session=%s text=%s",
+                self.session_id,
+                text,
+            )
+            return False
+        if self._looks_like_self_echo(text):
+            logger.info(
+                "barge-in suppressed (self-echo) — session=%s text=%s",
+                self.session_id,
+                text,
+            )
+            return False
+        return True
+
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        return [t for t in re.sub(r"[^\w\s]", " ", text.lower()).split() if t]
+
+    def _looks_like_self_echo(self, text: str) -> bool:
+        """True when the heard text is mostly words from the agent's current line.
+
+        Self-echo transcribes back to the agent's own words; a real customer
+        interruption introduces words that are not in the agent's script.
+        """
+        agent_tokens = set(self._tokenize(self._current_agent_text))
+        if not agent_tokens:
+            return False
+        heard = self._tokenize(text)
+        if not heard:
+            return False
+        overlap = sum(1 for token in heard if token in agent_tokens)
+        return overlap / len(heard) >= self.settings.barge_in_echo_overlap_ratio
 
     async def _emit_partials(self, room: rtc.Room) -> None:
         """Emit partial transcript events at regular intervals during speech.
@@ -657,6 +815,7 @@ class VoicePipeline:
                     self._agent_speaking
                     and self._speech_overlap_kind == "playback"
                     and not self.backchannels.classify(partial.text).is_backchannel
+                    and not self._looks_like_self_echo(partial.text)
                     and self.segmenter.speech_ms >= early_cancel_ms
                 ):
                     self._trigger_barge_in("playback", source="partial")
@@ -794,11 +953,12 @@ class VoicePipeline:
             generation=self._generation,
             state="speaking",
         )
-        first_audio_ms, cancelled = await self._speak(
+        first_audio_ms, cancelled, playback_id = await self._speak(
             room,
             text,
             {},
             f"supervisor-replacement-{action_id}",
+            response_generation_id=self._generation,
         )
         if cancelled:
             await self._emit(
@@ -900,7 +1060,12 @@ class VoicePipeline:
             topic=EVENT_TOPIC,
         )
         # High-frequency / non-authoritative events: browser only, not persisted
-        _browser_only = {"speech_started", "speech_ended", "partial_transcript"}
+        _browser_only = {
+            "speech_started",
+            "speech_ended",
+            "partial_transcript",
+            "possible_barge_in",
+        }
         if event_type not in _browser_only:
             task = asyncio.create_task(
                 self.backend.record_voice_event(

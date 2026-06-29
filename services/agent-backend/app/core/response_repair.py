@@ -7,7 +7,13 @@ from __future__ import annotations
 
 import re
 
-from app.core.product_facts import PRODUCT_FACTS
+from app.core.guardrails import customer_wants_delay
+from app.core.product_facts import (
+    DELAY_DEFERRAL_TEMPLATE,
+    FORBIDDEN_DATA_TEMPLATE,
+    FORBIDDEN_RESPONSE_PATTERNS,
+    PRODUCT_FACTS,
+)
 
 
 def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[str, list[str]]:
@@ -42,6 +48,16 @@ def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[
     r, hit = repair_premature_link(response, filled)
     if hit:
         applied.append("premature_link")
+        response = r
+
+    r, hit = repair_forbidden_data_request(response)
+    if hit:
+        applied.append("forbidden_data_request")
+        response = r
+
+    r, hit = repair_delay_phone_request(response, customer_message)
+    if hit:
+        applied.append("delay_phone_request")
         response = r
 
     return response, applied
@@ -110,6 +126,24 @@ def repair_sms_code_request(response: str) -> tuple[str, bool]:
             True,
         )
     return response, False
+
+
+def repair_forbidden_data_request(response: str) -> tuple[str, bool]:
+    """Block IBAN, full phone number, address, birth date collection on the call."""
+    msg = (response or "").lower()
+    if not any(p in msg for p in FORBIDDEN_RESPONSE_PATTERNS):
+        return response, False
+    return (FORBIDDEN_DATA_TEMPLATE, True)
+
+
+def repair_delay_phone_request(response: str, customer_message: str) -> tuple[str, bool]:
+    """When customer wants time, replace phone-collection phrasing with deferral."""
+    if not customer_wants_delay(customer_message):
+        return response, False
+    msg = (response or "").lower()
+    if not any(p in msg for p in ("telefonnummer", "vollständige nummer", "ihre nummer")):
+        return response, False
+    return (DELAY_DEFERRAL_TEMPLATE + " Einen schönen Tag!", True)
 
 
 def repair_premature_link(response: str, filled_slots: dict) -> tuple[str, bool]:

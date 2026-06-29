@@ -126,12 +126,13 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
                 {"event": event_type, "turn_id": turn_id, **payload}
             )
 
-        async def speak(room, text, voice_style, track_label):
+        async def speak(room, text, voice_style, track_label, **kwargs):
             pipeline.speak_calls.append((text, track_label))
             first_audio_ms, cancelled = pipeline.speak_result
             if not cancelled:
                 await asyncio.sleep((first_audio_ms or 0.0) / 1000 + 0.001)
-            return pipeline.speak_result
+            playback_id = f"test-pb-{len(pipeline.speak_calls)}"
+            return first_audio_ms, cancelled, playback_id
 
         pipeline._emit = emit
         pipeline._speak = speak
@@ -246,6 +247,83 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._pending_interruption, "active_turn")
+
+    async def test_barge_in_suppressed_when_audio_is_self_echo(self):
+        # The caller's speaker leaks the agent's own greeting back into the
+        # microphone. The buffered audio transcribes to the agent's own words,
+        # so the probe must NOT cancel its own playback.
+        pipeline = self.make_pipeline("hier ist der Anrufblocker")
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._current_agent_text = "Guten Tag, hier ist der Anrufblocker."
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertFalse(pipeline._playback_cancel.is_set())
+        self.assertIsNone(pipeline._pending_interruption)
+        self.assertEqual(pipeline._generation, 0)
+
+    async def test_barge_in_suppressed_for_backchannel_content(self):
+        pipeline = self.make_pipeline("ja")
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertFalse(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 0)
+
+    async def test_barge_in_suppressed_when_no_speech_content(self):
+        pipeline = self.make_pipeline("")
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertFalse(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 0)
+
+    async def test_real_customer_speech_cancels_despite_agent_text(self):
+        # A genuine interruption introduces words not in the agent's line, so
+        # echo rejection must let it through and cancel playback.
+        pipeline = self.make_pipeline("nein warten Sie einen Moment")
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._current_agent_text = "Guten Tag, hier ist der Anrufblocker."
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._pending_interruption, "playback")
+        self.assertEqual(pipeline._generation, 1)
+
+    async def test_barge_in_falls_back_to_cancel_when_stt_unavailable(self):
+        # If verification STT fails we preserve interruption capability rather
+        # than silently disabling barge-in.
+        pipeline = self.make_pipeline()
+        pipeline.stt = FailingSTT(STTError("stt down"))
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 1)
 
     # -----------------------------------------------------------------------
     # _trigger_barge_in — idempotency and latency recording (M8 Aşama 3)
