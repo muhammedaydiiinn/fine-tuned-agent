@@ -6,6 +6,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.core.deployment_policy import (
     deployment_state,
+    validate_deployment_artifact_evidence,
     validate_deployment_evidence,
 )
 
@@ -48,6 +49,9 @@ class DeploymentEvidenceTests(TestCase):
                 self.artifact,
                 changed_target,
             )
+
+    def test_artifact_evidence_allows_production_target_change(self):
+        validate_deployment_artifact_evidence(self.metrics, self.artifact)
 
     def test_legacy_eval_without_evidence_is_rejected(self):
         metrics = {"deployment_gate": {"passed": True}}

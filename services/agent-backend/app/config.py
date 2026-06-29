@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     vllm_model_name: str = "fine-tuned-agent-v14"
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     model_health_timeout_seconds: float = 15.0
+    vllm_start_timeout_seconds: float = 900.0
     allow_mock_production_deploy: bool = False
+    production_model_path: str = "/models/production/current"
+    production_served_model_name: str = "fine-tuned-agent-production"
+    model_manager_url: str = "http://model-manager:8030"
+    model_manager_token: str = ""
 
     # Model
     model_active_version: str = "fine-tuned-agent-v14"

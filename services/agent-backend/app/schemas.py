@@ -311,4 +311,6 @@ class HealthResponse(BaseModel):
     db: bool
     redis: bool
     vllm_mode: str
+    vllm: dict[str, Any] | None = None
+    active_model: str | None = None
     version: str = "1.0.0"

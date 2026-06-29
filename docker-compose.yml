@@ -85,12 +85,35 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      model-manager:
+        condition: service_started
     restart: unless-stopped
     logging: *default-logging
     # Bound to loopback only — reachable from the host for local dev/curl but
     # not exposed to external networks. nginx proxies /api/ in production.
     ports:
       - "127.0.0.1:8010:8010"
+
+  # ── Model manager: atomic production model promotion + vLLM restart ───────
+  model-manager:
+    build:
+      context: ./services/model-manager
+    env_file: .env
+    environment:
+      PRODUCTION_MODEL_PATH: ${PRODUCTION_MODEL_PATH:-/models/production/current}
+      DOCKER_SERVICE_NAME: vllm-server
+    volumes:
+      - ${MODELS_DIR:-./models}:/models
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging: *default-logging
 
   # ── Supervisor panel ────────────────────────────────────────────────────────
   supervisor-panel:
@@ -162,11 +185,9 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  # ── vLLM model server (sadece VLLM_MODE=real + GPU sunucuda) ───────────────
+  # ── Production vLLM model server (default on GPU production hosts) ─────────
   vllm-server:
     image: vllm/vllm-openai:latest
-    profiles:
-      - gpu
     deploy:
       resources:
         reservations:
@@ -177,10 +198,10 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
     volumes:
-      - ${MODEL_MERGED_PATH:-./models/merged/fine-tuned-agent-v14}:/model:ro
+      - ${PRODUCTION_MODEL_PATH:-./models/production/current}:/model:ro
     command: >
       --model /model
-      --served-model-name ${VLLM_MODEL_NAME:-fine-tuned-agent-v14}
+      --served-model-name ${PRODUCTION_SERVED_MODEL_NAME:-fine-tuned-agent-production}
       --max-model-len 4096
       --gpu-memory-utilization 0.60
       --port 8000
@@ -193,7 +214,7 @@ services:
   # IMPORTANT: Never run alongside vllm-server or training-worker on a single
   # GPU host. Qwen3.5 9B needs ~18 GB; two instances would exceed A6000 48 GB.
   # Candidate eval workflow:
-  #   1. docker compose --profile gpu stop vllm-server
+  #   1. docker compose stop vllm-server
   #   2. docker compose --profile candidate-eval up -d vllm-candidate
   #   3. run eval, then reverse the steps.
   vllm-candidate:
@@ -242,14 +263,11 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  # ── Training worker — real GPU profile ─────────────────────────────────────
-  # Start this service on the GPU host instead of training-worker:
-  # docker compose --profile gpu-workers up -d training-worker-gpu eval-worker
+  # ── Training worker — real GPU production default ──────────────────────────
   training-worker-gpu:
     build:
       context: ./services/training-worker
-    profiles:
-      - gpu-workers
+      dockerfile: Dockerfile.gpu
     env_file: .env
     volumes:
       - ${MODELS_DIR:-./models}:/models
@@ -275,8 +293,6 @@ services:
   eval-worker:
     build:
       context: ./services/eval-worker
-    profiles:
-      - workers
     env_file: .env
     volumes:
       - ${MODELS_DIR:-./models}:/models:ro

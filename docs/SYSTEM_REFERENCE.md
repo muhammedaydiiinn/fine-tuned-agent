@@ -163,9 +163,10 @@ WebRTC medya sunucusu. Browser ↔ worker arasındaki ses trafiğini yönetir.
 
 ---
 
-### 2.5 `vllm-server` (GPU profili)
+### 2.5 `vllm-server`
 
-OpenAI-compat API sunan model inference sunucusu. Sadece `--profile gpu` ile başlar.
+OpenAI-compat API sunan production model inference sunucusu. GPU production
+stack'te `docker compose up -d --build` ile varsayılan olarak başlar.
 
 `VLLM_MODE=mock` ile agent-backend kendi mock yanıtını üretir, vllm-server gerekmez.
 
@@ -184,8 +185,8 @@ yapmaz.
 ### 2.7 `training-worker`
 
 LoRA fine-tune ve model merge işlerini Redis kuyruğundan alıp çalıştırır.
-Lokal mock servis `--profile workers`, gerçek GPU servisi `--profile gpu-workers`
-ile başlar.
+Lokal mock servis `docker-compose.local.yml` ve `--profile workers` ile,
+gerçek GPU servisi production stack'te varsayılan olarak başlar.
 
 ---
 
@@ -563,17 +564,13 @@ Bu değerlerin hepsi eval-worker tarafından kullanılır. Bir eval run başlat�
 
 ```bash
 # Sadece core servisler (local dev, GPU yok)
-docker compose up
-
-# Production model serving ekle
-docker compose --profile gpu up
+docker compose -f docker-compose.yml -f docker-compose.local.yml up
 
 # Training + eval worker ekle
-docker compose --profile workers up
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile workers up
 
-# Gerçek GPU training worker + eval worker
-docker compose --profile gpu-workers --profile workers \
-  up -d training-worker-gpu eval-worker
+# Production GPU stack
+docker compose up -d --build
 
 # Candidate model eval sunucusunu başlat
 docker compose --profile candidate-eval up -d vllm-candidate
@@ -581,11 +578,9 @@ docker compose --profile candidate-eval up -d vllm-candidate
 
 | Profil | Eklenen Servisler |
 |--------|-------------------|
-| _(yok)_ | nginx, postgres, redis, agent-backend, supervisor-panel, livekit-server, voice-runtime-worker |
-| `gpu` | + vllm-server |
+| _(yok)_ | production GPU stack: nginx, postgres, redis, model-manager, agent-backend, supervisor-panel, livekit-server, voice-runtime-worker, vllm-server, training-worker-gpu, eval-worker |
 | `candidate-eval` | + vllm-candidate |
-| `workers` | + training-worker, eval-worker |
-| `gpu-workers` | + training-worker-gpu |
+| `workers` with `docker-compose.local.yml` | + local mock training-worker |
 
 ---
 

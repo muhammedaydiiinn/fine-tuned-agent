@@ -364,7 +364,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                         "model_name": (
                             new_version_name
                             if settings.training_mode == "mock"
-                            else new_version_name
+                            else settings.candidate_model_name
                         ),
                         "slot": "mock" if settings.training_mode == "mock" else "green",
                     },
