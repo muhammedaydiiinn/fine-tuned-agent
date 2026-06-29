@@ -32,6 +32,8 @@ CLOSE_REQUIRED_SLOTS: tuple[str, ...] = (
 DEFAULT_STATE: dict[str, Any] = {
     "stage": "initial",
     "goal": "sell_activation",
+    "customer_name": "",
+
     "hard_decline_count": 0,
     "identity_confirmed": False,
     "offer_terms_explained": False,

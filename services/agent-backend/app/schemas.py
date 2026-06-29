@@ -63,6 +63,7 @@ class AgentTurnResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     external_session_id: str | None = None
+    customer_name: str | None = None
 
 
 class SessionResponse(BaseModel):

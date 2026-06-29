@@ -931,6 +931,22 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   background: #ffd779;
 }
 
+/* Launcher modal: single-column form card (no icon grid). */
+.confirm-modal-card.launcher-card {
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 440px);
+}
+
+.launcher-card h2 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.launcher-card .form-group {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 560px) {
   .confirm-modal {
     align-items: end;

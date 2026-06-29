@@ -17,6 +17,12 @@
         {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
         {{ session.status }}
       </span>
+      {% set customer_name = (session.state_json or {}).get('customer_name') %}
+      {% if customer_name %}
+      <span class="badge badge-info" title="Customer being called">
+        <i class="fa-solid fa-user"></i>{{ customer_name }}
+      </span>
+      {% endif %}
       {% if active_model_name %}
       <span class="badge badge-info" title="Active model version">
         <i class="fa-solid fa-microchip"></i>{{ active_model_name }}

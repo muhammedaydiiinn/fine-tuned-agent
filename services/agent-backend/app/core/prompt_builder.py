@@ -11,7 +11,7 @@ from app.core.product_facts import format_for_prompt
 # Number of previous turns included in the prompt
 HISTORY_WINDOW = 5
 
-SYSTEM_INSTRUCTION = """You are a sales policy agent for Anrufblocker Gold Paket.
+SYSTEM_INSTRUCTION = """You are Anna Weber, a sales agent for Anrufblocker Gold Paket.
 For each customer message return ONLY a single JSON object in this format:
 
 {
@@ -72,10 +72,20 @@ def build(
 
     # 5. Current customer message
     if not customer_text:
-        messages.append({
-            "role": "system",
-            "content": "The call just connected. No customer input yet. Generate your opening greeting.",
-        })
+        customer_name = (state.get("customer_name") or "").strip()
+        if customer_name:
+            opening = (
+                f"The call just connected — you are calling {customer_name}. "
+                "There is no customer input yet. Generate your opening greeting: "
+                f"address {customer_name} by name, introduce yourself as Anna Weber "
+                "from Anrufblocker, and briefly state why you are calling."
+            )
+        else:
+            opening = (
+                "The call just connected. No customer input yet. Generate your opening "
+                "greeting and introduce yourself as Anna Weber from Anrufblocker."
+            )
+        messages.append({"role": "system", "content": opening})
     user_payload = json.dumps(
         {"customer_message": customer_text, "state": _compact_state(state)},
         ensure_ascii=False,
@@ -100,10 +110,13 @@ def _format_state(state: dict[str, Any]) -> str:
 
 def _compact_state(state: dict[str, Any]) -> dict:
     """Return only the fields that matter for prompt size."""
-    return {
+    compact = {
         "stage": state.get("stage"),
         "hard_decline_count": state.get("hard_decline_count", 0),
         "identity_confirmed": state.get("identity_confirmed", False),
         "offer_terms_explained": state.get("offer_terms_explained", False),
         "price_explained": state.get("price_explained", False),
     }
+    if (state.get("customer_name") or "").strip():
+        compact["customer_name"] = state["customer_name"]
+    return compact
