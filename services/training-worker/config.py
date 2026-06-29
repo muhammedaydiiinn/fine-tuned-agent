@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     candidate_model_name: str = "anrufblocker-candidate"
     candidate_publish_path: str = "/models/candidates/current"
+    # Candidate evaluation serves the freshly trained LoRA adapter on the shared
+    # production vLLM server (no second 24B model, no downtime). This is the base
+    # URL of that shared server; the adapter is mounted at /adapters/<version>.
+    candidate_lora_base_url: str = "http://vllm-server:8000/v1"
 
     @property
     def database_url(self) -> str:
