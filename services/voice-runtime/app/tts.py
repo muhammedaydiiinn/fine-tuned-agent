@@ -21,6 +21,26 @@ class FishTTS:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.last_stream_used_fallback = False
+        # Persistent client reused across turns so we pay the TCP+TLS handshake
+        # to Fish once per session instead of once per reply — cuts first-audio
+        # latency on every turn after the first.
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(self.settings.tts_request_timeout_seconds),
+                limits=httpx.Limits(
+                    max_keepalive_connections=4,
+                    keepalive_expiry=300.0,
+                ),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
 
     async def stream(
         self,
@@ -57,19 +77,18 @@ class FishTTS:
             "Content-Type": "application/json",
             "model": self.settings.fish_tts_model,
         }
-        timeout = httpx.Timeout(self.settings.tts_request_timeout_seconds)
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream(
-                    "POST",
-                    self.settings.fish_tts_url,
-                    headers=headers,
-                    json=payload,
-                ) as response:
-                    response.raise_for_status()
-                    async for chunk in response.aiter_bytes():
-                        if chunk:
-                            yield chunk
+            client = self._get_client()
+            async with client.stream(
+                "POST",
+                self.settings.fish_tts_url,
+                headers=headers,
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
         except (httpx.HTTPError, RuntimeError) as exc:
             if not self.settings.tts_fallback_to_mock:
                 raise

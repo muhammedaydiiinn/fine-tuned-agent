@@ -83,6 +83,11 @@ class VoicePipeline:
         self._pending_interruption: str | None = None
         self._speech_overlap_kind: str | None = None
         self._current_agent_text: str = ""
+        # Last thing the agent said, kept AFTER playback ends (unlike
+        # _current_agent_text). Lets us tell whether the agent just asked a
+        # question when the customer's "ja" arrives — a real answer, not a
+        # droppable backchannel.
+        self._last_agent_text: str = ""
         self._barge_in_probe_task: asyncio.Task | None = None
         self._sequence = 0
         self._generation = 0
@@ -376,7 +381,11 @@ class VoicePipeline:
             decision = self.backchannels.classify(transcript.text)
             interruption_kind = self._pending_interruption
             self._pending_interruption = None
-            if overlap_kind == "playback" and decision.is_backchannel:
+            if (
+                overlap_kind == "playback"
+                and decision.is_backchannel
+                and not self._agent_just_asked()
+            ):
                 await self._emit(
                     room,
                     "backchannel_detected",
@@ -571,6 +580,7 @@ class VoicePipeline:
         self._last_spoken_ms = 0.0
         self._playback_cancel = asyncio.Event()
         self._current_agent_text = text
+        self._last_agent_text = text
         self._agent_speaking = True
         self._playback_seq += 1
         playback_id = f"{self.session_id}:pb:{self._playback_seq}"
@@ -768,7 +778,7 @@ class VoicePipeline:
             text = ""
 
         if text:
-            if self.backchannels.classify(text).is_backchannel:
+            if self.backchannels.classify(text).is_backchannel and not self._agent_just_asked():
                 logger.info(
                     "barge-in suppressed (backchannel) — session=%s rms=%.0f text=%s",
                     self.session_id,
@@ -873,6 +883,17 @@ class VoicePipeline:
             cutoff = cutoff.rsplit(" ", 1)[0]
         return cutoff.strip()
 
+    def _agent_just_asked(self) -> bool:
+        """True when the agent's last line was a question awaiting an answer.
+
+        A bare "ja"/"okay" overlapping such a line is a real answer, not a
+        mid-explanation backchannel, so it must NOT be dropped. Whether that
+        "ja" actually confirms anything is the model's call (SOFT SIGNALS in
+        the prompt), not ours — we only avoid silently swallowing a possible
+        answer. Reads the agent's own act, not a customer keyword list.
+        """
+        return self._last_agent_text.strip().endswith("?")
+
     async def _emit_partials(self, room: rtc.Room) -> None:
         """Emit partial transcript events at regular intervals during speech.
 
@@ -939,6 +960,8 @@ class VoicePipeline:
             await self._emit(room, "voice_session_closed", reason=reason)
         if self._event_tasks:
             await asyncio.gather(*tuple(self._event_tasks), return_exceptions=True)
+        with contextlib.suppress(Exception):
+            await self.tts.aclose()
 
     async def _handle_room_data(
         self,
