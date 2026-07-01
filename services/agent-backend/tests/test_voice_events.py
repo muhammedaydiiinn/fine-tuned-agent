@@ -4,7 +4,11 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.schemas import VoiceEventRequest, VoiceTurnMetricsRequest
+from app.schemas import (
+    VoiceEventRequest,
+    VoiceTurnInterruptionRequest,
+    VoiceTurnMetricsRequest,
+)
 
 
 class VoiceEventContractTests(TestCase):
@@ -43,3 +47,18 @@ class VoiceEventContractTests(TestCase):
         )
 
         self.assertIsNone(metrics.speech_end_to_first_audio_ms)
+
+    def test_interruption_request_allows_empty_spoken_response(self):
+        # Playback cancelled before any audio played → empty prefix, 0 ms.
+        req = VoiceTurnInterruptionRequest(session_id="voice-test-123")
+        self.assertEqual(req.spoken_response, "")
+        self.assertEqual(req.spoken_ms, 0.0)
+
+    def test_interruption_request_carries_heard_prefix(self):
+        req = VoiceTurnInterruptionRequest(
+            session_id="voice-test-123",
+            spoken_response="Guten Tag, ich bin Anna",
+            spoken_ms=1600.0,
+        )
+        self.assertEqual(req.spoken_response, "Guten Tag, ich bin Anna")
+        self.assertEqual(req.spoken_ms, 1600.0)

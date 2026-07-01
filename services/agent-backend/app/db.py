@@ -47,6 +47,8 @@ def create_tables() -> None:
     )
     turn_columns = (
         "ADD COLUMN IF NOT EXISTS final_policy_json JSONB",
+        "ADD COLUMN IF NOT EXISTS was_interrupted BOOLEAN",
+        "ADD COLUMN IF NOT EXISTS spoken_response TEXT",
     )
     with engine.begin() as connection:
         for clause in eval_run_columns:

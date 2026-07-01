@@ -88,6 +88,9 @@ class VoicePipeline:
         self._generation = 0
         self._playback_seq = 0
         self._current_playback_id: str | None = None
+        # Milliseconds of agent audio actually played out in the last _speak
+        # call (used to reconstruct what the customer heard before a barge-in).
+        self._last_spoken_ms: float = 0.0
         self._room: rtc.Room | None = None
         self._opening_task: asyncio.Task | None = None
         self._speech_started_at: float | None = None
@@ -448,6 +451,21 @@ class VoicePipeline:
             first_audio_ms, cancelled, playback_id = await self._playback_task
             self._playback_task = None
             if cancelled:
+                spoken_ms = self._last_spoken_ms
+                spoken_prefix = self._estimate_spoken_prefix(
+                    turn["agent_response"], spoken_ms
+                )
+                # Persist what the customer actually heard so the next prompt
+                # can resume contextually instead of assuming the full reply
+                # was delivered. Best-effort: never fail the session over it.
+                await self.backend.report_interruption(
+                    turn["turn_id"],
+                    {
+                        "session_id": self.session_id,
+                        "spoken_response": spoken_prefix,
+                        "spoken_ms": spoken_ms,
+                    },
+                )
                 await self._emit(
                     room,
                     "playback_cancelled",
@@ -455,6 +473,7 @@ class VoicePipeline:
                     playback_id=playback_id,
                     response_generation_id=generation,
                     reason="customer_speech",
+                    spoken_ms=spoken_ms,
                     state="processing",
                 )
                 return
@@ -548,6 +567,8 @@ class VoicePipeline:
     ) -> tuple[float | None, bool, str | None]:
         tts_started = time.perf_counter()
         first_audio_ms: float | None = None
+        spoken_samples = 0
+        self._last_spoken_ms = 0.0
         self._playback_cancel = asyncio.Event()
         self._current_agent_text = text
         self._agent_speaking = True
@@ -597,6 +618,7 @@ class VoicePipeline:
                             samples_per_channel=len(packet) // 2,
                         )
                     )
+                    spoken_samples += len(packet) // 2
                 if cancelled:
                     break
             if pcm_buffer and not cancelled:
@@ -611,9 +633,11 @@ class VoicePipeline:
                         samples_per_channel=len(pcm_buffer) // 2,
                     )
                 )
+                spoken_samples += len(pcm_buffer) // 2
             if not cancelled:
                 await audio_source.wait_for_playout()
         finally:
+            self._last_spoken_ms = spoken_samples * 1000 / self.settings.tts_sample_rate
             self._agent_speaking = False
             self._current_agent_text = ""
             if publication is not None:
@@ -768,14 +792,28 @@ class VoicePipeline:
             )
             return True
 
-        # No decodable words — fall back to loudness.
+        # No decodable words — fall back to loudness, but only when the loud
+        # audio is also SUSTAINED. A brief loud burst is almost always an
+        # emphatic backchannel ("JA!") that must not silence the agent.
         if rms >= self.settings.barge_in_loud_rms:
+            speech_ms = self.segmenter.speech_ms
+            if speech_ms >= self.settings.barge_in_loud_min_ms:
+                logger.info(
+                    "barge-in confirmed (loud sustained, no transcript) — "
+                    "session=%s rms=%.0f speech_ms=%.0f",
+                    self.session_id,
+                    rms,
+                    speech_ms,
+                )
+                return True
             logger.info(
-                "barge-in confirmed (loud, no transcript) — session=%s rms=%.0f",
+                "barge-in suppressed (loud but brief, likely backchannel) — "
+                "session=%s rms=%.0f speech_ms=%.0f",
                 self.session_id,
                 rms,
+                speech_ms,
             )
-            return True
+            return False
         logger.info(
             "barge-in suppressed (quiet, no speech content) — session=%s rms=%.0f",
             self.session_id,
@@ -810,6 +848,30 @@ class VoicePipeline:
             return False
         novel = [token for token in heard if token not in agent_tokens]
         return not novel
+
+    def _estimate_spoken_prefix(self, text: str, spoken_ms: float) -> str:
+        """Best-effort reconstruction of how much of ``text`` the customer heard.
+
+        Maps elapsed playback time to a character offset using the configured
+        speaking rate, then trims back to the nearest word boundary so the
+        prefix is a clean fragment. Returns the full text when the estimate
+        covers (almost) all of it, and "" when nothing was audibly played.
+        """
+        text = (text or "").strip()
+        if not text or spoken_ms <= 0:
+            return ""
+        chars_per_ms = self.settings.speaking_chars_per_second / 1000.0
+        est_chars = int(spoken_ms * chars_per_ms)
+        if est_chars >= len(text):
+            return text
+        if est_chars <= 0:
+            return ""
+        cutoff = text[:est_chars]
+        # Trim to the last word boundary so we don't cut mid-word, unless the
+        # cut already landed exactly on whitespace.
+        if " " in cutoff and not text[est_chars].isspace():
+            cutoff = cutoff.rsplit(" ", 1)[0]
+        return cutoff.strip()
 
     async def _emit_partials(self, room: rtc.Room) -> None:
         """Emit partial transcript events at regular intervals during speech.
