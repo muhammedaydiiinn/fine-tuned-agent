@@ -72,6 +72,10 @@ class FakeBackend:
     async def record_voice_event(self, payload: dict) -> None:
         return None
 
+    async def report_interruption(self, turn_id: int, payload: dict) -> None:
+        self.interruptions = getattr(self, "interruptions", [])
+        self.interruptions.append((turn_id, payload))
+
 
 class FakeSegmenter:
     """Minimal segmenter stub for pipeline unit tests."""
@@ -93,6 +97,12 @@ class LoudFakeSegmenter(FakeSegmenter):
 
     def snapshot(self) -> bytes:
         return (3000).to_bytes(2, "little", signed=True) * 160
+
+
+class BriefLoudFakeSegmenter(LoudFakeSegmenter):
+    """Loud audio that is too SHORT to be a real interruption (emphatic "JA!")."""
+
+    speech_ms = 200.0
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +130,11 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
             whisper_device="cpu",
             greeting_mock=False,
             barge_in_min_ms=1,
+            # Keep per-overlap windows unset so the probe delay collapses to the
+            # tiny barge_in_min_ms above; the production defaults (600/800) are
+            # exercised by the dedicated _probe_delay_ms tests below.
+            backchannel_window_ms=None,
+            interrupt_confirm_ms=None,
         )
         pipeline = VoicePipeline(settings, "pipeline-test")
         pipeline.stt = FakeSTT(transcript)
@@ -332,6 +347,54 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._pending_interruption, "playback")
         self.assertEqual(pipeline._generation, 1)
+
+    async def test_barge_in_suppressed_when_loud_but_brief(self):
+        # An emphatic short "JA!" is loud but lasts < barge_in_loud_min_ms, so
+        # it must NOT silence the agent (P3: backchannels don't stop playback).
+        pipeline = self.make_pipeline("")
+        pipeline.segmenter = BriefLoudFakeSegmenter()
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertFalse(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 0)
+
+    async def test_estimate_spoken_prefix(self):
+        pipeline = self.make_pipeline()
+        text = "Guten Tag, hier ist der CallShield Sicherheitsdienst."
+        # ~14 chars/s → 1000 ms ≈ 14 chars, trimmed to a word boundary.
+        prefix = pipeline._estimate_spoken_prefix(text, 1000.0)
+        self.assertTrue(prefix)
+        self.assertLess(len(prefix), len(text))
+        self.assertTrue(text.startswith(prefix))
+        self.assertFalse(prefix.endswith(" "))
+        # Plenty of time → whole line; no time → nothing heard.
+        self.assertEqual(pipeline._estimate_spoken_prefix(text, 60_000.0), text)
+        self.assertEqual(pipeline._estimate_spoken_prefix(text, 0.0), "")
+
+    async def test_cancelled_playback_reports_spoken_prefix(self):
+        pipeline = self.make_pipeline()
+
+        async def speak(room, text, voice_style, track_label, **kwargs):
+            pipeline.speak_calls.append((text, track_label))
+            pipeline._last_spoken_ms = 400.0  # heard part of the reply
+            return 8.0, True, "test-pb-1"
+
+        pipeline._speak = speak
+
+        await pipeline._run_turn(None, b"pcm")
+
+        self.assertTrue(getattr(pipeline.backend, "interruptions", None))
+        turn_id, payload = pipeline.backend.interruptions[0]
+        self.assertEqual(turn_id, 42)
+        self.assertEqual(payload["spoken_ms"], 400.0)
+        # "Test response" with 400 ms heard → a non-empty prefix of the reply.
+        self.assertTrue(payload["spoken_response"])
+        self.assertTrue("Test response".startswith(payload["spoken_response"]))
 
     async def test_barge_in_falls_back_to_loudness_when_stt_unavailable(self):
         # If verification STT fails we fall back to the energy test so loud

@@ -10,6 +10,8 @@ from app.models import LatencyMetric, Session as SessionModel, Turn, VoiceEvent
 from app.schemas import (
     VoiceEventRequest,
     VoiceEventResponse,
+    VoiceTurnInterruptionRequest,
+    VoiceTurnInterruptionResponse,
     VoiceTurnMetricsRequest,
     VoiceTurnMetricsResponse,
 )
@@ -88,6 +90,67 @@ def save_voice_event(
         raise HTTPException(status_code=500, detail="Failed to save voice event")
 
     return VoiceEventResponse(id=event.id, event_id=event.event_id, created=True)
+
+
+@router.post(
+    "/voice/turns/{turn_id}/interruption",
+    response_model=VoiceTurnInterruptionResponse,
+)
+def record_voice_turn_interruption(
+    turn_id: int,
+    req: VoiceTurnInterruptionRequest,
+    db: DBSession = Depends(get_db),
+):
+    """Mark a turn as interrupted and store the portion the customer heard.
+
+    Called by the voice-runtime when playback is cancelled by a barge-in. The
+    prompt builder uses these fields so the next turn resumes contextually
+    rather than assuming the full reply was delivered.
+    """
+    turn = (
+        db.query(Turn)
+        .join(SessionModel, SessionModel.id == Turn.session_id)
+        .filter(
+            Turn.id == turn_id,
+            SessionModel.external_session_id == req.session_id,
+        )
+        .first()
+    )
+    if turn is None:
+        raise HTTPException(status_code=404, detail="Voice turn not found")
+
+    turn.was_interrupted = True
+    # Fall back to the full response when the estimate is empty but audio did
+    # play (defensive — the runtime sends a best-effort prefix).
+    turn.spoken_response = req.spoken_response or None
+    turn.latency_json = {
+        **(turn.latency_json or {}),
+        "interrupted": True,
+        "spoken_ms": req.spoken_ms,
+    }
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to record interruption — turn_id=%d session=%s",
+            turn_id,
+            req.session_id,
+        )
+        raise HTTPException(status_code=500, detail="Failed to record interruption")
+
+    logger.info(
+        "Interruption recorded — turn_id=%d session=%s spoken_ms=%.0f",
+        turn_id,
+        req.session_id,
+        req.spoken_ms,
+    )
+    return VoiceTurnInterruptionResponse(
+        turn_id=turn.id,
+        session_id=req.session_id,
+        was_interrupted=True,
+    )
 
 
 @router.post(

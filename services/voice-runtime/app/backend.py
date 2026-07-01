@@ -124,6 +124,24 @@ class AgentBackend:
                 turn_id,
             )
 
+    async def report_interruption(self, turn_id: int, payload: dict) -> None:
+        """Record how much of an interrupted turn was actually heard.
+
+        Best-effort: a failure here must not kill the live session, so
+        BackendError is logged and swallowed.
+        """
+        try:
+            await self._request(
+                "POST",
+                f"/voice/turns/{turn_id}/interruption",
+                json=payload,
+            )
+        except BackendError:
+            logger.warning(
+                "Interruption not recorded for turn_id=%d — continuing",
+                turn_id,
+            )
+
     async def record_voice_event(self, payload: dict) -> None:
         """Persist an M8 event best-effort without taking down the live session."""
         try:

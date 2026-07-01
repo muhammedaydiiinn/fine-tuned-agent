@@ -46,9 +46,14 @@ class Settings(BaseSettings):
         "ja natürlich,natürlich,ja genau,ja okay,okay okay,ok ok"
     )
     barge_in_min_ms: int = 800
-    # Per-overlap barge-in windows (None = fall back to barge_in_min_ms)
-    backchannel_window_ms: int | None = None
-    interrupt_confirm_ms: int | None = None
+    # Per-overlap barge-in windows (None = fall back to barge_in_min_ms).
+    # playback overlap: shorter so a genuine interruption cuts in faster while
+    #   the customer is hearing the agent. The early-interrupt partial path
+    #   (see early_interrupt_min_speech_ms) stops real speech even sooner.
+    # active_turn overlap: kept conservative so a backend-busy turn is not
+    #   discarded; the new utterance is queued and runs after the current turn.
+    backchannel_window_ms: int | None = 600
+    interrupt_confirm_ms: int | None = 800
     # Before cancelling playback, inspect the buffered audio and only cancel on
     # genuine customer speech. Rejects self-echo (the agent hearing its own
     # playback through the caller's speaker) and ambient noise.
@@ -58,11 +63,19 @@ class Settings(BaseSettings):
     # at or above this level. Echo through a speaker is attenuated and stays
     # below it. Compare against speech_rms_threshold (ambient/echo ~ threshold).
     barge_in_loud_rms: int = 1500
-    # Partial transcript settings (master switch default OFF)
-    enable_partial_transcripts: bool = False
+    # Loud-but-undecodable audio (STT returned empty) only counts as a real
+    # interruption when it is also SUSTAINED for at least this long. An emphatic
+    # short "JA!" backchannel is loud but brief, so this guard keeps it from
+    # silencing the agent. Measured against segmenter.speech_ms.
+    barge_in_loud_min_ms: int = 400
+    # Partial transcript settings — realtime customer hearing + early barge-in.
+    enable_partial_transcripts: bool = True
     partial_interval_ms: int = 300
     partial_min_speech_ms: int = 400
     early_interrupt_min_speech_ms: int = 500
+    # Estimated speaking rate used to reconstruct how much of an interrupted
+    # response the customer actually heard (German TTS at normal pace).
+    speaking_chars_per_second: float = 14.0
     # Adaptive VAD settings (default OFF — legacy fixed-threshold when False)
     speech_adaptive_vad: bool = False
     speech_noise_floor_margin: float = 2.5

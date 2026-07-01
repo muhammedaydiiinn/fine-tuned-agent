@@ -118,6 +118,20 @@ class VoiceTurnMetricsResponse(BaseModel):
     latency: dict[str, float]
 
 
+class VoiceTurnInterruptionRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=128)
+    # The portion of the agent response the customer actually heard before
+    # barging in. May be empty when playback was cut before any audio.
+    spoken_response: str = Field(default="")
+    spoken_ms: float = Field(default=0.0, ge=0)
+
+
+class VoiceTurnInterruptionResponse(BaseModel):
+    turn_id: int
+    session_id: str
+    was_interrupted: bool
+
+
 class VoiceEventRequest(BaseModel):
     session_id: str = Field(..., min_length=1, max_length=128)
     event_id: str = Field(..., min_length=1, max_length=160)

@@ -41,7 +41,21 @@ def build(
 
     for turn in recent_turns[-HISTORY_WINDOW:]:
         messages.append({"role": "user", "content": turn.customer_text})
-        if turn.agent_response:
+        if getattr(turn, "was_interrupted", False):
+            # Represent only what the customer actually heard, then flag the
+            # cut-off so the model resumes contextually instead of repeating.
+            heard = (getattr(turn, "spoken_response", None) or "").strip()
+            if heard:
+                messages.append({"role": "assistant", "content": heard})
+            messages.append({
+                "role": "system",
+                "content": (
+                    "(Your previous reply was interrupted by the customer here; "
+                    "they did not hear the rest. Do not repeat what you already "
+                    "said — address their new input, then continue naturally.)"
+                ),
+            })
+        elif turn.agent_response:
             messages.append({"role": "assistant", "content": turn.agent_response})
 
     if not customer_text:

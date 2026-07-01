@@ -79,6 +79,11 @@ class Turn(Base):
     final_policy_json: Mapped[dict | None] = mapped_column(JSONB)
     latency_json: Mapped[dict | None] = mapped_column(JSONB)
     model_version: Mapped[str | None] = mapped_column(String(64))
+    # Set when the customer barged in mid-playback. spoken_response holds the
+    # best-effort estimate of how much of agent_response was actually heard, so
+    # the next turn can resume contextually instead of repeating itself.
+    was_interrupted: Mapped[bool | None] = mapped_column(Boolean)
+    spoken_response: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["Session"] = relationship("Session", back_populates="turns")
