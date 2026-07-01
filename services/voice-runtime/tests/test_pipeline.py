@@ -301,6 +301,51 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(pipeline._playback_cancel.is_set())
         self.assertEqual(pipeline._generation, 0)
 
+    async def test_confirmation_ja_when_agent_asked_question_creates_turn(self):
+        # Agent just asked a yes/no question; a "ja" overlapping the tail is a
+        # real answer, not a droppable backchannel — it must open a turn so the
+        # LLM (with SOFT SIGNALS) can interpret it.
+        pipeline = self.make_pipeline("ja")
+        pipeline._last_agent_text = "Möchten Sie das jetzt aktivieren?"
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind="playback")
+
+        self.assertEqual(pipeline.backend.turn_calls, [("pipeline-test", "ja")])
+        self.assertNotIn(
+            "backchannel_detected",
+            [event["event"] for event in pipeline.events],
+        )
+
+    async def test_ja_still_suppressed_when_agent_made_a_statement(self):
+        # No question → "ja" during playback stays a backchannel (P3 preserved).
+        pipeline = self.make_pipeline("ja")
+        pipeline._last_agent_text = "Ich erkläre Ihnen kurz den Ablauf."
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind="playback")
+
+        self.assertEqual(pipeline.backend.turn_calls, [])
+        self.assertIn(
+            "backchannel_detected",
+            [event["event"] for event in pipeline.events],
+        )
+
+    async def test_backchannel_confirms_barge_in_when_agent_asked(self):
+        # During a question's playback, a "ja" should cancel playback (answer),
+        # not be suppressed as a backchannel.
+        pipeline = self.make_pipeline("ja")
+        pipeline.segmenter = FakeSegmenter()
+        pipeline._last_agent_text = "Möchten Sie das aktivieren?"
+        pipeline._current_agent_text = "Möchten Sie das aktivieren?"
+        pipeline._speech_overlap_kind = "playback"
+        pipeline._speech_started_at = time.perf_counter()
+        pipeline._playback_cancel = asyncio.Event()
+
+        pipeline._schedule_barge_in_probe()
+        await asyncio.sleep(0.02)
+
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._pending_interruption, "playback")
+
     async def test_barge_in_suppressed_when_quiet_without_transcript(self):
         # Empty STT + quiet audio = self-echo / ambient noise -> do not cancel.
         pipeline = self.make_pipeline("")
