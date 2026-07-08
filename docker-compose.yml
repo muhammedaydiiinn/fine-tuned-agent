@@ -212,6 +212,7 @@ services:
       --max-model-len 4096
       --gpu-memory-utilization 0.85
       --enable-prefix-caching
+      --speculative-config '{"method":"mtp","num_speculative_tokens":1}'
       --enable-lora
       --max-lora-rank 32
       --max-loras 2
