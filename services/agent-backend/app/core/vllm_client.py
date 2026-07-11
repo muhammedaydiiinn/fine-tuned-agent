@@ -13,8 +13,18 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def chat(messages: list[dict], target: dict[str, str] | None = None) -> str:
-    """Call the LLM with the given message list and return the raw text response."""
+def chat(
+    messages: list[dict],
+    target: dict[str, str] | None = None,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """Call the LLM with the given message list and return the raw text response.
+
+    ``temperature``/``max_tokens`` override the defaults (0.1 / 512) — used by the
+    judge (short JSON verdict, temperature=0.0 retry) and the NL editor.
+    """
     target = target or {
         "mode": settings.vllm_mode,
         "base_url": settings.vllm_base_url,
@@ -22,7 +32,7 @@ def chat(messages: list[dict], target: dict[str, str] | None = None) -> str:
     }
     if target.get("mode") == "mock":
         return _mock_chat(messages)
-    return _real_chat(messages, target)
+    return _real_chat(messages, target, temperature=temperature, max_tokens=max_tokens)
 
 
 # ── Mock ────────────────────────────────────────────────────────────────────
@@ -114,12 +124,18 @@ def _classify_mock(text: str) -> dict:
 
 # ── Real vLLM ────────────────────────────────────────────────────────────────
 
-def _real_chat(messages: list[dict], target: dict[str, str]) -> str:
+def _real_chat(
+    messages: list[dict],
+    target: dict[str, str],
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
     payload = {
         "model": target["model_name"],
         "messages": messages,
-        "temperature": 0.1,
-        "max_tokens": 512,
+        "temperature": 0.1 if temperature is None else temperature,
+        "max_tokens": 512 if max_tokens is None else max_tokens,
         "chat_template_kwargs": {"enable_thinking": False},
     }
     try:

@@ -9,9 +9,12 @@ from app.config import settings
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
 
+from pydantic import BaseModel
+
 from app.db import get_db
-from app.models import EvalRun, ModelVersion
+from app.models import EvalRun, ModelVersion, TrainingCandidate, Turn, TurnEvaluation
 from app.core import model_runtime
+from app.core.candidate_builder import build_candidate_from_turn
 
 
 def _safe_path(raw: str) -> Path:
@@ -37,7 +40,7 @@ def _safe_path(raw: str) -> Path:
         )
     return resolved
 from app.schemas import CreateEvalRunRequest, EvalRunResponse
-from app.workers.queue import enqueue_eval_job
+from app.workers.queue import enqueue_eval_job, enqueue_judge_batch
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -206,3 +209,103 @@ def get_eval_run_results(eval_run_id: int, db: DBSession = Depends(get_db)):
         logger.error("Could not read eval results for run id=%d: %s", eval_run_id, exc)
         raise HTTPException(status_code=500, detail="Could not read eval results") from exc
     return payload
+
+
+# ── LLM-judge: real-log batch + suggestion accept/reject (additive) ──────────
+
+class JudgeBatchRequest(BaseModel):
+    max_turns: int | None = None
+
+
+class AcceptTurnEvaluationRequest(BaseModel):
+    corrected_response: str | None = None
+    corrected_next_action: str | None = None
+
+
+@router.post("/eval-runs/judge-batch", status_code=201)
+def create_judge_batch(
+    body: JudgeBatchRequest,
+    db: DBSession = Depends(get_db),
+):
+    """Start an LLM-judge batch over recent PRODUCTION turns (never gates deploy)."""
+    model = model_runtime.active_model(db)
+    if model is None:
+        raise HTTPException(status_code=409, detail="No active production model to judge")
+    run = EvalRun(
+        model_version_id=model.id,
+        run_kind="real_log_judge",
+        status="pending",
+        progress_current=0,
+        progress_total=int(body.max_turns or 0),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    try:
+        enqueue_judge_batch(run.id, model.id, body.max_turns)
+    except Exception as exc:
+        run.status = "failed"
+        run.error_message = "Failed to enqueue judge batch"
+        db.commit()
+        logger.exception("judge-batch enqueue failed run=%d", run.id)
+        raise HTTPException(status_code=503, detail="Could not enqueue judge batch") from exc
+    return {"eval_run_id": run.id, "model_version_id": model.id, "run_kind": "real_log_judge"}
+
+
+@router.post("/turn-evaluations/{te_id}/accept")
+def accept_turn_evaluation(
+    te_id: int,
+    body: AcceptTurnEvaluationRequest,
+    db: DBSession = Depends(get_db),
+):
+    """Convert a judge suggestion into an approved TrainingCandidate."""
+    te = db.query(TurnEvaluation).filter(TurnEvaluation.id == te_id).first()
+    if te is None:
+        raise HTTPException(status_code=404, detail="Turn evaluation not found")
+    if te.status == "converted" and te.accepted_candidate_id:
+        return {"turn_evaluation_id": te.id, "candidate_id": te.accepted_candidate_id, "status": te.status}
+    if te.turn_id is None:
+        raise HTTPException(status_code=400, detail="Turn evaluation has no turn to convert")
+    turn = db.query(Turn).filter(Turn.id == te.turn_id).first()
+    if turn is None:
+        raise HTTPException(status_code=404, detail="Source turn not found")
+
+    corrected_response = (body.corrected_response or te.suggestion or turn.agent_response or "").strip()
+    if not corrected_response:
+        raise HTTPException(status_code=400, detail="No corrected response available to train on")
+    corrected_next_action = body.corrected_next_action or turn.next_action or ""
+
+    built = build_candidate_from_turn(
+        turn,
+        corrected_response,
+        corrected_next_action,
+        "response_correction",
+        turn.model_version or "unknown",
+    )
+    candidate = TrainingCandidate(
+        source_type="judge_suggestion",
+        source_id=turn.id,
+        messages_json=built["messages"],
+        metadata_json={**built["metadata"], "turn_evaluation_id": te.id, "judge_overall": te.overall},
+        approved=True,
+    )
+    db.add(candidate)
+    db.flush()
+    te.status = "converted"
+    te.accepted_candidate_id = candidate.id
+    db.commit()
+    return {"turn_evaluation_id": te.id, "candidate_id": candidate.id, "status": "converted"}
+
+
+@router.post("/turn-evaluations/{te_id}/reject")
+def reject_turn_evaluation(
+    te_id: int,
+    db: DBSession = Depends(get_db),
+):
+    te = db.query(TurnEvaluation).filter(TurnEvaluation.id == te_id).first()
+    if te is None:
+        raise HTTPException(status_code=404, detail="Turn evaluation not found")
+    if te.status != "converted":
+        te.status = "rejected"
+        db.commit()
+    return {"turn_evaluation_id": te.id, "status": te.status}

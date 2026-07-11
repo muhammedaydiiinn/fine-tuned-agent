@@ -1,11 +1,35 @@
-"""Deterministic natural-language supervisor instruction compiler."""
+"""Natural-language supervisor instruction compiler (LLM editor + deterministic fallback)."""
 from __future__ import annotations
 
+import json
+import logging
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
 
+from app.config import settings
 from app.core.product_facts import PRICE_TEMPLATE, SECURITY_TEMPLATE
+
+logger = logging.getLogger(__name__)
+
+_ALLOWED_TYPES = {
+    "response_correction",
+    "product_fact_correction",
+    "wrong_next_action",
+    "missing_step",
+    "tone_correction",
+}
+_MIN_CONFIDENCE = 0.4
+_EDITOR_SYSTEM = (
+    "Du bist ein Redakteur, der EINEN Turn eines deutschen Telefon-Verkaufsagenten "
+    '("Anna Weber", CallShield) gemaess einer Supervisor-Anweisung korrigiert. '
+    "Aendere nur, was die Anweisung verlangt; bleib bei den Produktfakten (14 Tage "
+    "kostenlos, danach 29,99 Euro; keine Bank-/SMS-Code-/Nummer-Abfrage am Telefon). "
+    "Gib NUR EIN JSON-Objekt zurueck:\n"
+    '{"correction_type":"response_correction|product_fact_correction|wrong_next_action|missing_step|tone_correction",'
+    '"corrected_agent_response":"<deutsch>","corrected_next_action":"<oder leer>",'
+    '"suggestion":"<kurze Begruendung>","confidence":<0..1>}'
+)
 
 
 @dataclass(frozen=True)
@@ -16,6 +40,8 @@ class CompiledCorrection:
     corrected_next_action: str
     matched_rule: str
     explanation: str
+    suggestion: str = ""
+    source: str = "deterministic"
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -157,4 +183,94 @@ def compile_instruction(
         corrected_next_action=current_next_action,
         matched_rule="no_rule",
         explanation="No safe compiler rule matched. Edit the correction manually.",
+    )
+
+
+def compile_instruction_llm(
+    instruction: str,
+    *,
+    customer_text: str = "",
+    agent_response: str = "",
+    current_next_action: str = "",
+) -> CompiledCorrection | None:
+    """LLM editor path. Returns None (→ deterministic fallback) in mock mode, on
+    empty input, parse failure, low confidence, or any exception."""
+    if settings.vllm_mode == "mock" or not (instruction or "").strip():
+        return None
+    # Lazy imports keep this module importable without the vLLM/runtime stack.
+    from app.core import json_repair, model_runtime, vllm_client
+
+    user = json.dumps(
+        {
+            "instruction": instruction,
+            "customer_text": customer_text,
+            "agent_response": agent_response,
+            "current_next_action": current_next_action,
+        },
+        ensure_ascii=False,
+    )
+    messages = [
+        {"role": "system", "content": _EDITOR_SYSTEM},
+        {"role": "user", "content": user},
+    ]
+    try:
+        raw = vllm_client.chat(
+            messages,
+            target=model_runtime.production_serving_target(),
+            temperature=0.1,
+            max_tokens=400,
+        )
+        parsed = json_repair.extract_json(raw)
+    except Exception:
+        logger.exception("review LLM editor call failed")
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    corrected = str(parsed.get("corrected_agent_response") or "").strip()
+    if not corrected:
+        return None
+    try:
+        confidence = float(parsed.get("confidence", 0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < _MIN_CONFIDENCE:
+        return None
+    ctype = str(parsed.get("correction_type") or "").strip()
+    if ctype not in _ALLOWED_TYPES:
+        ctype = "response_correction"
+    return CompiledCorrection(
+        matched=True,
+        correction_type=ctype,
+        corrected_agent_response=corrected,
+        corrected_next_action=str(parsed.get("corrected_next_action") or current_next_action or "").strip(),
+        matched_rule="llm_editor",
+        explanation="LLM editor compiled the supervisor instruction.",
+        suggestion=str(parsed.get("suggestion") or "").strip(),
+        source="llm",
+    )
+
+
+def compile_review(
+    instruction: str,
+    *,
+    customer_text: str = "",
+    agent_response: str = "",
+    current_next_action: str = "",
+) -> CompiledCorrection:
+    """Dispatch by settings.review_compiler_mode: 'auto'/'llm' try the LLM editor
+    first, then fall back to the deterministic compiler; 'deterministic' skips the LLM."""
+    if settings.review_compiler_mode != "deterministic":
+        result = compile_instruction_llm(
+            instruction,
+            customer_text=customer_text,
+            agent_response=agent_response,
+            current_next_action=current_next_action,
+        )
+        if result is not None:
+            return result
+    return compile_instruction(
+        instruction,
+        customer_text=customer_text,
+        agent_response=agent_response,
+        current_next_action=current_next_action,
     )

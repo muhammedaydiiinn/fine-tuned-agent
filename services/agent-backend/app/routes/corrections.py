@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.core.candidate_builder import build_candidate_from_turn
-from app.core.review_compiler import compile_instruction
+from app.core.review_compiler import compile_instruction, compile_review
 from app.db import get_db
 from app.models import Correction, CorrectionMemory, Session as SessionModel, TrainingCandidate, Turn
 from app.schemas import (
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
     response_model=CompileReviewInstructionResponse,
 )
 def compile_review_instruction(req: CompileReviewInstructionRequest):
-    return compile_instruction(
+    return compile_review(
         req.instruction,
         customer_text=req.customer_text,
         agent_response=req.agent_response,

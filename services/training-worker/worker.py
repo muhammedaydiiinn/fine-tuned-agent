@@ -266,6 +266,7 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
             "max_seq_length": settings.max_seq_length,
             "warmup_ratio": settings.warmup_ratio,
             "training_mode": settings.training_mode,
+            "train_on_responses_only": settings.train_on_responses_only,
         }
         # Job-level overrides from input_json
         if job.input_json:

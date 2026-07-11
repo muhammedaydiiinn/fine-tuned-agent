@@ -215,16 +215,15 @@ def export_jsonl(db: DBSession = Depends(get_db)):
 
 # ── Training jobs ─────────────────────────────────────────────────────────────
 
-@router.post(
-    "/training-jobs",
-    response_model=TrainingJobResponse,
-    summary="Create a training job and enqueue it",
-    status_code=201,
-)
-def create_training_job(
+def create_training_job_core(
+    db: DBSession,
     body: CreateTrainingJobRequest,
-    db: DBSession = Depends(get_db),
-):
+    *,
+    auto_training: bool = False,
+) -> TrainingJob:
+    """Create + enqueue a training job. Shared by the /training-jobs route and
+    the auto-train scheduler. Raises HTTPException on invalid state (the caller
+    — route or scheduler — handles it)."""
     input_data: dict = {}
     if body.dataset_version:
         input_data["dataset_version"] = body.dataset_version
@@ -316,6 +315,8 @@ def create_training_job(
         input_data["parent_model_version_id"] = parent_model_version_id
     if parent_version_name:
         input_data["parent_version_name"] = parent_version_name
+    if auto_training:
+        input_data["auto_training"] = True
 
     job = TrainingJob(
         job_type="train_pipeline",
@@ -368,12 +369,26 @@ def create_training_job(
         ) from exc
 
     logger.info(
-        "training_job created and enqueued: id=%d candidates=%d parent=%s",
+        "training_job created and enqueued: id=%d candidates=%d parent=%s auto=%s",
         job.id,
         len(candidate_ids),
         parent_version_name,
+        auto_training,
     )
     return job
+
+
+@router.post(
+    "/training-jobs",
+    response_model=TrainingJobResponse,
+    summary="Create a training job and enqueue it",
+    status_code=201,
+)
+def create_training_job(
+    body: CreateTrainingJobRequest,
+    db: DBSession = Depends(get_db),
+):
+    return create_training_job_core(db, body)
 
 
 @router.get(

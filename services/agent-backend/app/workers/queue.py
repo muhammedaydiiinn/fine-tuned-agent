@@ -58,6 +58,31 @@ def enqueue_eval_job(eval_run_id: int, model_version_id: int) -> str:
     return job_id
 
 
+def enqueue_judge_batch(
+    eval_run_id: int, model_version_id: int, max_turns: int | None = None
+) -> str:
+    """Enqueue a real-log LLM-judge batch (additive; never gates deploy)."""
+    import uuid
+    job_id = str(uuid.uuid4())
+    message = json.dumps({
+        "job_id": job_id,
+        "job_type": "judge_batch",
+        "payload": {
+            "eval_run_id": eval_run_id,
+            "model_version_id": model_version_id,
+            "max_turns": max_turns,
+        },
+    })
+    try:
+        r = _get_client()
+        r.rpush(EVAL_QUEUE, message)
+        logger.info("Judge batch enqueued: %s (run=%d model=%d)", job_id, eval_run_id, model_version_id)
+    except redis_lib.RedisError as exc:
+        logger.error("Redis enqueue hatası: %s", exc)
+        raise
+    return job_id
+
+
 def peek_queue(queue_name: str, count: int = 10) -> list[dict]:
     """Kuyruktan öğeleri silmeden gösterir (supervisor panel için)."""
     try:

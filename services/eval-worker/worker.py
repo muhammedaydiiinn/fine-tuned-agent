@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import get_db
 from evals import gate, run_eval
-from models import EvalRun, ModelVersion, TrainingCandidate, TrainingJob
+from evals.judge_batch import call_judge_score, handle_judge_batch
+from models import EvalRun, ModelVersion, TrainingCandidate, TrainingJob, TurnEvaluation
 from queue_recovery import (
     PROCESSING_QUEUE_NAME,
     QUEUE_NAME,
@@ -144,6 +145,69 @@ def _release_candidates(db: Session, model_version_id: int) -> None:
         model_version_id,
         job.id,
     )
+
+
+def _judge_scenarios(
+    db: Session,
+    eval_run_id: int,
+    model_version_id: int,
+    results: list[dict],
+) -> dict:
+    """Additive: LLM-judge each scenario turn, write TurnEvaluation(source='scenario').
+
+    Returns an aggregate for metrics["judge"]. NEVER touches gate/quality_score.
+    """
+    overalls: list[float] = []
+    errors = 0
+    for result in results:
+        policy = {
+            "intent": result.get("actual_intent"),
+            "next_action": result.get("actual_next_action"),
+            "allowed_to_continue": result.get("allowed_to_continue"),
+            "agent_response": result.get("agent_response"),
+        }
+        verdict: dict | None
+        try:
+            verdict = call_judge_score(
+                result.get("customer_text"),
+                result.get("state_before"),
+                result.get("agent_response"),
+                policy,
+            )
+        except Exception:
+            logger.exception("scenario judge failed — scenario=%s", result.get("scenario_id"))
+            errors += 1
+            verdict = None
+        db.add(TurnEvaluation(
+            eval_run_id=eval_run_id,
+            turn_id=None,
+            scenario_id=result.get("scenario_id"),
+            source="scenario",
+            model_version_id=model_version_id,
+            judge_model="production-base",
+            scores_json=(verdict or {}).get("scores"),
+            overall=(verdict or {}).get("overall"),
+            suggestion=(verdict or {}).get("suggestion"),
+            rationale=(verdict or {}).get("rationale"),
+            passed=(verdict or {}).get("passed"),
+            status="pending",
+            raw_judge_json=verdict,
+        ))
+        if verdict and verdict.get("overall") is not None:
+            overalls.append(float(verdict["overall"]))
+    db.commit()
+    judged = len(overalls)
+    return {
+        "count": len(results),
+        "judged": judged,
+        "errors": errors,
+        "mean_overall": round(sum(overalls) / judged, 4) if judged else None,
+        "pass_rate": (
+            round(sum(1 for o in overalls if o >= settings.judge_pass_threshold) / judged, 4)
+            if judged else None
+        ),
+        "pass_threshold": settings.judge_pass_threshold,
+    }
 
 
 def handle_eval(
@@ -282,6 +346,15 @@ def handle_eval(
         )
         deployment_gate["model_version_id"] = model_version_id
         metrics["deployment_gate"] = deployment_gate
+        # Additive LLM-judge pass over the scenario turns — visibility only,
+        # never feeds the deterministic gate below.
+        if settings.judge_enabled:
+            try:
+                metrics["judge"] = _judge_scenarios(
+                    db, eval_run_id, model_version_id, report.get("results", [])
+                )
+            except Exception:
+                logger.exception("scenario judge pass failed — run=%d (non-fatal)", eval_run_id)
         passed = bool(deployment_gate["passed"])
         model_version.eval_status = "passed" if passed else "failed"
         metadata = dict(model_version.metadata_json or {})
@@ -335,7 +408,7 @@ def handle_eval(
         )
 
 
-HANDLERS = {"run_eval": handle_eval}
+HANDLERS = {"run_eval": handle_eval, "judge_batch": handle_judge_batch}
 
 
 def main() -> None:
