@@ -167,30 +167,25 @@ def _train_real(
         save_steps=0,
         report_to="none",
         max_length=max_seq,
+        # Recompute activations instead of storing them — the large (~1k token)
+        # system prompt otherwise blows up activation memory and OOMs on the
+        # shared GPU. Non-reentrant is required with PEFT/kbit training.
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        # NOTE: assistant_only_loss (trl 1.7 response-only masking) needs the chat
+        # template's {% generation %} markers, which THIS model's Qwen template
+        # lacks ("template is not training-compatible"). So it is disabled; we
+        # rely on a broad, fact-consistent anchor dataset to keep SFT from
+        # degrading. Revisit with a patched template to re-enable masking.
+        assistant_only_loss=False,
     )
 
-    # Response-only loss masking: train only on the assistant tokens so the model
-    # is not penalised for reproducing the (fixed) system+user context. Behind a
-    # config flag (default on); Qwen chat markers. Mock path is unaffected.
     mask_responses = config.get("train_on_responses_only", True)
-    data_collator = None
-    if mask_responses and not _UNSLOTH:
-        try:
-            from trl import DataCollatorForCompletionOnlyLM
-            data_collator = DataCollatorForCompletionOnlyLM(
-                response_template="<|im_start|>assistant\n", tokenizer=tokenizer
-            )
-        except Exception:
-            logger.warning(
-                "completion-only collator unavailable — training on full sequence", exc_info=True
-            )
-
     trainer = SFTTrainer(
         model=model,
         processing_class=tokenizer,
         train_dataset=dataset,
         args=sft_args,
-        data_collator=data_collator,
         callbacks=[ProgressCallback(progress_cb)],
     )
     if mask_responses and _UNSLOTH:
