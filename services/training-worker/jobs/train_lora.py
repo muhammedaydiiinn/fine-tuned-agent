@@ -169,13 +169,43 @@ def _train_real(
         max_length=max_seq,
     )
 
+    # Response-only loss masking: train only on the assistant tokens so the model
+    # is not penalised for reproducing the (fixed) system+user context. Behind a
+    # config flag (default on); Qwen chat markers. Mock path is unaffected.
+    mask_responses = config.get("train_on_responses_only", True)
+    data_collator = None
+    if mask_responses and not _UNSLOTH:
+        try:
+            from trl import DataCollatorForCompletionOnlyLM
+            data_collator = DataCollatorForCompletionOnlyLM(
+                response_template="<|im_start|>assistant\n", tokenizer=tokenizer
+            )
+        except Exception:
+            logger.warning(
+                "completion-only collator unavailable — training on full sequence", exc_info=True
+            )
+
     trainer = SFTTrainer(
         model=model,
         processing_class=tokenizer,
         train_dataset=dataset,
         args=sft_args,
+        data_collator=data_collator,
         callbacks=[ProgressCallback(progress_cb)],
     )
+    if mask_responses and _UNSLOTH:
+        try:
+            from unsloth.chat_templates import train_on_responses_only as _mask
+            trainer = _mask(
+                trainer,
+                instruction_part="<|im_start|>user\n",
+                response_part="<|im_start|>assistant\n",
+            )
+        except Exception:
+            logger.warning(
+                "unsloth response-only masking unavailable — training on full sequence",
+                exc_info=True,
+            )
 
     logger.info("Starting LoRA training — %s, epochs=%d, lr=%s", base_model_path, epochs, lr)
     trainer.train()

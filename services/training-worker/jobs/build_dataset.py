@@ -196,6 +196,59 @@ def _write_jsonl_files(fh, directory: Path) -> tuple[int, list[dict]]:
     return count, manifests
 
 
+def _force_canonical_system(messages: list) -> list:
+    """Ensure the FIRST message is the canonical training system prompt.
+
+    Fixes train/serve prompt drift: some candidates (esp. the supervisor-panel
+    stub) carry a divergent or missing system prompt. We overwrite index 0 (or
+    prepend) so every training row matches what the agent is served at runtime.
+    """
+    if not isinstance(messages, list) or not messages:
+        return messages
+    result = list(messages)
+    if isinstance(result[0], dict) and result[0].get("role") == "system":
+        result[0] = {"role": "system", "content": _canonical_system_content()}
+    else:
+        result = [{"role": "system", "content": _canonical_system_content()}, *result]
+    return result
+
+
+def _is_synthetic(messages: list) -> bool:
+    """Detect clearly-synthetic candidates to keep them out of training.
+
+    Conservative: drops only rows whose customer_name is literally "gpt" or whose
+    assistant reply is empty. An empty customer_message alone is NOT synthetic —
+    it is a legitimate opening turn — so it is never used as the sole criterion.
+    """
+    if not isinstance(messages, list) or len(messages) < 3:
+        return False
+    user = next((m for m in messages if isinstance(m, dict) and m.get("role") == "user"), None)
+    assistant = next((m for m in messages if isinstance(m, dict) and m.get("role") == "assistant"), None)
+    if user is None or assistant is None:
+        return False
+
+    a_content = assistant.get("content")
+    agent_response_empty = False
+    try:
+        parsed = json.loads(a_content) if isinstance(a_content, str) else a_content
+        if isinstance(parsed, dict):
+            agent_response_empty = not str(parsed.get("agent_response") or "").strip()
+        else:
+            agent_response_empty = not str(a_content or "").strip()
+    except (json.JSONDecodeError, TypeError):
+        agent_response_empty = not str(a_content or "").strip()
+
+    name_synthetic = False
+    try:
+        u = json.loads(user.get("content")) if isinstance(user.get("content"), str) else {}
+        state = u.get("state") if isinstance(u, dict) and isinstance(u.get("state"), dict) else {}
+        name_synthetic = str(state.get("customer_name") or "").strip().lower() == "gpt"
+    except (json.JSONDecodeError, TypeError):
+        name_synthetic = False
+
+    return name_synthetic or agent_response_empty
+
+
 def build(
     db: Session,
     output_path: str,
@@ -224,6 +277,7 @@ def build(
     out.parent.mkdir(parents=True, exist_ok=True)
 
     candidate_count = 0
+    filtered_synthetic = 0
     golden_count = 0
     base_count = 0
     golden_sources: list[dict] = []
@@ -232,14 +286,21 @@ def build(
     with open(out, "w", encoding="utf-8") as fh:
         # Source 1: candidates
         for c in candidates:
+            if _is_synthetic(c.messages_json):
+                logger.info("Dropping synthetic training candidate id=%s", c.id)
+                c.approved = False
+                filtered_synthetic += 1
+                continue
+            # Force the canonical system prompt on EVERY candidate (fixes drift).
+            messages = _force_canonical_system(c.messages_json)
             try:
-                _validate_messages(c.messages_json, f"training_candidate:{c.id}")
+                _validate_messages(messages, f"training_candidate:{c.id}")
             except ValueError as exc:
                 if "assistant content must be valid JSON" not in str(exc):
                     raise
-                normalized = _normalize_legacy_candidate(c, db)
-                _validate_messages(normalized, f"training_candidate:{c.id}")
-            fh.write(json.dumps({"messages": c.messages_json}, ensure_ascii=False) + "\n")
+                messages = _normalize_legacy_candidate(c, db)
+                _validate_messages(messages, f"training_candidate:{c.id}")
+            fh.write(json.dumps({"messages": messages}, ensure_ascii=False) + "\n")
             candidate_count += 1
 
         # Source 2: golden examples
@@ -264,6 +325,7 @@ def build(
         "dataset_sha256": output_digest,
         "row_count": total,
         "candidates": candidate_count,
+        "filtered_synthetic": filtered_synthetic,
         "candidate_ids": [candidate.id for candidate in candidates],
         "golden": golden_count,
         "golden_sources": golden_sources,

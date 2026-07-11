@@ -55,6 +55,28 @@ class Settings(BaseSettings):
     api_key: str = ""
     eval_internal_token: str = ""
 
+    # LLM-as-judge (rubric scoring by the production base model itself)
+    judge_enabled: bool = True
+    judge_model_name: str = ""  # empty -> production_served_model_name
+    judge_temperature: float = 0.1
+    judge_max_tokens: int = 400
+    judge_pass_threshold: float = 0.7  # soft, visibility only — never gates deploy
+
+    # Natural-language review compiler mode: "auto" (LLM then deterministic
+    # fallback), "llm", or "deterministic".
+    review_compiler_mode: str = "auto"
+
+    # Auto-train scheduler (background thread in agent-backend lifespan)
+    auto_train_enabled: bool = False
+    auto_train_threshold: int = 30
+    auto_train_check_interval_seconds: int = 900
+
+    # Customer simulator (reactive LLM customer → conversations judged as tests)
+    self_base_url: str = "http://localhost:8010"
+    sim_customer_temperature: float = 0.5
+    sim_max_turns: int = 8
+    sim_default_count: int = 12
+
     # CORS — comma-separated list of allowed origins.
     # Leave empty to allow all origins (local dev only; not suitable for prod).
     # Example: "https://panel.example.com,http://localhost:8020"

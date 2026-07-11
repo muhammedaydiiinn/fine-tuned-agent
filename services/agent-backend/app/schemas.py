@@ -187,6 +187,8 @@ class CompileReviewInstructionResponse(BaseModel):
     corrected_next_action: str
     matched_rule: str
     explanation: str
+    suggestion: str = ""
+    source: str = "deterministic"
 
 
 # ── Training Candidate ───────────────────────────────────────────────────────

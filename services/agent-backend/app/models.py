@@ -220,6 +220,9 @@ class EvalRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     model_version_id: Mapped[int] = mapped_column(ForeignKey("model_versions.id"), index=True)
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    # 'scenario_gate' (deterministic deploy gate — unchanged) or 'real_log_judge'
+    # (additive LLM-judge batch over production turns; never gates deploy).
+    run_kind: Mapped[str] = mapped_column(String(32), default="scenario_gate")
     metrics_json: Mapped[dict | None] = mapped_column(JSONB)
     results_path: Mapped[str | None] = mapped_column(String(256))
     logs_path: Mapped[str | None] = mapped_column(String(256))
@@ -262,3 +265,31 @@ class LatencyMetric(Base):
 
     session: Mapped["Session"] = relationship("Session", back_populates="latency_metrics")
     turn: Mapped["Turn | None"] = relationship("Turn", back_populates="latency_metrics")
+
+
+class TurnEvaluation(Base):
+    """LLM-judge verdict for one agent turn (real-log batch or scenario pass).
+
+    Additive/visibility only — never feeds the deterministic deploy gate. An
+    accepted verdict spawns an approved TrainingCandidate (status='converted').
+    """
+
+    __tablename__ = "turn_evaluations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    eval_run_id: Mapped[int | None] = mapped_column(ForeignKey("eval_runs.id"), index=True)
+    turn_id: Mapped[int | None] = mapped_column(ForeignKey("turns.id"), index=True)
+    scenario_id: Mapped[str | None] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16))  # 'real_log' | 'scenario'
+    model_version_id: Mapped[int | None] = mapped_column(Integer)
+    judge_model: Mapped[str | None] = mapped_column(String(128))
+    scores_json: Mapped[dict | None] = mapped_column(JSONB)
+    overall: Mapped[float | None] = mapped_column(Float)
+    suggestion: Mapped[str | None] = mapped_column(Text)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    passed: Mapped[bool | None] = mapped_column(Boolean)
+    # pending | accepted | rejected | converted
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    accepted_candidate_id: Mapped[int | None] = mapped_column(Integer)
+    raw_judge_json: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

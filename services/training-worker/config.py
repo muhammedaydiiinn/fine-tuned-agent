@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Default to mock for the local Docker workflow. GPU hosts should override
     # this to "real" in .env and install requirements-gpu.txt in a matching venv.
     training_mode: str = "mock"
+    # Mask loss to assistant tokens only (train on responses, not the fixed
+    # system+user context). Real path only; mock path is unaffected.
+    train_on_responses_only: bool = True
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
     candidate_model_name: str = "anrufblocker-candidate"
     candidate_publish_path: str = "/models/candidates/current"

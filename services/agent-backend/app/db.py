@@ -57,6 +57,12 @@ def create_tables() -> None:
             connection.execute(text(f"ALTER TABLE training_jobs {clause}"))
         for clause in turn_columns:
             connection.execute(text(f"ALTER TABLE turns {clause}"))
+        # Additive LLM-judge run classifier (existing eval_runs rows default to
+        # the deterministic deploy gate).
+        connection.execute(text(
+            "ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS run_kind "
+            "VARCHAR(32) DEFAULT 'scenario_gate' NOT NULL"
+        ))
         for clause in (
             "ADD COLUMN IF NOT EXISTS metadata_json JSONB DEFAULT '{}'::jsonb NOT NULL",
             "ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",

@@ -18,6 +18,8 @@ from app.routes import (
     model_registry,
     evals,
     voice,
+    judge,
+    simulations,
 )
 
 logging.basicConfig(
@@ -68,6 +70,8 @@ async def lifespan(application: FastAPI):
     create_tables()
     logger.info("Database tables ready.")
     _kickoff_production_serving()
+    from app.core.autotrain import start_autotrain_loop
+    start_autotrain_loop()
     yield
     logger.info("Anrufblocker Agent Backend shutting down.")
 
@@ -148,3 +152,5 @@ app.include_router(training.router, tags=["training"])
 app.include_router(model_registry.router, tags=["models"])
 app.include_router(evals.router, tags=["evals"])
 app.include_router(voice.router, tags=["voice"])
+app.include_router(judge.router, tags=["judge"])
+app.include_router(simulations.router, tags=["simulations"])

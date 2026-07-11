@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     eval_internal_token: str = ""
     eval_request_timeout_seconds: float = 45.0
     eval_pass_threshold: float = 0.80
+
+    # LLM-judge (additive; never gates deploy). Calls agent-backend /judge/score.
+    judge_enabled: bool = True
+    judge_endpoint: str = ""  # empty -> agent_backend_url + /judge/score
+    judge_concurrency: int = 1
+    real_log_max_turns: int = 200
+    judge_request_timeout_seconds: float = 60.0
+    judge_pass_threshold: float = 0.7
     eval_json_validity_min: float = 1.0
     eval_required_key_coverage_min: float = 1.0
     eval_next_action_accuracy_min: float = 0.80
@@ -44,6 +52,10 @@ class Settings(BaseSettings):
             "security_objection_correctness": self.eval_security_correctness_min,
             "loop_repetition_rate_max": self.eval_loop_repetition_max,
         }
+
+    @property
+    def judge_url(self) -> str:
+        return self.judge_endpoint or (self.agent_backend_url.rstrip("/") + "/judge/score")
 
     @property
     def database_url(self) -> str:
