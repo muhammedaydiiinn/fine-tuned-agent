@@ -210,7 +210,8 @@ services:
       --model /model
       --served-model-name ${PRODUCTION_SERVED_MODEL_NAME:-fine-tuned-agent-production}
       --max-model-len 4096
-      --gpu-memory-utilization 0.85
+      --max-num-seqs ${VLLM_MAX_NUM_SEQS:-32}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.60}
       --enable-prefix-caching
       --enable-lora
       --max-lora-rank 32
