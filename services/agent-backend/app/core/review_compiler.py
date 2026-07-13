@@ -8,7 +8,7 @@ import unicodedata
 from dataclasses import asdict, dataclass
 
 from app.config import settings
-from app.core.product_facts import PRICE_TEMPLATE, SECURITY_TEMPLATE
+from app.core import content_store
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ def compile_instruction(
         return CompiledCorrection(
             matched=True,
             correction_type="product_fact_correction",
-            corrected_agent_response=PRICE_TEMPLATE,
+            corrected_agent_response=content_store.canned("price"),
             corrected_next_action="explain_price",
             matched_rule="product_fact_price",
             explanation="Matched price/trial language and applied the approved product-fact template.",
@@ -115,7 +115,7 @@ def compile_instruction(
         return CompiledCorrection(
             matched=True,
             correction_type="product_fact_correction",
-            corrected_agent_response=SECURITY_TEMPLATE,
+            corrected_agent_response=content_store.canned("security"),
             corrected_next_action="address_security",
             matched_rule="product_fact_security",
             explanation="Matched link/security language and applied the approved security template.",

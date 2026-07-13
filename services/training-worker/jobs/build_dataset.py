@@ -38,6 +38,113 @@ LEGACY_SYSTEM_INSTRUCTION = (
     "Return ONLY a valid JSON policy object."
 )
 
+# Must stay byte-identical to agent-backend product_facts.SYSTEM_OUTPUT_CONTRACT
+# so the training system prompt matches what the agent is served at runtime.
+SYSTEM_OUTPUT_CONTRACT = (
+    "Respond with a single JSON object only — no text before or after it — "
+    "using exactly these fields:\n"
+    "{\n"
+    '  "intent": "<customer intent>",\n'
+    '  "emotion": "<customer emotion>",\n'
+    '  "risk": "<low|medium|high>",\n'
+    '  "next_action": "<next sales step>",\n'
+    '  "behavior_strategy": "<approach strategy>",\n'
+    '  "allowed_to_continue": <true|false>,\n'
+    '  "agent_response": "<the German sentence you say to the customer>",\n'
+    '  "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"}\n'
+    "}\n"
+    "agent_response is always in German and never in ALL CAPS. "
+    "Set allowed_to_continue to false when the call should end."
+)
+
+
+# Defaults mirrored from agent-backend product_facts.py. Only used to fill a
+# blank/missing section so the training system prompt matches what content_store
+# produces at inference (which also falls back to these defaults per key).
+_DEFAULT_PRODUCT_FACTS = {
+    "trial_period": "14 Tage kostenlos",
+    "monthly_price": "29,99 Euro monatlich",
+    "check_price_normal": "18 Euro",
+    "check_price_today": "heute einmalig kostenfrei",
+    "app_stores": "Apple App Store oder Google Play Store",
+    "blocked_numbers": "über 7.000 bekannte Risikonummern",
+    "risk_entries_example": "22 auffällige Einträge",
+    "risk_entries_range": "18 bis 25",
+    "legal_support": "Unterstützung bei Anwalts- und Gerichtskosten bis zu 2.500 Euro",
+    "support_channel": "Support über die App",
+}
+_DEFAULT_PDF_RULES = [
+    "Script möglichst originalgetreu verwenden.",
+    "Die Zahl der auffälligen Einträge (22) gelegentlich variieren (18–25).",
+    "Keine Adressen, Bankdaten oder persönlichen Informationen vom Kunden verlangen.",
+    "Keine Tonaufnahme notwendig.",
+    "Immer bestimmt, aber kontrolliert sprechen — klar, selbstbewusst, mit ruhiger Autorität.",
+    "Rufnummer nur in der App eintragen, nicht am Telefon abfragen.",
+    "SMS-Bestätigungscode nur in der App eingeben, nicht vorlesen lassen.",
+]
+_DEFAULT_OBJECTION_FAQ = [
+    {
+        "trigger": "Ich möchte nicht",
+        "answer": (
+            "In Ordnung. Dann stoppe ich den Vorgang zur Schutz- und Sperranfrage bei "
+            "den 22 erkannten Firmen vorerst. Ich möchte nur sichergehen, dass Ihnen die "
+            "vollen Konsequenzen Ihrer Entscheidung wirklich bewusst sind. Wenn Sie die "
+            "Absicherung wirklich nicht wünschen, sagen Sie mir bitte jetzt deutlich NEIN. "
+            "Nur mit einem klaren NEIN kann ich den Vorgang stoppen."
+        ),
+    },
+    {
+        "trigger": "Wie überprüfen Sie das?",
+        "answer": (
+            "Dabei prüfen wir über verschiedene Schnittstellen und API-Verbindungen, wie "
+            "häufig Ihre Nummer auftaucht, in welchen Werbe-, Callcenter- oder "
+            "Beschwerdedatenbanken sie registriert wurde und ob bereits Meldungen zu "
+            "verdächtigen Aktivitäten vorliegen. Normalerweise kostet dieser Check 18 Euro, "
+            "für Sie ist er heute einmalig kostenfrei."
+        ),
+    },
+    {
+        "trigger": "Ich habe kein Schreiben bekommen",
+        "answer": (
+            "Verstehe ich. Aus organisatorischen und kostenbedingten Gründen versenden wir "
+            "die Schreiben in der Regel nicht erneut. Genau deshalb rufe ich Sie an und "
+            "führe Sie jetzt direkt durch die App."
+        ),
+    },
+    {
+        "trigger": "Nach 14 Tagen kann ich kündigen",
+        "answer": (
+            "Da haben Sie vollkommen Recht, viele denken am Anfang genauso. Jedoch bleibt "
+            "es nicht bei den 22 Datenbanken, Ihre Rufnummer wird weiterverkauft. Nach der "
+            "Kündigung wird der Schutz wieder inaktiv. Nur mit unserem aktiven Schutz können "
+            "wir die drohenden Schäden noch rechtzeitig stoppen."
+        ),
+    },
+    {
+        "trigger": "Woher haben Sie meine Nummer?",
+        "answer": (
+            "Gute Frage. Ihre Nummer wurde im Rahmen einer allgemeinen Prüfung über externe "
+            "Datenquellen erfasst. Wir sehen keine persönlichen Daten, nur dass eine Nummer "
+            "vorhanden ist."
+        ),
+    },
+    {
+        "trigger": "Ist das ein Virus-Link?",
+        "answer": (
+            "Das kann ich absolut verstehen. Der Link führt ausschließlich zum offiziellen "
+            "Apple App Store oder Google Play Store. Nur dort verifizierte und sichere "
+            "Applikationen sind verfügbar. Ich habe keinen Zugriff auf Ihre Daten."
+        ),
+    },
+    {
+        "trigger": "Ich blockiere schon alles",
+        "answer": (
+            "Das ist gut. Die Frage ist nur: Blockieren Sie die Nummern oder wissen Sie auch, "
+            "wo Ihre Nummer überall gespeichert ist? Genau das zeigt Ihnen der Check."
+        ),
+    },
+]
+
 
 def _first_existing(paths: tuple[Path, ...]) -> Path | None:
     for path in paths:
@@ -46,16 +153,117 @@ def _first_existing(paths: tuple[Path, ...]) -> Path | None:
     return None
 
 
-def _canonical_system_content() -> str:
-    instruction_path = _first_existing(_POLICY_CANDIDATES)
-    facts_path = _first_existing(_FACTS_CANDIDATES)
-    instruction = (
-        instruction_path.read_text(encoding="utf-8").strip()
-        if instruction_path
-        else LEGACY_SYSTEM_INSTRUCTION
+def _default_instruction_text() -> str:
+    path = _first_existing(_POLICY_CANDIDATES)
+    return path.read_text(encoding="utf-8").strip() if path else LEGACY_SYSTEM_INSTRUCTION
+
+
+# Process-lived cache — build() runs once per worker invocation, so reading the
+# editable policy content from the DB a single time is enough.
+_CANONICAL_CACHE: dict[str, str] = {}
+
+
+def _render_facts_block(facts: dict, rules: list, faq: list) -> str:
+    """Mirror agent-backend product_facts.format_for_prompt() exactly.
+
+    Keep in sync with services/agent-backend/app/core/product_facts.py so the
+    training system prompt matches what the live agent is served.
+    """
+    lines = [
+        "Product facts (PDF v1.0 — fixed, do not invent other values):",
+        f"- Trial: {facts['trial_period']}",
+        f"- Monthly price after trial: {facts['monthly_price']}",
+        f"- One-time check (comparison): {facts['check_price_normal']} — {facts['check_price_today']}",
+        f"- Download: {facts['app_stores']}",
+        f"- Blocked numbers: {facts['blocked_numbers']}",
+        f"- Scan result example: {facts['risk_entries_example']} (vary {facts['risk_entries_range']})",
+        f"- Legal support: {facts['legal_support']}",
+        f"- Support: {facts['support_channel']}",
+        "",
+        "PDF rules (section 04 — enforced in code):",
+    ]
+    lines.extend(f"- {rule}" for rule in rules)
+    lines.extend(["", "Objection themes (use PDF script wording, adapt naturally):"])
+    lines.extend(
+        f'- "{item["trigger"]}" → {item["answer"]}'
+        for item in faq
+        if item.get("trigger")
     )
-    facts = facts_path.read_text(encoding="utf-8").strip() if facts_path else ""
-    return instruction + ("\n\n" + facts if facts else "")
+    return "\n".join(lines)
+
+
+def _canonical_system_content_from_db() -> str:
+    """Assemble the canonical system content from the editable policy_content table.
+
+    Applies the same blank/missing → default fallback as agent-backend
+    content_store, so the training system prompt is byte-identical to what the
+    live agent is served. Raises on DB failure so the caller can fall back to
+    the packaged policy files.
+    """
+    from db import SessionLocal  # local import: keep module import side-effect-free
+    from models import PolicyContent
+
+    db = SessionLocal()
+    try:
+        rows = {r.section: (r.value_json or {}) for r in db.query(PolicyContent).all()}
+    finally:
+        db.close()
+
+    text = (rows.get("system_instruction") or {}).get("text")
+    instruction = text.strip() if isinstance(text, str) and text.strip() else _default_instruction_text()
+
+    facts = dict(_DEFAULT_PRODUCT_FACTS)
+    for key, value in (rows.get("product_facts") or {}).items():
+        if isinstance(value, str) and value.strip():
+            facts[key] = value
+
+    rules_raw = (rows.get("pdf_rules") or {}).get("rules")
+    rules = (
+        [str(r).strip() for r in rules_raw if str(r).strip()]
+        if isinstance(rules_raw, list) else []
+    ) or list(_DEFAULT_PDF_RULES)
+
+    items_raw = (rows.get("objection_faq") or {}).get("items")
+    faq = (
+        [
+            {"trigger": str(i.get("trigger", "")).strip(), "answer": str(i.get("answer", "")).strip()}
+            for i in items_raw
+            if isinstance(i, dict) and str(i.get("trigger", "")).strip()
+        ]
+        if isinstance(items_raw, list) else []
+    ) or [dict(i) for i in _DEFAULT_OBJECTION_FAQ]
+
+    return (
+        instruction
+        + "\n\n" + SYSTEM_OUTPUT_CONTRACT
+        + "\n\n" + _render_facts_block(facts, rules, faq)
+    )
+
+
+def _canonical_system_content() -> str:
+    if "value" in _CANONICAL_CACHE:
+        return _CANONICAL_CACHE["value"]
+    content: str | None = None
+    try:
+        content = _canonical_system_content_from_db()
+    except Exception:
+        logger.warning("policy_content DB read failed; using packaged policy files", exc_info=True)
+    if content is None:
+        instruction_path = _first_existing(_POLICY_CANDIDATES)
+        facts_path = _first_existing(_FACTS_CANDIDATES)
+        instruction = (
+            instruction_path.read_text(encoding="utf-8").strip()
+            if instruction_path
+            else LEGACY_SYSTEM_INSTRUCTION
+        )
+        facts = facts_path.read_text(encoding="utf-8").strip() if facts_path else ""
+        content = (
+            instruction
+            + "\n\n" + SYSTEM_OUTPUT_CONTRACT
+            + ("\n\n" + facts if facts else "")
+        )
+    _CANONICAL_CACHE["value"] = content
+    return content
 
 def _validate_messages(messages: list, source: str) -> None:
     if not isinstance(messages, list) or len(messages) < 3:

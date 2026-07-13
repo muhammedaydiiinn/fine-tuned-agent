@@ -32,18 +32,34 @@ class ResponseRepairTests(TestCase):
         self.assertNotIn("Ausland", fixed)
         self.assertNotIn("Akku", fixed)
 
-    def test_price_inquiry_gets_pdf_template(self):
+    def test_price_inquiry_with_wrong_amount_gets_pdf_template(self):
+        # A wrong Euro amount is unsafe -> the PDF price template is enforced.
         policy = apply_with_context(
             {
                 "intent": "price_inquiry",
                 "next_action": "explain_pricing_model",
                 "allowed_to_continue": True,
-                "agent_response": "Es gibt eine 14-tägige Testphase.",
+                "agent_response": "Das kostet vielleicht 9 Euro im Monat.",
             },
             {},
             "Was das Kosteskostes?",
         )
         self.assertEqual(policy["agent_response"], PRICE_TEMPLATE)
+
+    def test_price_inquiry_keeps_correct_answer(self):
+        # A factually-correct answer (no wrong amount) is left untouched.
+        good = "Es gibt eine 14-tägige kostenlose Testphase, danach 29,99 Euro monatlich."
+        policy = apply_with_context(
+            {
+                "intent": "price_inquiry",
+                "next_action": "explain_pricing_model",
+                "allowed_to_continue": True,
+                "agent_response": good,
+            },
+            {},
+            "Was das Kosteskostes?",
+        )
+        self.assertEqual(policy["agent_response"], good)
 
     def test_post_close_is_brief_only(self):
         policy = apply_with_context(

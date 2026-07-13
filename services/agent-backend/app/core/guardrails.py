@@ -1,15 +1,13 @@
 """Deterministic guardrail rules — PDF-aligned enforcement on model output."""
 import logging
+import re
 from typing import Any
 
+from app.core import content_store
 from app.core.product_facts import (
-    CLOSING_BRIEF_TEMPLATE,
     CLOSING_NEXT_ACTIONS,
-    DELAY_DEFERRAL_TEMPLATE,
     IDENTITY_NEXT_ACTIONS,
     PRICE_INTENT_ALIASES,
-    PRICE_TEMPLATE,
-    SECURITY_TEMPLATE,
     normalize_next_action,
 )
 
@@ -110,7 +108,7 @@ def _rule_post_close_brief(
         return policy
     policy["next_action"] = "close_call"
     policy["allowed_to_continue"] = False
-    policy["agent_response"] = CLOSING_BRIEF_TEMPLATE
+    policy["agent_response"] = content_store.canned("closing_brief")
     logger.info("guardrail: post-close -> brief farewell only")
     return policy
 
@@ -150,7 +148,7 @@ def _rule_delay_no_phone_collection(policy: dict, customer_message: str) -> dict
         policy["next_action"] = "handle_objection"
         policy["behavior_strategy"] = "empathize_redirect"
         policy["allowed_to_continue"] = True
-        policy["agent_response"] = DELAY_DEFERRAL_TEMPLATE
+        policy["agent_response"] = content_store.canned("delay_deferral")
     return policy
 
 
@@ -161,13 +159,35 @@ def _rule_closing_flags(policy: dict) -> dict:
     return policy
 
 
+# Euro amounts the agent is allowed to state (monthly price, legal cover, check).
+_ALLOWED_EURO_AMOUNTS = {"29.99", "2500", "18"}
+_EURO_AMOUNT_RE = re.compile(r"\d+(?:\.\d+)?(?=\s*(?:euro|eur|€))", re.IGNORECASE)
+
+
+def price_answer_is_unsafe(response: str) -> bool:
+    """True if a price answer must be replaced by the approved template.
+
+    Only genuinely wrong answers are overridden: an empty reply, or one that
+    states a Euro amount outside the approved set. A well-trained model that
+    addresses the objection correctly (hidden costs, cancellation, trial) is
+    left untouched — the guardrail no longer flattens good answers.
+    """
+    msg = (response or "").strip()
+    if not msg:
+        return True
+    compact = msg.replace(".", "").replace(",", ".")
+    return any(a not in _ALLOWED_EURO_AMOUNTS for a in _EURO_AMOUNT_RE.findall(compact))
+
+
 def _rule_price_template(policy: dict, customer_message: str) -> dict:
     intent = (policy.get("intent") or "").strip()
     next_action = normalize_next_action(policy.get("next_action", ""))
     if not _is_price_turn(intent, customer_message) and next_action != "explain_offer_terms":
         return policy
-    logger.info("guardrail: PDF price template applied")
-    policy["agent_response"] = PRICE_TEMPLATE
+    # Trust a correct model answer; only enforce the template when it is wrong.
+    if price_answer_is_unsafe(policy.get("agent_response", "")):
+        logger.info("guardrail: unsafe price answer -> PDF template")
+        policy["agent_response"] = content_store.canned("price")
     policy["next_action"] = "explain_offer_terms"
     return policy
 
@@ -176,7 +196,7 @@ def _rule_security_template(policy: dict) -> dict:
     intent = policy.get("intent", "")
     if intent == "security_objection":
         logger.info("guardrail: PDF security template applied")
-        policy["agent_response"] = SECURITY_TEMPLATE
+        policy["agent_response"] = content_store.canned("security")
         policy["next_action"] = "handle_objection"
     return policy
 

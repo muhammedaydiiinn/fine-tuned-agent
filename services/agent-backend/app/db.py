@@ -97,7 +97,39 @@ def create_tables() -> None:
             "CREATE INDEX IF NOT EXISTS ix_model_versions_parent_model_version_id "
             "ON model_versions (parent_model_version_id)"
         ))
+        # Editable sales-policy content — version-history lookups by section.
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_policy_content_history_section_created "
+            "ON policy_content_history (section, created_at)"
+        ))
     _bootstrap_active_model()
+    _bootstrap_policy_content()
+
+
+def _bootstrap_policy_content() -> None:
+    """Seed policy_content with the hardcoded defaults for any missing section.
+
+    Idempotent — never overwrites an existing (panel-edited) row. Makes the DB
+    the single source of truth while preserving today's content verbatim.
+    """
+    from app.core import content_store
+    from app.models import PolicyContent
+
+    defaults = content_store.default_content()
+    db = SessionLocal()
+    try:
+        existing = {row.section for row in db.query(PolicyContent.section).all()}
+        added = False
+        for section, value in defaults.items():
+            if section in existing:
+                continue
+            db.add(PolicyContent(section=section, value_json=value, updated_by="bootstrap"))
+            added = True
+        if added:
+            db.commit()
+            content_store.invalidate()
+    finally:
+        db.close()
 
 
 def _bootstrap_active_model() -> None:

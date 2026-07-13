@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth import PUBLIC_PATHS, derive_csrf_token, is_authenticated
 from app.config import settings
 from app.logging_config import configure_access_logging
-from app.routes import auth, corrections, evals, pipeline, registry, review, sessions, training, turns
+from app.routes import auth, content, corrections, evals, pipeline, registry, review, sessions, training, turns
 from app.ui_feedback import FLASH_COOKIE_NAME, clear_toast_cookie, load_toast
 
 logging.basicConfig(
@@ -29,6 +29,7 @@ app.include_router(evals.router, tags=["evals"])
 app.include_router(registry.router, tags=["registry"])
 app.include_router(review.router, tags=["review"])
 app.include_router(pipeline.router, tags=["pipeline"])
+app.include_router(content.router, tags=["content"])
 
 
 @app.middleware("http")

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Content{% endblock %}
+
+{% block content %}
+
+{# Human-readable render of a stored snapshot — never shows raw JSON. #}
+{% macro render_snapshot(section, value) %}
+  {% if section == "system_instruction" %}
+    <pre class="snapshot-text">{{ value.get("text", "") }}</pre>
+  {% elif section == "product_facts" %}
+    <dl class="snapshot-list">
+      {% for key, label in product_fact_fields %}
+      <div><dt>{{ label }}</dt><dd>{{ value.get(key, "—") or "—" }}</dd></div>
+      {% endfor %}
+    </dl>
+  {% elif section == "pdf_rules" %}
+    <ul class="snapshot-rules">
+      {% for rule in value.get("rules", []) %}<li>{{ rule }}</li>{% endfor %}
+    </ul>
+  {% elif section == "objection_faq" %}
+    <dl class="snapshot-list">
+      {% for item in value.get("items", []) %}
+      <div><dt>{{ item.get("trigger", "") }}</dt><dd>{{ item.get("answer", "") }}</dd></div>
+      {% endfor %}
+    </dl>
+  {% elif section == "canned_answers" %}
+    <dl class="snapshot-list">
+      {% for key, label in canned_answer_fields %}
+      <div><dt>{{ label }}</dt><dd>{{ value.get(key, "—") or "—" }}</dd></div>
+      {% endfor %}
+    </dl>
+  {% endif %}
+{% endmacro %}
+
+{% macro history_block(section, versions) %}
+<details class="collapsible content-history">
+  <summary>Previous versions ({{ versions|length }})</summary>
+  <div class="content-history-list">
+    {% if not versions %}
+      <p class="text-muted">No previous versions yet. Saving a change adds one here.</p>
+    {% endif %}
+    {% for h in versions %}
+    <div class="content-version">
+      <div class="content-version-head">
+        <span class="text-muted">
+          Saved
+          <time data-panel-datetime datetime="{{ h.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if h.created_at else '' }}">{{ h.created_at }}</time>
+          {% if h.created_by %}by {{ h.created_by }}{% endif %}
+        </span>
+        <form method="post" action="/content/{{ section }}/rollback/{{ h.id }}"
+              onsubmit="return confirm('Restore this version? Your current content is saved to history first.');">
+          <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+          <button class="btn btn-outline btn-sm" type="submit">
+            <i class="fa-solid fa-clock-rotate-left"></i> Restore
+          </button>
+        </form>
+      </div>
+      <div class="content-version-body">{{ render_snapshot(section, h.value_json or {}) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endmacro %}
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Sales Content</h1>
+    <span class="text-muted">Edit what the agent says. Changes go live on new calls within about 30 seconds and are included in the next training run.</span>
+  </div>
+</div>
+
+<!-- Sales script / persona -->
+<section class="content-card">
+  <h2>Sales script &amp; persona</h2>
+  <p class="text-muted">Who the agent is, how the call should flow, and the hard limits. Write it in plain language — the technical output format is handled automatically.</p>
+  <form method="post" action="/content/system_instruction">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    <div class="form-group">
+      <textarea name="text" rows="16" class="content-mono">{{ system_text }}</textarea>
+    </div>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save script</button>
+  </form>
+  {{ history_block("system_instruction", history.get("system_instruction", [])) }}
+</section>
+
+<!-- Product facts -->
+<section class="content-card">
+  <h2>Product facts</h2>
+  <p class="text-muted">The facts the agent is allowed to state. Edit the values only.</p>
+  <form method="post" action="/content/product_facts">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    {% for key, label in product_fact_fields %}
+    <div class="form-group">
+      <label for="fact__{{ key }}">{{ label }}</label>
+      <input type="text" id="fact__{{ key }}" name="fact__{{ key }}" value="{{ product_facts.get(key, '') }}">
+    </div>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save facts</button>
+  </form>
+  {{ history_block("product_facts", history.get("product_facts", [])) }}
+</section>
+
+<!-- Rules -->
+<section class="content-card">
+  <h2>Rules</h2>
+  <p class="text-muted">One rule per line. These are always enforced.</p>
+  <form method="post" action="/content/pdf_rules">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    <div class="form-group">
+      <textarea name="rules" rows="8">{{ rules_text }}</textarea>
+    </div>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save rules</button>
+  </form>
+  {{ history_block("pdf_rules", history.get("pdf_rules", [])) }}
+</section>
+
+<!-- Arguments & FAQ -->
+<section class="content-card">
+  <h2>Arguments &amp; FAQ</h2>
+  <p class="text-muted">How to handle objections. <strong>Trigger</strong> is what the customer says; <strong>answer</strong> is how the agent should respond.</p>
+  <form method="post" action="/content/objection_faq">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    <div id="faq-rows" class="faq-rows">
+      {% for item in faq_items %}
+      <div class="faq-row">
+        <div class="form-group">
+          <label>Trigger</label>
+          <input type="text" name="trigger" value="{{ item.get('trigger', '') }}">
+        </div>
+        <div class="form-group">
+          <label>Answer</label>
+          <textarea name="answer" rows="2">{{ item.get('answer', '') }}</textarea>
+        </div>
+        <button class="btn btn-outline btn-sm faq-remove" type="button">
+          <i class="fa-solid fa-trash"></i> Remove
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="content-actions">
+      <button class="btn btn-outline" type="button" id="faq-add"><i class="fa-solid fa-plus"></i> Add entry</button>
+      <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save arguments</button>
+    </div>
+  </form>
+  {{ history_block("objection_faq", history.get("objection_faq", [])) }}
+</section>
+
+<!-- Canned answers -->
+<section class="content-card">
+  <h2>Canned answers</h2>
+  <p class="text-muted">Exact wording the agent uses in these specific situations.</p>
+  <form method="post" action="/content/canned_answers">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    {% for key, label in canned_answer_fields %}
+    <div class="form-group">
+      <label for="canned__{{ key }}">{{ label }}</label>
+      <textarea id="canned__{{ key }}" name="canned__{{ key }}" rows="2">{{ canned_answers.get(key, '') }}</textarea>
+    </div>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save answers</button>
+  </form>
+  {{ history_block("canned_answers", history.get("canned_answers", [])) }}
+</section>
+
+<template id="faq-row-template">
+  <div class="faq-row">
+    <div class="form-group">
+      <label>Trigger</label>
+      <input type="text" name="trigger" value="">
+    </div>
+    <div class="form-group">
+      <label>Answer</label>
+      <textarea name="answer" rows="2"></textarea>
+    </div>
+    <button class="btn btn-outline btn-sm faq-remove" type="button">
+      <i class="fa-solid fa-trash"></i> Remove
+    </button>
+  </div>
+</template>
+
+<style>
+  .content-card {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  .content-card h2 { margin: 0 0 4px; }
+  .content-card > .text-muted { margin: 0 0 16px; display: block; }
+  .content-mono { font-family: var(--font-mono, monospace); font-size: 13px; }
+  .faq-rows { display: flex; flex-direction: column; gap: 14px; }
+  .faq-row {
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .faq-row .form-group { margin-bottom: 10px; }
+  .faq-row .form-group:last-of-type { margin-bottom: 8px; }
+  .content-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .content-history { margin-top: 16px; }
+  .content-history-list { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+  .content-version {
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .content-version-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; margin-bottom: 8px;
+  }
+  .snapshot-text {
+    margin: 0; max-height: 200px; overflow: auto;
+    white-space: pre-wrap; font-size: 13px; line-height: 1.5;
+  }
+  .snapshot-list { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .snapshot-list > div { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: 12px; }
+  .snapshot-list dt { font-weight: 600; margin: 0; }
+  .snapshot-list dd { margin: 0; }
+  .snapshot-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const rows = document.getElementById("faq-rows");
+    const addBtn = document.getElementById("faq-add");
+    const tpl = document.getElementById("faq-row-template");
+    if (addBtn && rows && tpl) {
+      addBtn.addEventListener("click", function () {
+        rows.appendChild(tpl.content.cloneNode(true));
+      });
+    }
+    document.addEventListener("click", function (e) {
+      const btn = e.target.closest(".faq-remove");
+      if (btn) {
+        const row = btn.closest(".faq-row");
+        if (row) row.remove();
+      }
+    });
+  })();
+</script>
+{% endblock %}
