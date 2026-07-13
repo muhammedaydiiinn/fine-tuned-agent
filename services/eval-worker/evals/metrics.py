@@ -13,6 +13,51 @@ SECURITY_TEMPLATE = (
     "Nein, das ist kein Virus-Link. "
     "Der Link führt nur zum offiziellen Apple App Store oder Google Play Store."
 )
+
+
+import re as _re
+
+# Euro amounts the agent may state (monthly price, legal cover, check price).
+_ALLOWED_EURO_AMOUNTS = {"29.99", "2500", "18"}
+_EURO_AMOUNT_RE = _re.compile(r"\d+(?:\.\d+)?(?=\s*(?:euro|eur|€))", _re.IGNORECASE)
+
+
+def _price_answer_correct(response: str) -> bool:
+    """Mirror agent-backend guardrails.price_answer_is_unsafe (inverted)."""
+    msg = (response or "").strip()
+    if not msg:
+        return False
+    compact = msg.replace(".", "").replace(",", ".")
+    return all(a in _ALLOWED_EURO_AMOUNTS for a in _EURO_AMOUNT_RE.findall(compact))
+
+
+def _canned_answer(key: str, default: str) -> str:
+    """Effective (panel-edited) canned answer from the DB; falls back to `default`.
+
+    Read once per metric computation so template-adherence scoring aligns with
+    the wording the live agent is actually served. Any DB/table issue silently
+    falls back to the packaged constant.
+    """
+    try:
+        from db import SessionLocal
+        from models import PolicyContent
+
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(PolicyContent)
+                .filter(PolicyContent.section == "canned_answers")
+                .first()
+            )
+        finally:
+            db.close()
+        if row and isinstance(row.value_json, dict):
+            value = row.value_json.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    except Exception:
+        pass
+    return default
 REQUIRED_RESPONSE_PATHS = (
     ("agent_response",),
     ("policy", "intent"),
@@ -110,6 +155,7 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
 
     price_checks: list[bool] = []
     security_checks: list[bool] = []
+    security_tpl = _normalise_text(_canned_answer("security", SECURITY_TEMPLATE))
     for turn in turns:
         response_text = _normalise_text(turn.get("agent_response") or "")
         guardrail_check = turn.get("guardrail_check")
@@ -117,9 +163,12 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
             "price_question",
             "free_question",
         }:
-            price_checks.append(response_text == _normalise_text(PRICE_TEMPLATE))
+            # Correct = states no wrong Euro amount (mirrors the runtime price
+            # guardrail). A nuanced, factually-correct answer counts as correct;
+            # we no longer require an exact template match.
+            price_checks.append(_price_answer_correct(turn.get("agent_response") or ""))
         if guardrail_check == "security_template" or turn.get("actual_intent") == "security_objection":
-            security_checks.append(response_text == _normalise_text(SECURITY_TEMPLATE))
+            security_checks.append(response_text == security_tpl)
 
     loop_windows = 0
     repeated_windows = 0

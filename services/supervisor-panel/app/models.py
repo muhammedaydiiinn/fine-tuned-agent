@@ -190,3 +190,27 @@ class Deployment(Base):
     rollback_model_version_id: Mapped[int | None] = mapped_column(Integer)
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PolicyContent(Base):
+    """Editable sales-policy content — mirror of agent-backend policy_content."""
+
+    __tablename__ = "policy_content"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    section: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    updated_by: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PolicyContentHistory(Base):
+    """Append-only PolicyContent snapshots — version history + rollback."""
+
+    __tablename__ = "policy_content_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    section: Mapped[str] = mapped_column(String(64), index=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

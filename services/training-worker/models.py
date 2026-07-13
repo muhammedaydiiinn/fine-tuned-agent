@@ -82,6 +82,22 @@ class Deployment(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
 
 
+class PolicyContent(Base):
+    """Editable sales-policy content — mirror of agent-backend policy_content.
+
+    Read (not written) here so the training dataset's canonical system prompt
+    reflects the same panel-edited content the live agent is served.
+    """
+
+    __tablename__ = "policy_content"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    section: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    updated_by: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class EvalRun(Base):
     __tablename__ = "eval_runs"
 

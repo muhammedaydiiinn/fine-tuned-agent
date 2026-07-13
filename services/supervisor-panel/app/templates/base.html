@@ -111,6 +111,11 @@
         <i class="fa-solid fa-microchip nav-icon"></i>
         Pipeline
       </a>
+
+      <a href="/content" class="nav-item {% if request.url.path.startswith('/content') %}active{% endif %}">
+        <i class="fa-solid fa-pen-to-square nav-icon"></i>
+        Content
+      </a>
     </nav>
 
     <div class="sidebar-footer">

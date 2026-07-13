@@ -12,14 +12,10 @@ from app.core.guardrails import (
     customer_skeptical,
     customer_wants_delay,
 )
+from app.core import content_store
 from app.core.product_facts import (
-    CHECK_EXPLAIN_TEMPLATE,
-    DELAY_DEFERRAL_TEMPLATE,
-    FORBIDDEN_DATA_TEMPLATE,
     FORBIDDEN_FACT_PATTERNS,
     FORBIDDEN_RESPONSE_PATTERNS,
-    PROBLEM_AWARENESS_TEMPLATE,
-    PRODUCT_FACTS,
     _LINK_PUSH_TOKENS,
 )
 
@@ -81,7 +77,7 @@ def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[
 
 
 def repair_trial_in_response(response: str) -> tuple[str, bool]:
-    trial = PRODUCT_FACTS.get("trial_period", "")
+    trial = content_store.product_facts().get("trial_period", "")
     if not trial or not response:
         return response, False
 
@@ -154,14 +150,14 @@ def repair_invented_facts(response: str) -> tuple[str, bool]:
         return response, False
     if kept:
         return " ".join(kept).strip(), True
-    return PROBLEM_AWARENESS_TEMPLATE, True
+    return content_store.canned("problem_awareness"), True
 
 
 def repair_forbidden_data_request(response: str) -> tuple[str, bool]:
     msg = (response or "").lower()
     if not any(p in msg for p in FORBIDDEN_RESPONSE_PATTERNS):
         return response, False
-    return (FORBIDDEN_DATA_TEMPLATE, True)
+    return (content_store.canned("forbidden_data"), True)
 
 
 def repair_delay_phone_request(response: str, customer_message: str) -> tuple[str, bool]:
@@ -170,7 +166,7 @@ def repair_delay_phone_request(response: str, customer_message: str) -> tuple[st
     msg = (response or "").lower()
     if not any(p in msg for p in ("telefonnummer", "vollständige nummer", "ihre nummer")):
         return response, False
-    return (DELAY_DEFERRAL_TEMPLATE + " Einen schönen Tag!", True)
+    return (content_store.canned("delay_deferral") + " Einen schönen Tag!", True)
 
 
 def repair_premature_link(
@@ -195,15 +191,16 @@ def repair_premature_link(
 
 def _premature_link_fallback(customer_message: str) -> str:
     if customer_wants_delay(customer_message) or customer_not_ready_for_install(customer_message):
-        return CHECK_EXPLAIN_TEMPLATE
+        return content_store.canned("check_explain")
     if customer_skeptical(customer_message) or customer_asked_price_or_trial(customer_message):
-        return CHECK_EXPLAIN_TEMPLATE
-    return PROBLEM_AWARENESS_TEMPLATE
+        return content_store.canned("check_explain")
+    return content_store.canned("problem_awareness")
 
 
 def _format_price_answer(filled_slots: dict) -> str:
-    trial = PRODUCT_FACTS.get("trial_period", "14 Tage kostenlos")
-    price = PRODUCT_FACTS.get("monthly_price", "")
+    facts = content_store.product_facts()
+    trial = facts.get("trial_period", "14 Tage kostenlos")
+    price = facts.get("monthly_price", "")
     filled = filled_slots or {}
     link_ready = "product_value_explained" in filled and "safe_link_explained" in filled
     if link_ready:

@@ -17,12 +17,13 @@ PRODUCT_FACTS: dict[str, str] = {
     "support_channel": "Support über die App",
 }
 
-# PDF section 04 — hard limits enforced in code
+# PDF section 04 (WICHTIGE REGELN) + the two code-enforced data-safety rules
 PDF_RULES: tuple[str, ...] = (
     "Script möglichst originalgetreu verwenden.",
-    "22-Einträge-Zahl gelegentlich variieren (18–25).",
+    "Die Zahl der auffälligen Einträge (22) gelegentlich variieren (18–25).",
     "Keine Adressen, Bankdaten oder persönlichen Informationen vom Kunden verlangen.",
-    "Immer bestimmt, aber kontrolliert sprechen — klar, selbstbewusst, ruhige Autorität.",
+    "Keine Tonaufnahme notwendig.",
+    "Immer bestimmt, aber kontrolliert sprechen — klar, selbstbewusst, mit ruhiger Autorität.",
     "Rufnummer nur in der App eintragen, nicht am Telefon abfragen.",
     "SMS-Bestätigungscode nur in der App eingeben, nicht vorlesen lassen.",
 )
@@ -134,16 +135,119 @@ PRICE_INTENT_ALIASES: frozenset[str] = frozenset({
 })
 
 CHECK_EXPLAIN_TEMPLATE = (
-    "Dabei prüfen wir über verschiedene Schnittstellen, wie häufig Ihre Nummer "
-    "auftaucht und ob Meldungen zu verdächtigen Aktivitäten vorliegen. "
+    "Dabei prüfen wir über verschiedene Schnittstellen und API-Verbindungen, wie "
+    "häufig Ihre Nummer auftaucht, in welchen Werbe-, Callcenter- oder "
+    "Beschwerdedatenbanken sie registriert wurde und ob bereits Meldungen zu "
+    "verdächtigen Aktivitäten vorliegen. "
     f"Normalerweise kostet dieser Check {PRODUCT_FACTS['check_price_normal']}, "
     f"für Sie ist er {PRODUCT_FACTS['check_price_today']}."
 )
 
 PROBLEM_AWARENESS_TEMPLATE = (
-    "Wir haben festgestellt, dass Ihre Rufnummer für Betrugsversuche missbraucht "
-    "werden kann — wir zeigen Ihnen live, wo sie eingetragen ist und welche "
-    "Versuche laufen."
+    "Wir haben festgestellt, dass Ihre Rufnummer für Betrugsversuche und "
+    "Datenmissbrauch verwendet und weitergegeben wird. Wir können Ihnen jetzt "
+    "live auf Ihrem Handy zeigen, wo Ihre Nummer überall eingetragen ist und "
+    "welche Betrugsversuche aktuell gegen Sie laufen."
+)
+
+# Objection handling / FAQ (argümanlar + sss) — PDF script wording, adapt naturally.
+# Structured so the owner can add/edit/remove entries from the panel; rendered
+# into the prompt as `- "<trigger>" → <answer>` lines by format_for_prompt().
+OBJECTION_FAQ: tuple[dict[str, str], ...] = (
+    {
+        "trigger": "Ich möchte nicht",
+        "answer": (
+            "In Ordnung. Dann stoppe ich den Vorgang zur Schutz- und Sperranfrage bei "
+            "den 22 erkannten Firmen vorerst. Ich möchte nur sichergehen, dass Ihnen die "
+            "vollen Konsequenzen Ihrer Entscheidung wirklich bewusst sind. Wenn Sie die "
+            "Absicherung wirklich nicht wünschen, sagen Sie mir bitte jetzt deutlich NEIN. "
+            "Nur mit einem klaren NEIN kann ich den Vorgang stoppen."
+        ),
+    },
+    {
+        "trigger": "Wie überprüfen Sie das?",
+        "answer": (
+            "Dabei prüfen wir über verschiedene Schnittstellen und API-Verbindungen, wie "
+            "häufig Ihre Nummer auftaucht, in welchen Werbe-, Callcenter- oder "
+            "Beschwerdedatenbanken sie registriert wurde und ob bereits Meldungen zu "
+            "verdächtigen Aktivitäten vorliegen. Normalerweise kostet dieser Check 18 Euro, "
+            "für Sie ist er heute einmalig kostenfrei."
+        ),
+    },
+    {
+        "trigger": "Ich habe kein Schreiben bekommen",
+        "answer": (
+            "Verstehe ich. Aus organisatorischen und kostenbedingten Gründen versenden wir "
+            "die Schreiben in der Regel nicht erneut. Genau deshalb rufe ich Sie an und "
+            "führe Sie jetzt direkt durch die App."
+        ),
+    },
+    {
+        "trigger": "Nach 14 Tagen kann ich kündigen",
+        "answer": (
+            "Da haben Sie vollkommen Recht, viele denken am Anfang genauso. Jedoch bleibt "
+            "es nicht bei den 22 Datenbanken, Ihre Rufnummer wird weiterverkauft. Nach der "
+            "Kündigung wird der Schutz wieder inaktiv. Nur mit unserem aktiven Schutz können "
+            "wir die drohenden Schäden noch rechtzeitig stoppen."
+        ),
+    },
+    {
+        "trigger": "Woher haben Sie meine Nummer?",
+        "answer": (
+            "Gute Frage. Ihre Nummer wurde im Rahmen einer allgemeinen Prüfung über externe "
+            "Datenquellen erfasst. Wir sehen keine persönlichen Daten, nur dass eine Nummer "
+            "vorhanden ist."
+        ),
+    },
+    {
+        "trigger": "Ist das ein Virus-Link?",
+        "answer": (
+            "Das kann ich absolut verstehen. Der Link führt ausschließlich zum offiziellen "
+            "Apple App Store oder Google Play Store. Nur dort verifizierte und sichere "
+            "Applikationen sind verfügbar. Ich habe keinen Zugriff auf Ihre Daten."
+        ),
+    },
+    {
+        "trigger": "Ich blockiere schon alles",
+        "answer": (
+            "Das ist gut. Die Frage ist nur: Blockieren Sie die Nummern oder wissen Sie auch, "
+            "wo Ihre Nummer überall gespeichert ist? Genau das zeigt Ihnen der Check."
+        ),
+    },
+)
+
+# Canned answers (hazır cevaplar) — approved verbatim wording the code enforces on
+# the model output (guardrails / response_repair / review_compiler). Keyed so each
+# one is editable from the panel; the module constants above are the seed defaults.
+CANNED_ANSWERS: dict[str, str] = {
+    "price": PRICE_TEMPLATE,
+    "check_price": CHECK_PRICE_TEMPLATE,
+    "security": SECURITY_TEMPLATE,
+    "delay_deferral": DELAY_DEFERRAL_TEMPLATE,
+    "forbidden_data": FORBIDDEN_DATA_TEMPLATE,
+    "closing_brief": CLOSING_BRIEF_TEMPLATE,
+    "check_explain": CHECK_EXPLAIN_TEMPLATE,
+    "problem_awareness": PROBLEM_AWARENESS_TEMPLATE,
+}
+
+# Technical output contract — appended in code, never shown in the panel. Keeps
+# the human-editable sales script free of JSON/schema jargon while still telling
+# the model exactly how to shape its output.
+SYSTEM_OUTPUT_CONTRACT: str = (
+    "Respond with a single JSON object only — no text before or after it — "
+    "using exactly these fields:\n"
+    "{\n"
+    '  "intent": "<customer intent>",\n'
+    '  "emotion": "<customer emotion>",\n'
+    '  "risk": "<low|medium|high>",\n'
+    '  "next_action": "<next sales step>",\n'
+    '  "behavior_strategy": "<approach strategy>",\n'
+    '  "allowed_to_continue": <true|false>,\n'
+    '  "agent_response": "<the German sentence you say to the customer>",\n'
+    '  "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"}\n'
+    "}\n"
+    "agent_response is always in German and never in ALL CAPS. "
+    "Set allowed_to_continue to false when the call should end."
 )
 
 _LINK_PUSH_TOKENS: tuple[str, ...] = (
@@ -172,32 +276,39 @@ def normalize_voice_tone(tone: str) -> str:
 
 
 def format_for_prompt() -> str:
-    """Prompt block injected after system_instruction.txt."""
+    """Prompt block injected after system_instruction.txt.
+
+    Reads the live (panel-editable) product facts / rules / objection FAQ from
+    the DB-backed content store, falling back to the module defaults above.
+    """
+    from app.core import content_store
+
+    facts = content_store.product_facts()
+    rules = content_store.pdf_rules()
+    faq = content_store.objection_faq()
     lines = [
         "Product facts (PDF v1.0 — fixed, do not invent other values):",
-        f"- Trial: {PRODUCT_FACTS['trial_period']}",
-        f"- Monthly price after trial: {PRODUCT_FACTS['monthly_price']}",
-        f"- One-time check (comparison): {PRODUCT_FACTS['check_price_normal']} — {PRODUCT_FACTS['check_price_today']}",
-        f"- Download: {PRODUCT_FACTS['app_stores']}",
-        f"- Blocked numbers: {PRODUCT_FACTS['blocked_numbers']}",
-        f"- Scan result example: {PRODUCT_FACTS['risk_entries_example']} (vary {PRODUCT_FACTS['risk_entries_range']})",
-        f"- Legal support: {PRODUCT_FACTS['legal_support']}",
-        f"- Support: {PRODUCT_FACTS['support_channel']}",
+        f"- Trial: {facts['trial_period']}",
+        f"- Monthly price after trial: {facts['monthly_price']}",
+        f"- One-time check (comparison): {facts['check_price_normal']} — {facts['check_price_today']}",
+        f"- Download: {facts['app_stores']}",
+        f"- Blocked numbers: {facts['blocked_numbers']}",
+        f"- Scan result example: {facts['risk_entries_example']} (vary {facts['risk_entries_range']})",
+        f"- Legal support: {facts['legal_support']}",
+        f"- Support: {facts['support_channel']}",
         "",
         "PDF rules (section 04 — enforced in code):",
     ]
-    lines.extend(f"- {rule}" for rule in PDF_RULES)
+    lines.extend(f"- {rule}" for rule in rules)
     lines.extend([
         "",
         "Objection themes (use PDF script wording, adapt naturally):",
-        '- "Ich möchte nicht" → consequences clear; ask for explicit NEIN before stopping.',
-        '- "Wie überprüfen Sie das?" → API/database check; 18 Euro check today kostenfrei.',
-        '- "Kein Schreiben bekommen" → call replaces missing letter; guide through app.',
-        '- "Nach 14 Tagen kündigen" → protection stays active only with subscription.',
-        '- "Woher meine Nummer?" → external data sources; no personal data seen.',
-        '- "Virus-Link?" → official App Store / Play Store only.',
-        '- "Ich blockiere schon" → blocking vs knowing where number is listed.',
     ])
+    lines.extend(
+        f'- "{item["trigger"]}" → {item["answer"]}'
+        for item in faq
+        if item.get("trigger")
+    )
     return "\n".join(lines)
 
 

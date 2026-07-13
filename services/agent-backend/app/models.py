@@ -267,6 +267,41 @@ class LatencyMetric(Base):
     turn: Mapped["Turn | None"] = relationship("Turn", back_populates="latency_metrics")
 
 
+class PolicyContent(Base):
+    """Editable sales-policy content — single source of truth for the prompt.
+
+    One row per section (system_instruction / product_facts / pdf_rules /
+    objection_faq / canned_answers). Seeded from the hardcoded defaults on
+    startup; edited live from the supervisor panel. Consumed by the runtime
+    prompt build, the guardrails, and the training-candidate/dataset builders,
+    so an edit reaches the model both at inference and at training time.
+    """
+
+    __tablename__ = "policy_content"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    section: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    updated_by: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PolicyContentHistory(Base):
+    """Append-only snapshots of PolicyContent for version history + rollback."""
+
+    __tablename__ = "policy_content_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    section: Mapped[str] = mapped_column(String(64), index=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class TurnEvaluation(Base):
     """LLM-judge verdict for one agent turn (real-log batch or scenario pass).
 
