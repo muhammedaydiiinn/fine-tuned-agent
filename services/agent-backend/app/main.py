@@ -20,6 +20,7 @@ from app.routes import (
     voice,
     judge,
     simulations,
+    recordings,
 )
 
 logging.basicConfig(
@@ -108,11 +109,15 @@ async def api_key_middleware(request: Request, call_next):
 
     Skipped when API_KEY env is empty (local dev).
     /health is always exempt for Docker healthcheck.
+    /judge/score is exempt because it carries its own internal auth
+    (X-Eval-Token, checked inside the route): the eval-worker calls it from a
+    separate container without the public X-API-Key, so this global guard would
+    otherwise 401 every judge call and silently fail the deployment eval gate.
     """
     if not settings.api_key:
         return await call_next(request)
 
-    if request.url.path in ("/health",):
+    if request.url.path in ("/health", "/judge/score"):
         return await call_next(request)
 
     incoming_key = request.headers.get("X-API-Key", "")
@@ -154,3 +159,4 @@ app.include_router(evals.router, tags=["evals"])
 app.include_router(voice.router, tags=["voice"])
 app.include_router(judge.router, tags=["judge"])
 app.include_router(simulations.router, tags=["simulations"])
+app.include_router(recordings.router, tags=["recordings"])

@@ -1477,6 +1477,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .alert-error   { background: var(--red-bg);   color: var(--red);   border-color: var(--red-bdr); }
 .alert-success { background: var(--green-bg); color: var(--green); border-color: var(--green-bdr); }
 .alert-warning { background: var(--yellow-bg); color: var(--yellow); border-color: var(--yellow-bdr); }
+.alert-info    { background: var(--sky-bg);    color: var(--sky);    border-color: var(--sky-bdr); }
 
 /* ─── Code / JSON ────────────────────────────────────────────────────── */
 .json-block {

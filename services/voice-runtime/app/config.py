@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     whisper_language: str = "de"
     whisper_beam_size: int = 1
 
+    # Batch transcription of uploaded recordings (transcribe_worker)
+    redis_url: str = "redis://redis:6379/0"
+    transcribe_queue: str = "agent:transcribe_jobs"
+    # Relief valve for GPU memory pressure: e.g. "int8_float16"
+    transcribe_compute_type: str = "float16"
+    transcribe_max_duration_seconds: float = 7200.0
+
     speech_rms_threshold: int = 350
     speech_min_ms: int = 250
     speech_end_silence_ms: int = 700

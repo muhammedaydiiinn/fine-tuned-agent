@@ -323,6 +323,63 @@ class DeploymentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Recordings (audio-training feature) ──────────────────────────────────────
+
+class RecordingSegmentResponse(BaseModel):
+    id: int
+    idx: int
+    start_ms: int
+    end_ms: int
+    speaker: str
+    text: str
+    corrected_text: str | None
+    confidence: float | None
+
+    model_config = {"from_attributes": True}
+
+
+class RecordingResponse(BaseModel):
+    id: int
+    filename: str
+    kind: str
+    status: str
+    duration_seconds: float | None
+    channels: int | None
+    attribution_method: str | None
+    notes: str | None
+    uploaded_by: str | None
+    error_message: str | None
+    session_id: int | None
+    analysis_json: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    segments: list[RecordingSegmentResponse] | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class TranscriptSegmentIn(BaseModel):
+    idx: int
+    start_ms: int = 0
+    end_ms: int = 0
+    text: str
+    speaker: str | None = None  # set by the worker for stereo recordings
+    confidence: float | None = None
+
+
+class TranscriptCallbackRequest(BaseModel):
+    duration_seconds: float | None = None
+    channels: int | None = None
+    segments: list[TranscriptSegmentIn] = Field(default_factory=list)
+    error: str | None = None
+
+
+class SegmentPatchRequest(BaseModel):
+    speaker: str | None = None
+    text: str | None = None
+    corrected_text: str | None = None
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):

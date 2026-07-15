@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     # Data directory — docker-compose: ./data:/data
     data_dir: str = "/data"
 
+    # Recording upload → transcription (training from audio recordings)
+    # "mock" -> upload writes canned segments, no GPU/worker needed;
+    # "real" -> jobs go to the transcribe-worker via Redis.
+    transcribe_mode: str = "mock"
+    recording_max_bytes: int = 300 * 1024 * 1024
+    recording_allowed_exts: str = ".wav,.mp3,.m4a,.ogg,.flac,.opus"
+
+    @property
+    def recordings_dir(self) -> str:
+        return f"{self.data_dir.rstrip('/')}/recordings"
+
     # Auth
     jwt_secret: str = "change_me"
     admin_user: str = "admin"
