@@ -1,6 +1,7 @@
 """LoRA fine-tuning job — mock mode for local dev, real mode for GPU server."""
 import json
 import logging
+import queue as _queue
 import time
 from pathlib import Path
 from typing import Callable
@@ -24,7 +25,99 @@ def train(
     mode = config.get("training_mode", "real")
     if mode == "mock":
         return _train_mock(dataset_path, output_adapter_path, config, progress_cb)
-    return _train_real(dataset_path, output_adapter_path, config, progress_cb)
+    return _train_real_isolated(dataset_path, output_adapter_path, config, progress_cb)
+
+
+# ── GPU-isolated real training ────────────────────────────────────────────────
+
+def _train_real_entry(dataset_path, output_adapter_path, config, q):
+    """Subprocess entrypoint: run the real training and stream progress + the
+    final result (or error) back to the parent over a Queue. Runs in its own
+    process with its own CUDA context (spawned)."""
+    # Set before torch initializes CUDA (torch is imported lazily inside
+    # _train_real). Expandable segments cut the reserved-but-unallocated
+    # fragmentation the OOM error flagged, buying back a few GB of headroom.
+    import os
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+    def _cb(step, total):
+        try:
+            q.put(("progress", step, total))
+        except Exception:
+            pass
+
+    try:
+        res = _train_real(dataset_path, output_adapter_path, config, _cb)
+        q.put(("result", res))
+    except BaseException as exc:  # noqa: BLE001 — OOM/etc must be reported to parent
+        import traceback
+        q.put(("error", f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"[:2000]))
+
+
+def _train_real_isolated(
+    dataset_path: str,
+    output_adapter_path: str,
+    config: dict,
+    progress_cb: Callable[[int, int], None] | None,
+) -> dict:
+    """Run real training in a spawned subprocess so ALL of its GPU memory is
+    reclaimed by the OS when it exits — on success, on exception, and even on an
+    OOM SIGKILL. The long-lived worker process never imports torch / touches
+    CUDA, so a crashed training job can never leak GPU memory into the next one
+    and no manual container restart is ever needed."""
+    import multiprocessing as mp
+
+    ctx = mp.get_context("spawn")  # spawn (not fork) is mandatory for CUDA
+    q: mp.Queue = ctx.Queue()
+    proc = ctx.Process(
+        target=_train_real_entry,
+        args=(dataset_path, output_adapter_path, config, q),
+        daemon=False,
+    )
+    proc.start()
+    logger.info("real training running in isolated subprocess pid=%s", proc.pid)
+
+    result = None
+    error = None
+    # Relay messages until the child dies. get() with a timeout lets us notice a
+    # silent death (e.g. OOM-killer SIGKILL, which sends no error message).
+    while True:
+        try:
+            msg = q.get(timeout=2)
+        except _queue.Empty:
+            if not proc.is_alive():
+                break
+            continue
+        kind = msg[0]
+        if kind == "progress":
+            if progress_cb:
+                progress_cb(msg[1], msg[2])
+        elif kind == "result":
+            result = msg[1]
+        elif kind == "error":
+            error = msg[1]
+
+    # Drain anything buffered after the child exited, then reap it.
+    while True:
+        try:
+            msg = q.get_nowait()
+        except _queue.Empty:
+            break
+        if msg[0] == "result":
+            result = msg[1]
+        elif msg[0] == "error":
+            error = msg[1]
+    proc.join(timeout=30)
+
+    if error is not None:
+        raise RuntimeError(error)
+    if result is None:
+        raise RuntimeError(
+            f"training subprocess exited without a result (exit code "
+            f"{proc.exitcode}) — likely CUDA OOM / killed by the OS. GPU memory "
+            f"has been reclaimed automatically; retry when the GPU has free room."
+        )
+    return result
 
 
 # ── Mock mode ────────────────────────────────────────────────────────────────
