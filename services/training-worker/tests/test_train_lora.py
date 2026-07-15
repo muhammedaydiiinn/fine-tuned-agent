@@ -36,3 +36,19 @@ class TrainLoraMockTests(TestCase):
         # train() dispatches on training_mode without importing the real stack.
         self.assertTrue(hasattr(train_lora, "_train_mock"))
         self.assertTrue(hasattr(train_lora, "_train_real"))
+
+    def test_real_mode_runs_in_isolated_subprocess(self):
+        # Real training is wrapped so a crash/OOM can never leak GPU memory into
+        # the worker: it must go through the spawned-subprocess path, never call
+        # _train_real inline in the worker process.
+        self.assertTrue(hasattr(train_lora, "_train_real_isolated"))
+        self.assertTrue(hasattr(train_lora, "_train_real_entry"))
+
+        captured = {}
+        orig = train_lora._train_real_isolated
+        train_lora._train_real_isolated = lambda *a, **k: captured.setdefault("called", True) or {"mode": "trl"}
+        try:
+            train_lora.train("ds.jsonl", "out", {"training_mode": "real"})
+        finally:
+            train_lora._train_real_isolated = orig
+        self.assertTrue(captured.get("called"))
