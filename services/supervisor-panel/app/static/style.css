@@ -54,6 +54,22 @@
   --radius-lg: 11px;
   --font:      'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing scale — 4px base grid. Use these instead of ad-hoc px so cards,
+     grids and section rhythm stay consistent across every page. */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+
+  /* Component defaults derived from the scale */
+  --card-pad:      var(--space-4);   /* uniform card inner padding      */
+  --grid-gap:      var(--space-3);   /* uniform gap for card/stat grids */
+  --block-gap:     var(--space-5);   /* space below a grid/row block    */
+  --section-gap:   var(--space-6);   /* space above a titled section    */
 }
 
 /* ─── Reset ──────────────────────────────────────────────────────────── */
@@ -395,10 +411,12 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order::after { opacity:
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--section-gap);
 }
 
-.page-header-left { display: flex; align-items: center; gap: 10px; }
+.page-header-left { display: flex; align-items: center; gap: var(--space-3); }
 
 .page-header-meta {
   align-items: center;
@@ -421,10 +439,10 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   font-size: 12.5px;
   color: var(--text-3);
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 .breadcrumb a { color: var(--text-2); }
 .breadcrumb a:hover { color: var(--text); }
@@ -434,15 +452,15 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .stats-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: var(--grid-gap);
+  margin-bottom: var(--block-gap);
 }
 
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 18px 14px;
+  padding: var(--card-pad);
 }
 
 .stat-label {
@@ -468,20 +486,20 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .stat-card.yellow { border-left: 2px solid var(--yellow); }
 
 /* ─── Info Cards ─────────────────────────────────────────────────────── */
-.card-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.card-row { display: flex; flex-wrap: wrap; gap: var(--grid-gap); margin-bottom: var(--block-gap); }
 
 .session-summary-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: var(--grid-gap);
+  margin-bottom: var(--block-gap);
 }
 
 .info-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 16px;
+  padding: var(--card-pad);
   min-width: 110px;
 }
 
@@ -495,16 +513,16 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: var(--grid-gap);
+  margin-bottom: var(--block-gap);
 }
 
 .detail-card {
-  padding: 16px;
+  padding: var(--card-pad);
 }
 
 .detail-table td {
-  padding: 5px 8px;
+  padding: var(--space-1) var(--space-2);
 }
 
 .detail-table td:first-child {
@@ -524,6 +542,41 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
   word-break: break-word;
 }
 
+/* ─── Content Cards (form / settings / editor sections) ──────────────────
+   Used by the recordings, recording-detail and content pages. These were
+   referenced in markup without ever being styled, so the sections rendered
+   as bare blocks with browser-default headings. Style them on the same
+   surface/border/spacing system as every other card. */
+.content-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--block-gap);
+}
+.content-card > :first-child { margin-top: 0; }
+.content-card > :last-child  { margin-bottom: 0; }
+
+.content-card h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.2px;
+  line-height: 1.3;
+  margin-bottom: var(--space-2);
+}
+
+/* Intro/description line under a content-card heading */
+.content-card h2 + p {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: var(--space-4);
+  max-width: 72ch;
+}
+
+.content-card .form-group { margin-bottom: var(--space-4); }
+.content-card .form-group:last-child { margin-bottom: 0; }
+
 /* ─── Section Title ──────────────────────────────────────────────────── */
 .section-title {
   font-size: 11px;
@@ -531,10 +584,10 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
   color: var(--text-2);
   text-transform: uppercase;
   letter-spacing: .6px;
-  margin: 28px 0 10px;
+  margin: var(--section-gap) 0 var(--space-3);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .section-title::after {
   content: '';
@@ -559,7 +612,7 @@ h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
 }
 
@@ -1157,8 +1210,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 
 .voice-event-card {
-  margin: -10px 0 22px;
-  padding: 14px 18px;
+  margin: calc(-1 * var(--space-2)) 0 var(--block-gap);
+  padding: var(--card-pad);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1206,8 +1259,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  margin: -8px 0 20px;
+  padding: var(--card-pad);
+  margin: calc(-1 * var(--space-2)) 0 var(--block-gap);
 }
 
 .voice-diagnostics-header {
@@ -1254,8 +1307,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .voice-diagnostics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: var(--grid-gap);
+  margin-bottom: var(--space-4);
 }
 
 .voice-diagnostic-stat {
@@ -1414,8 +1467,8 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 }
 
 /* ─── Forms ──────────────────────────────────────────────────────────── */
-.form-group  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-.form-row    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group  { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-4); }
+.form-row    { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 
 label { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
 
@@ -1495,8 +1548,8 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .json-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: var(--grid-gap);
+  margin-bottom: var(--block-gap);
 }
 @media (max-width: 900px) { .json-grid { grid-template-columns: 1fr; } }
 
@@ -1643,7 +1696,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .supervisor-console-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: var(--grid-gap);
 }
 
 .supervisor-snapshot,
@@ -1958,9 +2011,9 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: var(--card-pad);
   position: sticky;
-  top: 24px;
+  top: var(--space-6);
 }
 
 .session-review-card h2 {
