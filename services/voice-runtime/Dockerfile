@@ -8,13 +8,15 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       python3 python3-pip libgomp1 \
+       python3 python3-pip libgomp1 ffmpeg \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 # --break-system-packages: Docker container is isolated, no venv needed
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+COPY tests ./tests
 
 COPY app ./app
 

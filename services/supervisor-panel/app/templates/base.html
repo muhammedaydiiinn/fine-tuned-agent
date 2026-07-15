@@ -107,6 +107,11 @@
         Review
       </a>
 
+      <a href="/recordings" class="nav-item {% if request.url.path.startswith('/recordings') %}active{% endif %}">
+        <i class="fa-solid fa-file-audio nav-icon"></i>
+        Recordings
+      </a>
+
       <a href="/pipeline" class="nav-item {% if request.url.path.startswith('/pipeline') or request.url.path.startswith('/training') or request.url.path.startswith('/model-registry') or request.url.path.startswith('/eval-jobs') %}active{% endif %}">
         <i class="fa-solid fa-microchip nav-icon"></i>
         Pipeline

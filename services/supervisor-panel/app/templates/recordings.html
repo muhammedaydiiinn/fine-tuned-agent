@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Recordings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Recordings</h1>
+    <span class="text-muted">Upload call recordings, fix the transcript, then train from the approved turns.</span>
+  </div>
+</div>
+
+<section class="content-card">
+  <h2>Upload a recording</h2>
+  <p class="text-muted">Stereo files (one speaker per channel) give the most reliable speaker separation. Approved turns join the next training batch automatically.</p>
+  <form method="post" action="/recordings/upload" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+    <div class="form-group">
+      <label for="rec-file">Audio file (.wav, .mp3, .m4a, .ogg, .flac, .opus)</label>
+      <input type="file" id="rec-file" name="file" accept=".wav,.mp3,.m4a,.ogg,.flac,.opus,audio/*" required>
+    </div>
+    <div class="form-group">
+      <label for="rec-kind">Purpose</label>
+      <select id="rec-kind" name="kind">
+        <option value="good_example">Good example — learn from this call as-is</option>
+        <option value="to_correct">To correct — I will rewrite agent lines before training</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="rec-notes">Notes (optional)</label>
+      <input type="text" id="rec-notes" name="notes" placeholder="e.g. top seller call, 2026-07-10">
+    </div>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload"></i> Upload</button>
+  </form>
+</section>
+
+<div class="table-container">
+  <div class="table-toolbar"><span class="table-toolbar-title">Uploaded recordings</span></div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>File</th>
+        <th>Purpose</th>
+        <th>Status</th>
+        <th>Duration</th>
+        <th>Speakers</th>
+        <th>Session</th>
+        <th>Uploaded</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rec in recordings %}
+      <tr>
+        <td class="td-mono td-center">{{ rec.id }}</td>
+        <td>{{ rec.filename }}</td>
+        <td><span class="badge badge-intent">{{ "Good example" if rec.kind == "good_example" else "To correct" }}</span></td>
+        <td>
+          {% if rec.status == "failed" %}
+            <span class="badge badge-error">failed</span>
+          {% elif rec.status == "imported" %}
+            <span class="badge badge-approved">imported</span>
+          {% elif rec.status == "transcribing" %}
+            <span class="badge badge-running">transcribing</span>
+          {% elif rec.status == "transcribed" %}
+            <span class="badge badge-info">transcribed</span>
+          {% else %}
+            <span class="badge badge-pending">{{ rec.status }}</span>
+          {% endif %}
+        </td>
+        <td class="td-center">{% if rec.duration_seconds %}{{ "%d:%02d" | format(rec.duration_seconds // 60, rec.duration_seconds % 60) }}{% else %}—{% endif %}</td>
+        <td class="td-center">{{ rec.attribution_method or "—" }}</td>
+        <td>{% if rec.session_id %}<a href="/sessions/{{ rec.session_id }}">#{{ rec.session_id }}</a>{% else %}—{% endif %}</td>
+        <td><time data-panel-datetime datetime="{{ rec.created_at.isoformat() }}">{{ rec.created_at }}</time></td>
+        <td><a class="btn btn-outline btn-sm" href="/recordings/{{ rec.id }}">Open</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="td-center text-muted">No recordings uploaded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

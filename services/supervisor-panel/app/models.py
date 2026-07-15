@@ -54,6 +54,7 @@ class Turn(Base):
     state_after_json: Mapped[dict | None] = mapped_column(JSONB)
     raw_model_json: Mapped[dict | None] = mapped_column(JSONB)
     repaired_model_json: Mapped[dict | None] = mapped_column(JSONB)
+    final_policy_json: Mapped[dict | None] = mapped_column(JSONB)
     latency_json: Mapped[dict | None] = mapped_column(JSONB)
     model_version: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -214,3 +215,48 @@ class PolicyContentHistory(Base):
     value_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_by: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Recording(Base):
+    """Uploaded call recording — read-only mirror of agent-backend recordings."""
+
+    __tablename__ = "recordings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(256))
+    stored_path: Mapped[str | None] = mapped_column(String(512))
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(32), default="uploaded")
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+    channels: Mapped[int | None] = mapped_column(Integer)
+    attribution_method: Mapped[str | None] = mapped_column(String(16))
+    notes: Mapped[str | None] = mapped_column(Text)
+    uploaded_by: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("sessions.id"))
+    analysis_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    segments: Mapped[list["RecordingSegment"]] = relationship(
+        "RecordingSegment", back_populates="recording", order_by="RecordingSegment.idx"
+    )
+
+
+class RecordingSegment(Base):
+    """Transcript segment — read-only mirror of agent-backend recording_segments."""
+
+    __tablename__ = "recording_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recording_id: Mapped[int] = mapped_column(ForeignKey("recordings.id"), index=True)
+    idx: Mapped[int] = mapped_column(Integer)
+    start_ms: Mapped[int] = mapped_column(Integer, default=0)
+    end_ms: Mapped[int] = mapped_column(Integer, default=0)
+    speaker: Mapped[str] = mapped_column(String(16), default="unknown")
+    text: Mapped[str] = mapped_column(Text)
+    corrected_text: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    recording: Mapped["Recording"] = relationship("Recording", back_populates="segments")

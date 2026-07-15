@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Recording {{ recording.id }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Recording #{{ recording.id }} — {{ recording.filename }}</h1>
+    <span class="text-muted">
+      {{ "Good example — learn from this call" if recording.kind == "good_example" else "To correct — rewrite agent lines before training" }}
+      {% if recording.notes %} · {{ recording.notes }}{% endif %}
+    </span>
+  </div>
+  <div class="page-header-meta">
+    {% if recording.status == "failed" %}<span class="badge badge-error">failed</span>
+    {% elif recording.status == "imported" %}<span class="badge badge-approved">imported</span>
+    {% elif recording.status == "transcribing" %}<span class="badge badge-running">transcribing</span>
+    {% else %}<span class="badge badge-info">{{ recording.status }}</span>{% endif %}
+    {% if recording.attribution_method %}<span class="badge badge-intent">speakers: {{ recording.attribution_method }}</span>{% endif %}
+  </div>
+</div>
+
+{% if recording.status == "transcribing" or analysis.get("judge_status") == "running" %}
+<div hx-get="/recordings/{{ recording.id }}/status" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="alert alert-info"><i class="fa-solid fa-spinner fa-spin"></i>
+    Processing… (status: {{ recording.status }}{% if analysis.get("judge_status") %}, judge: {{ analysis.get("judge_status") }}{% endif %})
+  </div>
+</div>
+{% endif %}
+
+{% if recording.error_message %}
+<div class="alert alert-error">{{ recording.error_message }}</div>
+{% endif %}
+
+{% if recording.stored_path %}
+<section class="content-card">
+  <h2>Audio</h2>
+  <audio controls preload="metadata" class="recording-audio" src="/recordings/{{ recording.id }}/audio"></audio>
+</section>
+{% endif %}
+
+{% if recording.status in ("transcribed", "imported") %}
+<section class="content-card">
+  <h2>Actions</h2>
+  <p class="text-muted">Approved turns count toward the auto-train threshold.</p>
+  <div class="recording-actions">
+    {% if recording.status == "transcribed" %}
+      {% if unknown_count > 0 %}
+      <span class="badge badge-pending">{{ unknown_count }} segment(s) still unknown — assign speakers before import</span>
+      {% endif %}
+      <form method="post" action="/recordings/{{ recording.id }}/reattribute">
+        <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+        <button class="btn btn-outline" type="submit"><i class="fa-solid fa-wand-magic-sparkles"></i> Re-run speaker attribution</button>
+      </form>
+      <form method="post" action="/recordings/{{ recording.id }}/import">
+        <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+        <button class="btn btn-primary" type="submit" {% if unknown_count > 0 %}disabled title="Assign all speakers first"{% endif %}>
+          <i class="fa-solid fa-file-import"></i> Import as session
+        </button>
+      </form>
+    {% elif recording.status == "imported" %}
+      <a class="btn btn-primary" href="/review/{{ recording.session_id }}">
+        <i class="fa-solid fa-clipboard-check"></i> Review &amp; approve for training
+      </a>
+      <a class="btn btn-outline" href="/sessions/{{ recording.session_id }}">
+        <i class="fa-solid fa-pen"></i> Correct individual turns
+      </a>
+      {% if analysis.get("judge_status") != "running" %}
+      <form method="post" action="/recordings/{{ recording.id }}/judge">
+        <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
+        <button class="btn btn-outline" type="submit"><i class="fa-solid fa-scale-balanced"></i>
+          {{ "Re-run judge analysis" if analysis.get("judge_status") == "completed" else "Run judge analysis" }}
+        </button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if analysis.get("judge_status") == "completed" %}
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-label">Turns judged</div><div class="stat-value">{{ analysis.get("judged", "—") }}</div></div>
+  <div class="stat-card"><div class="stat-label">Mean score</div><div class="stat-value">{{ "%.2f" | format(analysis.get("mean_overall")) if analysis.get("mean_overall") is not none else "—" }}</div></div>
+  <div class="stat-card"><div class="stat-label">Pass rate</div><div class="stat-value">{{ "%.0f%%" | format(analysis.get("pass_rate") * 100) if analysis.get("pass_rate") is not none else "—" }}</div></div>
+</div>
+{% elif analysis.get("judge_status") == "failed" %}
+<div class="alert alert-error">Judge analysis failed: {{ analysis.get("error", "unknown error") }}</div>
+{% endif %}
+
+{% if recording.status == "imported" and turns %}
+<div class="table-container recording-table">
+  <div class="table-toolbar"><span class="table-toolbar-title">Imported turns</span></div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Customer</th><th>Agent</th><th>Intent</th><th>Warnings</th><th>Judge</th></tr>
+    </thead>
+    <tbody>
+      {% for turn in turns %}
+      {% set warnings = (turn.final_policy_json or {}).get("import_warnings", []) %}
+      {% set eval = (evaluations | selectattr("turn_id", "equalto", turn.id) | list | first) %}
+      <tr>
+        <td class="td-mono td-center">{{ turn.turn_index }}</td>
+        <td>{{ turn.customer_text or "—" }}</td>
+        <td>{{ turn.agent_response }}</td>
+        <td><span class="badge badge-intent">{{ turn.intent }}</span></td>
+        <td>
+          {% for warning in warnings %}
+          <span class="badge badge-pending" title="Fix via corrections before approving — a violating example fails the whole training build">
+            <i class="fa-solid fa-triangle-exclamation"></i> {{ warning }}</span>
+          {% else %}<span class="text-muted">—</span>{% endfor %}
+        </td>
+        <td>
+          {% if eval %}
+            {% if eval.passed %}<span class="badge badge-approved">{{ "%.2f" | format(eval.overall) }}</span>
+            {% else %}<span class="badge badge-error">{{ "%.2f" | format(eval.overall) if eval.overall is not none else "?" }}</span>{% endif %}
+            {% if eval.suggestion %}
+            <div class="judge-suggestion"><i class="fa-solid fa-lightbulb"></i> {{ eval.suggestion }}</div>
+            {% endif %}
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if segments %}
+<div class="table-container recording-table">
+  <div class="table-toolbar">
+    <span class="table-toolbar-title">Transcript segments</span>
+    <span class="table-toolbar-meta">Set the speaker for each line{% if recording.kind == "to_correct" %}, and rewrite agent lines in the second box{% endif %}. Changes after import require re-importing a new upload.</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th class="segment-time-col">Time</th><th colspan="3">Speaker &amp; text</th></tr>
+    </thead>
+    <tbody>
+      {% for segment in segments %}
+        {% with segment=segment, recording=recording, saved=False %}
+          {% include "_recording_segment_row.html" %}
+        {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<style>
+  .recording-audio { width: 100%; }
+  .recording-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .recording-actions form { display: inline; margin: 0; }
+  .recording-table { margin-bottom: 20px; }
+  .judge-suggestion { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+  .judge-suggestion i { color: var(--yellow); margin-right: 4px; }
+  .segment-time-col { width: 70px; }
+  .segment-form { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .segment-speaker-col { min-width: 130px; }
+  .segment-text-col { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 6px; }
+  .segment-text-col textarea { width: 100%; }
+  .segment-confidence { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .segment-speaker-unknown { border-color: var(--yellow, #eab308); }
+  .row-flash { animation: segment-saved-flash 1.2s ease-out; }
+  @keyframes segment-saved-flash {
+    0% { background: var(--green-bg, #dcfce7); }
+    100% { background: transparent; }
+  }
+</style>
+{% endblock %}

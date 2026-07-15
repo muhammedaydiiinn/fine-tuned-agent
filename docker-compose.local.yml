@@ -36,3 +36,8 @@ services:
   voice-runtime-worker:
     profiles:
       - gpu
+
+  # Local dev uses TRANSCRIBE_MODE=mock in agent-backend — no worker needed.
+  transcribe-worker:
+    profiles:
+      - gpu

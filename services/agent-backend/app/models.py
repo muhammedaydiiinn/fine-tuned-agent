@@ -1,8 +1,8 @@
-"""SQLAlchemy ORM models — all 10 tables."""
+"""SQLAlchemy ORM models — all tables."""
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -328,3 +328,66 @@ class TurnEvaluation(Base):
     accepted_candidate_id: Mapped[int | None] = mapped_column(Integer)
     raw_judge_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Recording(Base):
+    """Uploaded call-recording audio file and its processing lifecycle.
+
+    kind='good_example' recordings are exemplary human sales calls to learn
+    from; kind='to_correct' recordings are calls whose agent lines the
+    supervisor rewrites before training. After transcription + speaker fix-up
+    the recording is imported as a Session (external_session_id="recording-{id}")
+    so the existing review/correction/judge machinery applies unchanged.
+    """
+
+    __tablename__ = "recordings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    filename: Mapped[str] = mapped_column(String(256))
+    stored_path: Mapped[str | None] = mapped_column(String(512))
+    kind: Mapped[str] = mapped_column(String(16))  # good_example | to_correct
+    # uploaded → transcribing → transcribed → imported | failed
+    status: Mapped[str] = mapped_column(String(32), default="uploaded", index=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+    channels: Mapped[int | None] = mapped_column(Integer)
+    attribution_method: Mapped[str | None] = mapped_column(String(16))  # stereo | llm
+    notes: Mapped[str | None] = mapped_column(Text)
+    uploaded_by: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("sessions.id"), index=True)
+    analysis_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    segments: Mapped[list["RecordingSegment"]] = relationship(
+        "RecordingSegment",
+        back_populates="recording",
+        order_by="RecordingSegment.idx",
+        cascade="all, delete-orphan",
+    )
+
+
+class RecordingSegment(Base):
+    """One transcribed utterance of a recording with speaker attribution.
+
+    corrected_text is the supervisor's rewrite ("this should have been said
+    instead") and takes precedence over text when the recording is imported.
+    """
+
+    __tablename__ = "recording_segments"
+    __table_args__ = (UniqueConstraint("recording_id", "idx", name="ux_recording_segments_idx"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    recording_id: Mapped[int] = mapped_column(ForeignKey("recordings.id"), index=True)
+    idx: Mapped[int] = mapped_column(Integer)
+    start_ms: Mapped[int] = mapped_column(Integer, default=0)
+    end_ms: Mapped[int] = mapped_column(Integer, default=0)
+    speaker: Mapped[str] = mapped_column(String(16), default="unknown")  # agent | customer | unknown
+    text: Mapped[str] = mapped_column(Text)
+    corrected_text: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    recording: Mapped["Recording"] = relationship("Recording", back_populates="segments")

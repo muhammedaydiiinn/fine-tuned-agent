@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 TRAINING_QUEUE = "anruf:training_jobs"
 EVAL_QUEUE = "anruf:eval_jobs"
+TRANSCRIBE_QUEUE = "anruf:transcribe_jobs"
 
 
 def _get_client() -> redis_lib.Redis:
@@ -77,6 +78,25 @@ def enqueue_judge_batch(
         r = _get_client()
         r.rpush(EVAL_QUEUE, message)
         logger.info("Judge batch enqueued: %s (run=%d model=%d)", job_id, eval_run_id, model_version_id)
+    except redis_lib.RedisError as exc:
+        logger.error("Redis enqueue hatası: %s", exc)
+        raise
+    return job_id
+
+
+def enqueue_transcribe_job(recording_id: int, path: str) -> str:
+    """Enqueue an uploaded recording for the transcribe-worker."""
+    import uuid
+    job_id = str(uuid.uuid4())
+    message = json.dumps({
+        "job_id": job_id,
+        "job_type": "transcribe_recording",
+        "payload": {"recording_id": recording_id, "path": path},
+    })
+    try:
+        r = _get_client()
+        r.rpush(TRANSCRIBE_QUEUE, message)
+        logger.info("Transcribe job enqueued: %s (recording=%d)", job_id, recording_id)
     except redis_lib.RedisError as exc:
         logger.error("Redis enqueue hatası: %s", exc)
         raise

@@ -125,6 +125,9 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret}
       LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-anrufblocker-voice}
+    volumes:
+      # Read-only: serve uploaded recording audio (<audio> player) directly.
+      - ./data:/data:ro
     networks:
       - anruf-net
     depends_on:
@@ -175,6 +178,36 @@ services:
     depends_on:
       - livekit-server
       - agent-backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ── Transcribe worker: uploaded recordings → whisper transcript ────────────
+  # Shares the voice-runtime image (whisper + ffmpeg). Consumes the
+  # anruf:transcribe_jobs Redis queue and POSTs results to agent-backend.
+  # Like training: stop it together with vllm-server during real training runs
+  # (single-GPU host, no automatic GPU coordination).
+  transcribe-worker:
+    build:
+      context: ./services/voice-runtime
+    command: python3 -m app.transcribe_worker
+    env_file: .env
+    volumes:
+      - ${MODELS_DIR:-./models}:/models:ro
+      - ./data:/data
+    networks:
+      - anruf-net
+    depends_on:
+      redis:
+        condition: service_healthy
+      agent-backend:
+        condition: service_started
     deploy:
       resources:
         reservations:
