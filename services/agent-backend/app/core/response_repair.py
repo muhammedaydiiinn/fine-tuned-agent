@@ -29,9 +29,31 @@ _LINK_SENTENCE_RE = re.compile(
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
+def _is_sanctioned_template(response: str) -> bool:
+    """True if the text is an operator-approved canned answer already applied by
+    a guardrail (price, security, …). These are approved verbatim and must pass
+    through untouched — otherwise a later repair (e.g. premature_link seeing the
+    App-Store wording in the security template) would mangle approved content."""
+    text = (response or "").strip()
+    if not text:
+        return False
+    try:
+        from app.core import product_facts as pf
+        return any(
+            text == (content_store.canned(key) or "").strip()
+            for key in pf.CANNED_ANSWERS
+        )
+    except Exception:  # noqa: BLE001 — repair must never crash on content lookup
+        return False
+
+
 def repair_all(response: str, state: dict, customer_message: str = "") -> tuple[str, list[str]]:
     applied: list[str] = []
     filled = (state or {}).get("filled_slots") or {}
+
+    # Approved templates already enforced by guardrails are final — skip repairs.
+    if _is_sanctioned_template(response):
+        return response, applied
 
     r, hit = repair_trial_in_response(response)
     if hit:

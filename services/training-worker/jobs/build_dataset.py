@@ -283,16 +283,24 @@ def _validate_messages(messages: list, source: str) -> None:
         compact = response.replace(".", "").replace(",", ".")
         import re
         stated_amounts = re.findall(r"\b\d+(?:\.\d+)?(?=\s*Euro)", compact, re.IGNORECASE)
-        allowed = {"29.99", "2500"}
+        # Mirror the runtime guardrail's approved set (29,99 monthly, 2500 legal
+        # cover, 18 one-off check price). Kept in sync with guardrails._ALLOWED_EURO_AMOUNTS.
+        allowed = {"29.99", "2500", "18"}
         invalid = [amount for amount in stated_amounts if amount not in allowed]
         if invalid:
             raise ValueError(
                 f"{source}: unsupported Euro amount(s) in training response: {invalid}"
             )
     if intent in {"price_question", "free_question"}:
-        if "14 tage kostenlos" not in response_folded or "29,99" not in response:
+        # Enforce the approved FACTS, not a literal template: natural German phrases
+        # the trial many ways ("14 Tagen kostenlos", "14 Tage sind kostenlos") and a
+        # free-check answer may omit 29,99. Require the free-trial/check wording or the
+        # 29,99 price; the Euro-amount check above already blocks invented prices.
+        mentions_free = any(w in response_folded for w in ("kostenlos", "kostenfrei", "gratis"))
+        mentions_price = "29,99" in response
+        if not (mentions_free or mentions_price):
             raise ValueError(
-                f"{source}: price/trial response must contain the approved 14-day and 29,99 terms"
+                f"{source}: price/free response must state the free trial/check or the 29,99 price"
             )
     if "50% rabatt" in response_folded or "50 % rabatt" in response_folded:
         raise ValueError(f"{source}: unapproved discount claim")

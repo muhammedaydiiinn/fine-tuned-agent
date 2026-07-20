@@ -19,11 +19,14 @@ def chat(
     *,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    response_format: dict | None = None,
 ) -> str:
     """Call the LLM with the given message list and return the raw text response.
 
     ``temperature``/``max_tokens`` override the defaults (0.1 / 512) — used by the
     judge (short JSON verdict, temperature=0.0 retry) and the NL editor.
+    ``response_format`` (vLLM json_schema structured output) constrains the agent
+    policy call to the canonical enums; ignored in mock mode.
     """
     target = target or {
         "mode": settings.vllm_mode,
@@ -32,7 +35,11 @@ def chat(
     }
     if target.get("mode") == "mock":
         return _mock_chat(messages)
-    return _real_chat(messages, target, temperature=temperature, max_tokens=max_tokens)
+    return _real_chat(
+        messages, target,
+        temperature=temperature, max_tokens=max_tokens,
+        response_format=response_format,
+    )
 
 
 # ── Mock ────────────────────────────────────────────────────────────────────
@@ -130,6 +137,7 @@ def _real_chat(
     *,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    response_format: dict | None = None,
 ) -> str:
     payload = {
         "model": target["model_name"],
@@ -138,6 +146,8 @@ def _real_chat(
         "max_tokens": 512 if max_tokens is None else max_tokens,
         "chat_template_kwargs": {"enable_thinking": False},
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
     try:
         with httpx.Client(timeout=30.0) as client:
             response = client.post(

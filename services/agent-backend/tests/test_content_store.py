@@ -100,4 +100,4 @@ class GuardrailsUseEditedAnswersTests(TestCase):
             {},
         )
         self.assertEqual(policy["agent_response"], good)
-        self.assertEqual(policy["next_action"], "explain_offer_terms")
+        self.assertEqual(policy["next_action"], "explain_price")

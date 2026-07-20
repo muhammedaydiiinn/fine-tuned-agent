@@ -48,7 +48,7 @@ class PdfGuardrailTests(TestCase):
             {},
         )
         self.assertEqual(policy["agent_response"], PRICE_TEMPLATE)
-        self.assertEqual(policy["next_action"], "explain_offer_terms")
+        self.assertEqual(policy["next_action"], "explain_price")
 
     def test_security_objection_uses_pdf_template(self):
         policy = apply(
@@ -73,7 +73,7 @@ class PdfGuardrailTests(TestCase):
             {},
             "Ich brauche Zeit und melde mich später.",
         )
-        self.assertEqual(policy["next_action"], "handle_objection")
+        self.assertEqual(policy["next_action"], "handle_time_objection")
         self.assertNotIn("telefonnummer", policy["agent_response"].lower())
 
     def test_price_inquiry_via_customer_text(self):

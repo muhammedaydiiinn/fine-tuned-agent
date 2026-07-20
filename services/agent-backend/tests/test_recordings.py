@@ -152,7 +152,7 @@ class AttributeSpeakersTests(TestCase):
 class StateReplayTests(TestCase):
     def test_state_progression_matches_runtime_semantics(self):
         state = dict(state_manager.DEFAULT_STATE)
-        policy = {"intent": "price_question", "next_action": "explain_offer_terms"}
+        policy = {"intent": "price_question", "next_action": "explain_price"}
         new_state = state_manager.update(state, policy, "Was kostet das?")
         self.assertEqual(new_state["turn_count"], 1)
         self.assertTrue(new_state["offer_terms_explained"])

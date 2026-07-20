@@ -43,11 +43,16 @@ def _metadata(model: ModelVersion) -> dict:
 
 
 def _latest_gate_run(db: DBSession, model_id: int) -> EvalRun | None:
+    # Only real deploy-gate runs count. Simulation / real_log_judge runs also live
+    # in eval_runs for the same model but carry no deployment evidence, so without
+    # this run_kind filter a later simulation would shadow the gate run and block
+    # deployment ("no immutable deployment evidence").
     return (
         db.query(EvalRun)
         .filter(
             EvalRun.model_version_id == model_id,
             EvalRun.status == "completed",
+            EvalRun.run_kind == "scenario_gate",
         )
         .order_by(EvalRun.finished_at.desc(), EvalRun.id.desc())
         .first()

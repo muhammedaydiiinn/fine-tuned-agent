@@ -75,7 +75,7 @@ def update(
         new_state["identity_confirmed"] = True
 
     # Price / offer terms explained
-    if next_action == "explain_offer_terms" or intent in (
+    if next_action in ("explain_price", "explain_offer_terms") or intent in (
         "price_question", "free_question", "price_inquiry",
     ):
         new_state["price_explained"] = True
