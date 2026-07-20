@@ -281,7 +281,8 @@ services:
       --model /model
       --served-model-name ${CANDIDATE_MODEL_NAME:-fine-tuned-agent-candidate}
       --max-model-len 4096
-      --gpu-memory-utilization 0.60
+      --max-num-seqs ${VLLM_MAX_NUM_SEQS:-32}
+      --gpu-memory-utilization ${VLLM_CANDIDATE_GPU_UTIL:-0.30}
       --port 8000
     networks:
       - agent-net

@@ -11,7 +11,7 @@ class RunOneConversationTests(TestCase):
     def test_collects_turn_ids_and_stops_on_done(self):
         state = {"n": 0}
 
-        def fake_agent_turn(session_id, customer_text):
+        def fake_agent_turn(session_id, customer_text, eval_model_version_id=None):
             state["n"] += 1
             return {"turn_id": state["n"], "agent_response": f"antwort {state['n']}"}
 
@@ -29,7 +29,7 @@ class RunOneConversationTests(TestCase):
     def test_session_id_shape(self):
         captured = {}
 
-        def fake_agent_turn(session_id, customer_text):
+        def fake_agent_turn(session_id, customer_text, eval_model_version_id=None):
             captured.setdefault("session_id", session_id)
             return {"turn_id": 1, "agent_response": "x"}
 

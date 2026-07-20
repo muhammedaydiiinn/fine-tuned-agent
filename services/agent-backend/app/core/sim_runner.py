@@ -20,8 +20,18 @@ from app.models import EvalRun, Turn, TurnEvaluation
 logger = logging.getLogger(__name__)
 
 
-def _agent_turn(session_id: str, customer_text: str) -> dict:
+def _agent_turn(
+    session_id: str,
+    customer_text: str,
+    eval_model_version_id: int | None = None,
+) -> dict:
     headers = {"X-API-Key": settings.api_key} if settings.api_key else {}
+    # Route to a specific (non-active) candidate for before/after comparison; the
+    # active production model needs no header. Judge stays on the production base.
+    if eval_model_version_id is not None:
+        headers["X-Eval-Model-Version-ID"] = str(eval_model_version_id)
+        if settings.eval_internal_token:
+            headers["X-Eval-Token"] = settings.eval_internal_token
     with httpx.Client(timeout=180.0) as client:
         resp = client.post(
             f"{settings.self_base_url.rstrip('/')}/agent-turn",
@@ -32,13 +42,19 @@ def _agent_turn(session_id: str, customer_text: str) -> dict:
         return resp.json()
 
 
-def _run_one_conversation(run_token: str, persona: dict, index: int, max_turns: int) -> list[int]:
+def _run_one_conversation(
+    run_token: str,
+    persona: dict,
+    index: int,
+    max_turns: int,
+    eval_model_version_id: int | None = None,
+) -> list[int]:
     session_id = f"sim-{run_token}-{index}-{persona['id']}"
     transcript: list[dict] = []
     turn_ids: list[int] = []
 
     # Agent opens the call (empty customer_text → greeting).
-    resp = _agent_turn(session_id, "")
+    resp = _agent_turn(session_id, "", eval_model_version_id)
     transcript.append({"role": "agent", "text": resp.get("agent_response", "")})
     if resp.get("turn_id"):
         turn_ids.append(resp["turn_id"])
@@ -48,7 +64,7 @@ def _run_one_conversation(run_token: str, persona: dict, index: int, max_turns: 
         if not cust["text"]:
             break
         transcript.append({"role": "customer", "text": cust["text"]})
-        resp = _agent_turn(session_id, cust["text"])
+        resp = _agent_turn(session_id, cust["text"], eval_model_version_id)
         transcript.append({"role": "agent", "text": resp.get("agent_response", "")})
         if resp.get("turn_id"):
             turn_ids.append(resp["turn_id"])
@@ -72,15 +88,23 @@ def run_simulation(eval_run_id: int, count: int, max_turns: int) -> None:
         db.commit()
 
         run_token = uuid.uuid4().hex[:8]
-        model = model_runtime.active_model(db)
-        model_version_id = model.id if model else run.model_version_id
+        active = model_runtime.active_model(db)
+        active_id = active.id if active else None
+        # Simulate the model the EvalRun targets. When it is not the active
+        # production model, route /agent-turn to it via the eval header.
+        model_version_id = run.model_version_id or active_id
+        eval_model_version_id = (
+            model_version_id if model_version_id != active_id else None
+        )
         personas = customer_sim.get_personas(count)
 
         overalls: list[float] = []
         per_persona: dict[str, float | None] = {}
         for i, persona in enumerate(personas, 1):
             try:
-                turn_ids = _run_one_conversation(run_token, persona, i, max_turns)
+                turn_ids = _run_one_conversation(
+                    run_token, persona, i, max_turns, eval_model_version_id
+                )
             except Exception:
                 logger.exception("simulation conversation failed — persona=%s", persona["id"])
                 turn_ids = []

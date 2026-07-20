@@ -20,6 +20,7 @@ from app.core import (
     response_repair,
     latency as latency_mod,
     model_runtime,
+    product_facts,
 )
 
 router = APIRouter()
@@ -93,10 +94,21 @@ def agent_turn(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    # 6. vLLM call
+    # 6. vLLM call — constrain policy output to the canonical enums so model
+    # output, guardrails and the deploy-gate scenarios share one taxonomy.
+    response_format = None
+    if settings.policy_guided_decoding and runtime_target.get("mode") == "real":
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "policy",
+                "schema": product_facts.policy_response_schema(),
+                "strict": True,
+            },
+        }
     llm_start = time.perf_counter()
     try:
-        raw_output = vllm_client.chat(messages, runtime_target)
+        raw_output = vllm_client.chat(messages, runtime_target, response_format=response_format)
     except Exception as exc:
         llm_ms = (time.perf_counter() - llm_start) * 1000
         logger.exception(

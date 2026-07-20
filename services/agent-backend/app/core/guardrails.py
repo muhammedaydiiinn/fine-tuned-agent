@@ -145,7 +145,7 @@ def _rule_delay_no_phone_collection(policy: dict, customer_message: str) -> dict
     response = _lower(policy.get("agent_response", ""))
     if canonical in IDENTITY_NEXT_ACTIONS or "telefonnummer" in response:
         logger.info("guardrail: delay -> block phone/identity collection")
-        policy["next_action"] = "handle_objection"
+        policy["next_action"] = "handle_time_objection"
         policy["behavior_strategy"] = "empathize_redirect"
         policy["allowed_to_continue"] = True
         policy["agent_response"] = content_store.canned("delay_deferral")
@@ -182,13 +182,13 @@ def price_answer_is_unsafe(response: str) -> bool:
 def _rule_price_template(policy: dict, customer_message: str) -> dict:
     intent = (policy.get("intent") or "").strip()
     next_action = normalize_next_action(policy.get("next_action", ""))
-    if not _is_price_turn(intent, customer_message) and next_action != "explain_offer_terms":
+    if not _is_price_turn(intent, customer_message) and next_action != "explain_price":
         return policy
     # Trust a correct model answer; only enforce the template when it is wrong.
     if price_answer_is_unsafe(policy.get("agent_response", "")):
         logger.info("guardrail: unsafe price answer -> PDF template")
         policy["agent_response"] = content_store.canned("price")
-    policy["next_action"] = "explain_offer_terms"
+    policy["next_action"] = "explain_price"
     return policy
 
 
@@ -197,7 +197,7 @@ def _rule_security_template(policy: dict) -> dict:
     if intent == "security_objection":
         logger.info("guardrail: PDF security template applied")
         policy["agent_response"] = content_store.canned("security")
-        policy["next_action"] = "handle_objection"
+        policy["next_action"] = "address_security"
     return policy
 
 

@@ -18,12 +18,25 @@ logger = logging.getLogger(__name__)
 class SimulationRequest(BaseModel):
     count: int | None = None
     max_turns: int | None = None
+    # Optional: simulate a specific (e.g. candidate) model for before/after
+    # comparison. Defaults to the active production model.
+    model_version_id: int | None = None
 
 
 @router.post("/simulations", status_code=201)
 def create_simulation(body: SimulationRequest, db: DBSession = Depends(get_db)):
-    """Start a batch of reactive customer conversations against the active model."""
-    model = model_runtime.active_model(db)
+    """Start a batch of reactive customer conversations against a model.
+
+    Defaults to the active production model; pass model_version_id to simulate a
+    candidate (routed via the eval header) for a before/after quality comparison.
+    """
+    if body.model_version_id is not None:
+        from app.models import ModelVersion
+        model = db.query(ModelVersion).filter(ModelVersion.id == body.model_version_id).first()
+        if model is None:
+            raise HTTPException(status_code=404, detail="Model version not found")
+    else:
+        model = model_runtime.active_model(db)
     if model is None:
         raise HTTPException(status_code=409, detail="No active production model to simulate against")
     count = int(body.count or settings.sim_default_count)

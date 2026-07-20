@@ -46,25 +46,101 @@ RAW_ACTION_TO_SALES: dict[str, str] = {
     "open_store_page": "guide_customer_step",
     "send_app_link": "guide_customer_step",
     "provide_app_link": "guide_customer_step",
-    "explain_safe_app_link": "handle_objection",
+    "explain_safe_app_link": "address_security",
     "collect_on_screen_confirmation": "collect_step_input",
     "guide_phone_entry": "guide_customer_step",
     "guide_activation_button": "guide_customer_step",
     "guide_app_download": "guide_customer_step",
     "collect_sms_verification": "collect_step_input",
-    "explain_trial_and_price": "explain_offer_terms",
-    "explain_price": "explain_offer_terms",
-    "explain_trial": "explain_offer_terms",
+    "explain_trial_and_price": "explain_price",
+    "explain_trial": "explain_price",
+    "explain_offer_terms": "explain_price",
     "ask_for_activation_commitment": "ask_for_commitment",
     "record_customer_decision": "close_call",
     "close_successful_sale": "close_call",
     "confirm_customer_identity": "qualify_lead",
-    "answer_offer_question": "explain_offer_terms",
-    "answer_question_then_resume": "handle_objection",
-    "address_security": "handle_objection",
+    "answer_offer_question": "explain_price",
     "request_identity": "qualify_lead",
     "greeting_and_introduction": "qualify_lead",
+    # Legacy/synonym action names emitted by older checkpoints -> canonical.
+    "address_security_concern": "address_security",
+    "address_suspicion": "address_security",
+    "handle_no_interest": "acknowledge_objection",
+    "handle_hard_decline": "acknowledge_objection",
+    "handle_rejection": "acknowledge_objection",
+    "explain_call_reason": "explain_service",
+    "answer_origin": "explain_service",
+    "send_store_link": "redirect_to_app",
+    "send_link": "send_activation_link",
+    "handle_hesitation": "handle_time_objection",
+    "acknowledge_and_reframe": "handle_time_objection",
+    "reframe_trial": "handle_time_objection",
 }
+
+# ── Canonical policy vocabulary ────────────────────────────────────────────
+# The single source of truth for the intent / next_action enums. The inference
+# call constrains the model to these values (vLLM response_format json_schema)
+# and the deploy-gate scenarios assert against them, so the three taxonomies
+# (model output, guardrails, eval) can never drift apart again.
+CANONICAL_INTENTS: tuple[str, ...] = (
+    "greeting", "interested", "general_inquiry", "why_calling",
+    "price_question", "free_question", "security_objection",
+    "already_blocking", "time_objection", "sms_request", "hard_decline",
+    "activation_link_request", "identity_confirmation",
+)
+
+CANONICAL_NEXT_ACTIONS: tuple[str, ...] = (
+    "explain_price", "address_security", "explain_service",
+    "differentiate_product", "handle_time_objection", "redirect_to_app",
+    "acknowledge_objection", "send_activation_link", "qualify_lead",
+    "confirm_identity", "pitch_product", "guide_customer_step",
+    "ask_for_commitment", "collect_step_input", "close_call",
+)
+
+# Situation -> canonical value map, injected into the system prompt so the
+# (enum-constrained) model selects the semantically correct value instead of
+# defaulting to a grammar-valid but wrong one.
+NEXT_ACTION_LEGEND: str = (
+    "\n\nWaehle intent und next_action AUSSCHLIESSLICH aus der festen Liste, "
+    "passend zur Kundenaussage:\n"
+    "- Preis/Kosten/'was kostet'/'kostenlos'/'nach 14 Tagen' -> intent=price_question, next_action=explain_price\n"
+    "- Virus/Phishing/'ist der Link sicher'/Betrug/unsicher -> intent=security_objection, next_action=address_security\n"
+    "- 'warum rufen Sie an'/'woher haben Sie meine Nummer' -> intent=why_calling, next_action=explain_service\n"
+    "- 'ich blockiere schon'/'habe schon eine App' -> intent=already_blocking, next_action=differentiate_product\n"
+    "- 'keine Zeit'/'spaeter'/'jetzt nicht'/'melde mich' -> intent=time_objection, next_action=handle_time_objection\n"
+    "- 'per SMS'/'schicken Sie SMS'/nach Code fragen -> intent=sms_request, next_action=redirect_to_app\n"
+    "- 'kein Interesse'/'will nichts kaufen'/'nein danke' -> intent=hard_decline, next_action=acknowledge_objection\n"
+    "- 'schicken Sie den Link'/'App installieren'/bereit -> intent=activation_link_request, next_action=send_activation_link\n"
+)
+
+
+def policy_response_schema() -> dict:
+    """JSON schema passed to vLLM (response_format) to force schema-valid policy
+    output with intent/next_action drawn only from the canonical enums."""
+    return {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string", "enum": list(CANONICAL_INTENTS)},
+            "emotion": {"type": "string"},
+            "risk": {"type": "string", "enum": ["low", "medium", "high"]},
+            "next_action": {"type": "string", "enum": list(CANONICAL_NEXT_ACTIONS)},
+            "behavior_strategy": {"type": "string"},
+            "allowed_to_continue": {"type": "boolean"},
+            "agent_response": {"type": "string"},
+            "voice_style": {
+                "type": "object",
+                "properties": {
+                    "tone": {"type": "string"},
+                    "pace": {"type": "string"},
+                    "confidence": {"type": "string"},
+                },
+            },
+        },
+        "required": [
+            "intent", "emotion", "risk", "next_action",
+            "behavior_strategy", "allowed_to_continue", "agent_response",
+        ],
+    }
 
 CLOSING_NEXT_ACTIONS: frozenset[str] = frozenset({
     "close_call",
@@ -248,6 +324,7 @@ SYSTEM_OUTPUT_CONTRACT: str = (
     "}\n"
     "agent_response is always in German and never in ALL CAPS. "
     "Set allowed_to_continue to false when the call should end."
+    + NEXT_ACTION_LEGEND
 )
 
 _LINK_PUSH_TOKENS: tuple[str, ...] = (

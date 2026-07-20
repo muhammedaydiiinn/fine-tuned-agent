@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     vllm_base_url: str = "http://vllm-server:8000/v1"
     vllm_model_name: str = "fine-tuned-agent-v14"
     candidate_vllm_base_url: str = "http://vllm-candidate:8000/v1"
+    # Constrain agent policy output to the canonical intent/next_action enums via
+    # vLLM structured outputs (response_format json_schema). Keeps model output,
+    # guardrails and eval on one taxonomy. Judge/customer-sim calls are untouched.
+    policy_guided_decoding: bool = True
     model_health_timeout_seconds: float = 15.0
     vllm_start_timeout_seconds: float = 900.0
     allow_mock_production_deploy: bool = False

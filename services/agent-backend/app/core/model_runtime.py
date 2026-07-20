@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Deployment, ModelVersion
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_MODEL_FILES = ("config.json",)
 WEIGHT_PATTERNS = ("*.safetensors", "*.bin")
@@ -125,6 +129,67 @@ def artifact_is_valid(path_value: str | None) -> dict[str, Any]:
     return {"valid": True, "root": str(root)}
 
 
+# Sidecar caching the sha256 manifest of an (immutable, write-once) merged model.
+# Hashing 16 GB takes ~48 s; recomputing it on every eval/deploy request blocks the
+# HTTP call past the proxy timeout. The sidecar lets an unchanged artifact return its
+# manifest instantly; the (path,size,mtime) signature invalidates it if files change.
+_ARTIFACT_SIDECAR = ".artifact_manifest.json"
+
+
+def _artifact_content_files(root: Path) -> list[Path]:
+    """Model files to hash — every regular file except the sidecar itself."""
+    return sorted(
+        item
+        for item in root.rglob("*")
+        if item.is_file() and item.name != _ARTIFACT_SIDECAR
+    )
+
+
+def _artifact_signature(files: list[Path], root: Path) -> str:
+    """Cheap fingerprint (no content read) — path, size and mtime of each file."""
+    sig = hashlib.sha256()
+    for file in files:
+        st = file.stat()
+        sig.update(f"{file.relative_to(root)}:{st.st_size}:{st.st_mtime_ns}\n".encode())
+    return sig.hexdigest()
+
+
+def _compute_artifact_manifest(root: Path, files: list[Path]) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    digest = hashlib.sha256()
+    for file in files:
+        file_digest = hashlib.sha256()
+        with file.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                file_digest.update(chunk)
+        relative = str(file.relative_to(root))
+        checksum = file_digest.hexdigest()
+        size = file.stat().st_size
+        digest.update(f"{relative}:{size}:{checksum}\n".encode())
+        entries.append({"path": relative, "size": size, "sha256": checksum})
+    return {
+        "valid": True,
+        "root": str(root),
+        "sha256": digest.hexdigest(),
+        "file_count": len(entries),
+        "files": entries,
+    }
+
+
+def write_artifact_manifest(path_value: str) -> dict[str, Any]:
+    """Compute the manifest and persist it as a sidecar (requires a writable mount,
+    e.g. training-worker/model-manager). Called after a merge so later read-only
+    consumers (agent-backend) get an instant cache hit instead of re-hashing."""
+    manifest = inspect_artifact(path_value)
+    if not manifest.get("valid"):
+        return manifest
+    root = Path(path_value).resolve()
+    files = _artifact_content_files(root)
+    payload = {"signature": _artifact_signature(files, root), "manifest": manifest}
+    (root / _ARTIFACT_SIDECAR).write_text(json.dumps(payload), encoding="utf-8")
+    return manifest
+
+
 def inspect_artifact(path_value: str | None) -> dict[str, Any]:
     if not path_value:
         return {"valid": False, "error": "merged_path is not configured", "files": []}
@@ -156,25 +221,30 @@ def inspect_artifact(path_value: str | None) -> dict[str, Any]:
             "files": [],
         }
 
-    files: list[dict[str, Any]] = []
-    digest = hashlib.sha256()
-    for file in sorted(item for item in root.rglob("*") if item.is_file()):
-        file_digest = hashlib.sha256()
-        with file.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                file_digest.update(chunk)
-        relative = str(file.relative_to(root))
-        checksum = file_digest.hexdigest()
-        size = file.stat().st_size
-        digest.update(f"{relative}:{size}:{checksum}\n".encode())
-        files.append({"path": relative, "size": size, "sha256": checksum})
-    return {
-        "valid": True,
-        "root": str(root),
-        "sha256": digest.hexdigest(),
-        "file_count": len(files),
-        "files": files,
-    }
+    files = _artifact_content_files(root)
+    signature = _artifact_signature(files, root)
+
+    # Fast path: an unchanged artifact returns its cached manifest without hashing.
+    sidecar = root / _ARTIFACT_SIDECAR
+    if sidecar.is_file():
+        try:
+            cached = json.loads(sidecar.read_text(encoding="utf-8"))
+            if cached.get("signature") == signature and isinstance(cached.get("manifest"), dict):
+                return cached["manifest"]
+        except (OSError, ValueError, json.JSONDecodeError):
+            logger.warning("artifact sidecar unreadable, recomputing — %s", sidecar)
+
+    manifest = _compute_artifact_manifest(root, files)
+
+    # Best-effort cache write; the mount is read-only for some services (agent-backend).
+    try:
+        sidecar.write_text(
+            json.dumps({"signature": signature, "manifest": manifest}), encoding="utf-8"
+        )
+    except OSError:
+        logger.debug("artifact sidecar not writable (read-only mount) — %s", sidecar)
+
+    return manifest
 
 
 def check_serving_target(
