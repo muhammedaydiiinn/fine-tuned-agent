@@ -170,6 +170,20 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
         if guardrail_check == "security_template" or turn.get("actual_intent") == "security_objection":
             security_checks.append(response_text == security_tpl)
 
+    # Opening greeting: on connect (empty customer_text) the agent must greet and
+    # introduce itself, not jump into a mid-call answer (e.g. price). Catches the
+    # regression where a fine-tune erodes the opening behavior.
+    greeting_checks: list[bool] = []
+    for turn in results:
+        if turn.get("kind") != "opening":
+            continue
+        resp = _normalise_text(turn.get("agent_response") or "").lower()
+        intent_ok = turn.get("actual_intent") == "greeting"
+        looks_greeting = any(
+            token in resp for token in ("guten tag", "guten morgen", "hallo", "anna weber")
+        )
+        greeting_checks.append(bool(intent_ok and looks_greeting))
+
     loop_windows = 0
     repeated_windows = 0
     for result in results:
@@ -197,6 +211,7 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
         "identity_before_link_pass": _rate(identity_checks, empty=1.0),
         "price_answer_correctness": _rate(price_checks),
         "security_objection_correctness": _rate(security_checks),
+        "greeting_correctness": _rate(greeting_checks, empty=1.0),
         "loop_repetition_rate": round(repeated_windows / loop_windows, 4) if loop_windows else 0.0,
         "latency_avg": round(mean(latencies), 2) if latencies else 0.0,
         "latency_p95": round(_percentile(latencies, 0.95), 2),
@@ -213,6 +228,7 @@ def quality_score(metrics: dict[str, float]) -> float:
         "identity_before_link_pass",
         "price_answer_correctness",
         "security_objection_correctness",
+        "greeting_correctness",
     )
     values = [float(metrics.get(key, 0.0)) for key in positive]
     values.append(1.0 - min(1.0, float(metrics.get("loop_repetition_rate", 1.0))))

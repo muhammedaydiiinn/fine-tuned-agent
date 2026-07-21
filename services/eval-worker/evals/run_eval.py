@@ -13,6 +13,11 @@ from evals.scenario_catalog import get_scenario_catalog
 
 ProgressCallback = Callable[[int, int, str], None]
 
+# Number of agent-initiated opening turns to score. The agent must greet on
+# connect (empty customer_text) rather than jump into a mid-call answer; sampling
+# a few times catches an intermittently-regressed opening.
+OPENING_SAMPLES = 3
+
 
 def _load_single_turn_scenarios(path: str | Path) -> list[dict[str, Any]]:
     scenarios: list[dict[str, Any]] = []
@@ -98,7 +103,7 @@ def run(
 ) -> dict[str, Any]:
     single_scenarios = _load_single_turn_scenarios(scenarios_path)
     multi_scenarios = get_scenario_catalog()
-    total = len(single_scenarios) + len(multi_scenarios)
+    total = len(single_scenarios) + len(multi_scenarios) + OPENING_SAMPLES
     completed = 0
     results: list[dict[str, Any]] = []
     run_token = f"{eval_run_id or model_version_id}-{uuid.uuid4().hex[:10]}"
@@ -110,6 +115,27 @@ def run(
     endpoint = f"{agent_backend_url.rstrip('/')}/agent-turn"
 
     with httpx.Client(timeout=timeout_seconds, headers=headers) as client:
+        # Opening greeting turns (empty customer_text → agent greets on connect).
+        for opening_index in range(OPENING_SAMPLES):
+            opening_session = f"eval-{run_token}-opening-{opening_index}"
+            turn = _post_turn(
+                client,
+                endpoint,
+                opening_session,
+                "",
+                {},
+                expected_intent="greeting",
+            )
+            turn.update({
+                "kind": "opening",
+                "scenario_id": f"opening-{opening_index}",
+                "session_id": opening_session,
+            })
+            results.append(turn)
+            completed += 1
+            if progress_cb:
+                progress_cb(completed, total, f"opening:{opening_index}")
+
         for scenario in single_scenarios:
             session_id = f"eval-{run_token}-single-{scenario['id']}"
             turn = _post_turn(

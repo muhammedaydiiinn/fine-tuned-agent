@@ -355,13 +355,14 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                     "dataset_manifest": ds_result,
                     "pipeline_artifacts": artifact_manifest,
                     "candidate_publish_manifest": candidate_publish_manifest,
-                    # Candidate is evaluated as the MERGED full model on the
-                    # separate vllm-candidate instance. (A runtime LoRA adapter on
-                    # the shared server does NOT apply to this Qwen3.5-VL model in
-                    # vLLM — module names mismatch — so LoRA eval silently measures
-                    # the base. The merged model reflects the fine-tune correctly.)
-                    # vllm-candidate serves /models/candidates/current at low util,
-                    # coexisting with production on the single GPU (no prod downtime).
+                    # Candidate is evaluated as a runtime LoRA adapter hot-loaded on
+                    # the shared production vLLM server — no second container, no GPU
+                    # juggling, fully API-driven. The text base (Qwen3ForCausalLM)
+                    # applies runtime LoRA natively (verified), unlike the old VL model.
+                    # The adapter was trained on the current production model (parent
+                    # snapshot), which the server already serves, so base+adapter =
+                    # candidate. Live traffic keeps using the base served name and is
+                    # unaffected (--max-loras >= 2). Deploy still swaps the MERGED model.
                     "serving": (
                         {
                             "mode": "mock",
@@ -372,9 +373,10 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
                         if settings.training_mode == "mock"
                         else {
                             "mode": "real",
-                            "base_url": settings.candidate_vllm_base_url,
-                            "model_name": settings.candidate_model_name,
-                            "slot": "candidate-merged",
+                            "base_url": settings.candidate_lora_base_url,
+                            "model_name": new_version_name,
+                            "slot": "candidate-lora",
+                            "lora_path": f"/adapters/{new_version_name}",
                         }
                     ),
                 },

@@ -38,12 +38,17 @@ def serving_target(model: ModelVersion) -> dict[str, str]:
             "slot": str(production.get("slot") or "production"),
         }
     serving = metadata.get("serving") if isinstance(metadata.get("serving"), dict) else {}
-    return {
+    target = {
         "mode": str(serving.get("mode") or settings.vllm_mode),
         "base_url": str(serving.get("base_url") or ""),
         "model_name": str(serving.get("model_name") or model.version_name),
         "slot": str(serving.get("slot") or "candidate"),
     }
+    # LoRA-served candidate: carry the adapter path so the eval worker can hot-load
+    # it on the shared server and routing hits the adapter (not the base).
+    if serving.get("lora_path"):
+        target["lora_path"] = str(serving["lora_path"])
+    return target
 
 
 def active_model(db: Session, environment: str = "production") -> ModelVersion | None:
@@ -229,8 +234,13 @@ def inspect_artifact(path_value: str | None) -> dict[str, Any]:
     if sidecar.is_file():
         try:
             cached = json.loads(sidecar.read_text(encoding="utf-8"))
-            if cached.get("signature") == signature and isinstance(cached.get("manifest"), dict):
-                return cached["manifest"]
+            manifest = cached.get("manifest")
+            if cached.get("signature") == signature and isinstance(manifest, dict):
+                # The sidecar travels with the directory (it may have been written at
+                # a staging path like <name>.partial before publication); always
+                # report the path it actually lives at now, not the stored one.
+                manifest["root"] = str(root)
+                return manifest
         except (OSError, ValueError, json.JSONDecodeError):
             logger.warning("artifact sidecar unreadable, recomputing — %s", sidecar)
 
@@ -245,6 +255,28 @@ def inspect_artifact(path_value: str | None) -> dict[str, Any]:
         logger.debug("artifact sidecar not writable (read-only mount) — %s", sidecar)
 
     return manifest
+
+
+def ensure_lora_loaded(target: dict[str, str]) -> None:
+    """Hot-load a candidate's LoRA adapter on the shared server so its served model
+    name resolves before the pre-eval health check. No-op unless the target carries
+    a lora_path (merged/mock targets skip it). Non-fatal on error."""
+    lora_path = target.get("lora_path")
+    if str(target.get("mode")) != "real" or not lora_path:
+        return
+    base_url = str(target.get("base_url") or "").rstrip("/")
+    name = str(target.get("model_name") or "")
+    if not base_url or not name:
+        return
+    try:
+        httpx.post(
+            f"{base_url}/load_lora_adapter",
+            json={"lora_name": name, "lora_path": str(lora_path)},
+            timeout=180.0,
+        )
+        logger.info("LoRA adapter load requested for eval: %s", name)
+    except Exception:  # noqa: BLE001 — health check reports the real state next
+        logger.warning("LoRA adapter load attempt failed for %s", name, exc_info=True)
 
 
 def check_serving_target(
