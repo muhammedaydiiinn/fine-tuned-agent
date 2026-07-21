@@ -20,11 +20,19 @@ def file_manifest(path_value: str) -> dict[str, Any]:
     return {"path": str(path), "size": size, "sha256": digest.hexdigest()}
 
 
+# Metadata sidecar written next to the model; excluded from the content hash so
+# the evidence digest matches agent-backend's inspect_artifact (which also skips it).
+_ARTIFACT_SIDECAR = ".artifact_manifest.json"
+
+
 def directory_manifest(path_value: str) -> dict[str, Any]:
     root = Path(path_value)
     files = [
         file_manifest(str(file)) | {"path": str(file.relative_to(root))}
-        for file in sorted(item for item in root.rglob("*") if item.is_file())
+        for file in sorted(
+            item for item in root.rglob("*")
+            if item.is_file() and item.name != _ARTIFACT_SIDECAR
+        )
     ]
     digest = hashlib.sha256()
     for file in files:

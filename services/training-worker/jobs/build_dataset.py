@@ -265,6 +265,123 @@ def _canonical_system_content() -> str:
     _CANONICAL_CACHE["value"] = content
     return content
 
+# ── Canonical policy vocabulary (kept in sync with agent-backend
+# product_facts.CANONICAL_INTENTS / CANONICAL_NEXT_ACTIONS). Training data must
+# only teach values the enum-constrained runtime can emit; otherwise the model
+# learns a token it can never produce and the taxonomy drifts.
+CANONICAL_INTENTS: frozenset[str] = frozenset({
+    "greeting", "interested", "general_inquiry", "why_calling",
+    "price_question", "free_question", "security_objection",
+    "already_blocking", "time_objection", "sms_request", "hard_decline",
+    "activation_link_request", "identity_confirmation",
+})
+CANONICAL_NEXT_ACTIONS: frozenset[str] = frozenset({
+    "explain_price", "address_security", "explain_service",
+    "differentiate_product", "handle_time_objection", "redirect_to_app",
+    "acknowledge_objection", "send_activation_link", "qualify_lead",
+    "confirm_identity", "pitch_product", "guide_customer_step",
+    "ask_for_commitment", "collect_step_input", "close_call",
+})
+
+# Exact synonym → canonical maps (mirror product_facts.RAW_ACTION_TO_SALES).
+_NEXT_ACTION_ALIASES: dict[str, str] = {
+    "explain_offer_terms": "explain_price", "explain_trial": "explain_price",
+    "explain_trial_and_price": "explain_price", "answer_offer_question": "explain_price",
+    "address_security_concern": "address_security", "address_suspicion": "address_security",
+    "explain_safe_app_link": "address_security",
+    "handle_no_interest": "acknowledge_objection", "handle_hard_decline": "acknowledge_objection",
+    "handle_rejection": "acknowledge_objection", "handle_objection": "acknowledge_objection",
+    "explain_call_reason": "explain_service", "answer_origin": "explain_service",
+    "send_store_link": "redirect_to_app",
+    "handle_hesitation": "handle_time_objection", "acknowledge_and_reframe": "handle_time_objection",
+    "reframe_trial": "handle_time_objection",
+    "send_link": "send_activation_link", "send_app_link": "send_activation_link",
+    "request_identity": "qualify_lead", "confirm_customer_identity": "qualify_lead",
+    "greeting_and_introduction": "qualify_lead",
+    "open_store_page": "guide_customer_step", "guide_app_download": "guide_customer_step",
+    "guide_activation_button": "guide_customer_step",
+    "collect_sms_verification": "collect_step_input", "collect_on_screen_confirmation": "collect_step_input",
+    "ask_for_activation_commitment": "ask_for_commitment",
+    "record_customer_decision": "close_call", "close_successful_sale": "close_call",
+    "explain_product_value": "pitch_product", "create_problem_awareness": "pitch_product",
+    "identity_check": "confirm_identity",
+}
+# Keyword fallbacks (substring match, priority order) for free-form values.
+_INTENT_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("greet", "greeting"), ("price", "price_question"), ("cost", "price_question"),
+    ("budget", "price_question"), ("free", "free_question"), ("gratis", "free_question"),
+    ("privacy", "security_objection"), ("security", "security_objection"),
+    ("skeptic", "security_objection"), ("suspicio", "security_objection"),
+    ("virus", "security_objection"), ("phishing", "security_objection"),
+    ("scam", "security_objection"), ("fraud", "security_objection"), ("trust", "security_objection"),
+    ("why", "why_calling"), ("origin", "why_calling"),
+    ("already", "already_blocking"), ("block", "already_blocking"),
+    ("time", "time_objection"), ("busy", "time_objection"), ("later", "time_objection"),
+    ("sms", "sms_request"), ("code", "sms_request"),
+    ("decline", "hard_decline"), ("reject", "hard_decline"), ("no interest", "hard_decline"),
+    ("not interested", "hard_decline"), ("no_interest", "hard_decline"),
+    ("activation", "activation_link_request"), ("install", "activation_link_request"),
+    ("identity", "identity_confirmation"),
+    ("interest", "interested"),
+    ("inquiry", "general_inquiry"), ("question", "general_inquiry"), ("general", "general_inquiry"),
+)
+_NEXT_ACTION_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("price", "explain_price"), ("offer", "explain_price"),
+    ("security", "address_security"), ("safe", "address_security"), ("suspicio", "address_security"),
+    ("hesita", "handle_time_objection"), ("time", "handle_time_objection"),
+    ("decline", "acknowledge_objection"), ("reject", "acknowledge_objection"),
+    ("objection", "acknowledge_objection"), ("no_interest", "acknowledge_objection"),
+    ("close", "close_call"), ("redirect", "redirect_to_app"),
+    ("differentiate", "differentiate_product"), ("commit", "ask_for_commitment"),
+    ("pitch", "pitch_product"), ("collect", "collect_step_input"),
+    ("guide", "guide_customer_step"), ("step", "guide_customer_step"),
+    ("service", "explain_service"), ("origin", "explain_service"), ("reason", "explain_service"),
+    ("identity", "confirm_identity"), ("qualify", "qualify_lead"),
+    ("link", "send_activation_link"), ("send", "send_activation_link"),
+    ("reframe", "handle_time_objection"), ("trial", "explain_price"), ("price", "explain_price"),
+)
+
+
+def _map_canonical(value: str, canonical: frozenset[str], aliases: dict[str, str],
+                   keywords: tuple[tuple[str, str], ...]) -> str | None:
+    v = (value or "").strip()
+    if v in canonical:
+        return v
+    key = v.casefold()
+    if key in aliases:
+        return aliases[key]
+    for kw, target in keywords:
+        if kw in key:
+            return target
+    return None
+
+
+def _canonicalize_policy(messages: list, source: str) -> list | None:
+    """Normalize the assistant policy's intent/next_action to the canonical enums.
+    Returns the (possibly rewritten) messages, or None if a value cannot be mapped
+    (row is dropped so a non-canonical token never enters training)."""
+    if not isinstance(messages, list) or not messages or messages[-1].get("role") != "assistant":
+        return messages
+    try:
+        policy = json.loads(messages[-1].get("content") or "")
+    except (json.JSONDecodeError, TypeError):
+        return messages  # legacy/invalid JSON handled elsewhere
+    intent = _map_canonical(policy.get("intent", ""), CANONICAL_INTENTS,
+                            {"identity_check": "identity_confirmation"}, _INTENT_KEYWORDS)
+    next_action = _map_canonical(policy.get("next_action", ""), CANONICAL_NEXT_ACTIONS,
+                                 _NEXT_ACTION_ALIASES, _NEXT_ACTION_KEYWORDS)
+    if intent is None or next_action is None:
+        logger.warning("%s: non-canonical intent=%r next_action=%r -> dropped",
+                       source, policy.get("intent"), policy.get("next_action"))
+        return None
+    if intent != policy.get("intent") or next_action != policy.get("next_action"):
+        policy["intent"] = intent
+        policy["next_action"] = next_action
+        messages = list(messages)
+        messages[-1] = {**messages[-1], "content": json.dumps(policy, ensure_ascii=False)}
+    return messages
+
+
 def _validate_messages(messages: list, source: str) -> None:
     if not isinstance(messages, list) or len(messages) < 3:
         raise ValueError(f"{source}: messages must contain system, user and assistant entries")
@@ -396,14 +513,16 @@ def _write_jsonl_files(fh, directory: Path) -> tuple[int, list[dict]]:
                         payload = json.loads(line)
                     except json.JSONDecodeError as exc:
                         raise ValueError(f"{f}:{line_number}: invalid JSON") from exc
-                    _validate_messages(
-                        payload.get("messages"),
-                        f"{f}:{line_number}",
-                    )
-                    fh.write(line + "\n")
+                    messages = payload.get("messages")
+                    _validate_messages(messages, f"{f}:{line_number}")
+                    messages = _canonicalize_policy(messages, f"{f}:{line_number}")
+                    if messages is None:
+                        continue
+                    out_line = json.dumps({"messages": messages}, ensure_ascii=False)
+                    fh.write(out_line + "\n")
                     count += 1
                     file_count += 1
-                    digest.update((line + "\n").encode())
+                    digest.update((out_line + "\n").encode())
         manifests.append({
             "path": str(f),
             "rows": file_count,
@@ -516,6 +635,13 @@ def build(
                     raise
                 messages = _normalize_legacy_candidate(c, db)
                 _validate_messages(messages, f"training_candidate:{c.id}")
+            # Canonicalize intent/next_action so free-form feedback values never
+            # enter training; drop the row if unmappable.
+            messages = _canonicalize_policy(messages, f"training_candidate:{c.id}")
+            if messages is None:
+                c.approved = False
+                filtered_synthetic += 1
+                continue
             fh.write(json.dumps({"messages": messages}, ensure_ascii=False) + "\n")
             candidate_count += 1
 

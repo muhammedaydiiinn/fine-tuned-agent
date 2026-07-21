@@ -89,6 +89,9 @@ def create_eval_run(
             status_code=409,
             detail="Candidate evaluation cannot use the active production serving slot",
         )
+    # LoRA-served candidate: hot-load the adapter first so the served model name
+    # resolves for the health check (idempotent; the eval worker also ensures it).
+    model_runtime.ensure_lora_loaded(target)
     health = model_runtime.check_serving_target(target)
     if not health.get("healthy"):
         raise HTTPException(

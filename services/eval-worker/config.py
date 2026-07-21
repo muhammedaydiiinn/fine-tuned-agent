@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     eval_identity_before_link_min: float = 1.0
     eval_price_correctness_min: float = 1.0
     eval_security_correctness_min: float = 1.0
+    eval_greeting_correctness_min: float = 1.0
     eval_loop_repetition_max: float = 0.0
 
     @property
@@ -50,6 +51,7 @@ class Settings(BaseSettings):
             "identity_before_link_pass": self.eval_identity_before_link_min,
             "price_answer_correctness": self.eval_price_correctness_min,
             "security_objection_correctness": self.eval_security_correctness_min,
+            "greeting_correctness": self.eval_greeting_correctness_min,
             "loop_repetition_rate_max": self.eval_loop_repetition_max,
         }
 

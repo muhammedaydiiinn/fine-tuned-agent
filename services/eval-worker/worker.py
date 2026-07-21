@@ -78,6 +78,28 @@ def _ensure_candidate_loaded(serving: dict) -> None:
         logger.warning("LoRA adapter load attempt failed for %s: %s", name, exc)
 
 
+def _unload_candidate_lora(serving: dict | None) -> None:
+    """Unload the candidate's LoRA adapter after eval to free the LoRA slot.
+    Non-fatal and idempotent — a stale adapter would only be re-used harmlessly."""
+    import httpx
+
+    if not isinstance(serving, dict) or not serving.get("lora_path"):
+        return
+    base_url = str(serving.get("base_url") or "").rstrip("/")
+    name = str(serving.get("model_name") or "")
+    if not base_url or not name:
+        return
+    try:
+        httpx.post(
+            f"{base_url}/unload_lora_adapter",
+            json={"lora_name": name},
+            timeout=60.0,
+        )
+        logger.info("LoRA adapter unloaded after eval: %s", name)
+    except Exception as exc:  # noqa: BLE001 — cleanup must never fail the run
+        logger.warning("LoRA adapter unload failed for %s: %s", name, exc)
+
+
 def _candidate_serving_ready(serving: dict) -> tuple[bool, str]:
     """Check the candidate's serving endpoint is up and serving the expected model.
 
@@ -261,6 +283,7 @@ def handle_eval(
         f" version={model_version.version_name if model_version else 'missing'}",
     )
 
+    candidate_serving: dict | None = None
     try:
         if not model_version:
             raise ValueError(f"ModelVersion id={model_version_id} not found")
@@ -279,6 +302,7 @@ def handle_eval(
             else None
         )
         if isinstance(preflight_serving, dict):
+            candidate_serving = preflight_serving
             _ensure_candidate_loaded(preflight_serving)
             ready, detail = _candidate_serving_ready(preflight_serving)
             if not ready:
@@ -406,6 +430,10 @@ def handle_eval(
             finished_at=datetime.now(timezone.utc),
             error_message=message[:1000],
         )
+    finally:
+        # Free the LoRA slot on the shared server regardless of outcome (blocked
+        # runs never loaded one; _unload is a no-op then).
+        _unload_candidate_lora(candidate_serving)
 
 
 HANDLERS = {"run_eval": handle_eval, "judge_batch": handle_judge_batch}
