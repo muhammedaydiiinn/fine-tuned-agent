@@ -291,22 +291,22 @@ def create_training_job_core(
             )
         input_data["candidate_ids"] = candidate_ids
     else:
-        # Auto-select the active batch: approved, not yet locked into a job, not yet baked.
-        # Advisory lock above prevents two concurrent requests from both seeing the same rows.
-        active_batch = (
-            db.query(TrainingCandidate)
-            .filter(
-                TrainingCandidate.approved == True,  # noqa: E712
+        # Auto-select the training batch. In accumulate mode ("continuously improve
+        # the base") every approved candidate is included on every run so gains
+        # compound; otherwise only the newest un-locked, un-baked batch is used.
+        batch_query = db.query(TrainingCandidate).filter(
+            TrainingCandidate.approved == True,  # noqa: E712
+        )
+        if not settings.training_accumulate_feedback:
+            batch_query = batch_query.filter(
                 TrainingCandidate.training_job_id.is_(None),
                 TrainingCandidate.model_version_id.is_(None),
             )
-            .order_by(TrainingCandidate.created_at.asc())
-            .all()
-        )
+        active_batch = batch_query.order_by(TrainingCandidate.created_at.asc()).all()
         if not active_batch:
             raise HTTPException(
                 status_code=422,
-                detail="No new training data available. Add corrections or reviews first.",
+                detail="No approved training data available. Add corrections or reviews first.",
             )
         candidate_ids = [c.id for c in active_batch]
         input_data["candidate_ids"] = candidate_ids

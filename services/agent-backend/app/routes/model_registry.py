@@ -24,7 +24,7 @@ from app.schemas import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-CURRENT_EVAL_POLICY_VERSION = "m7-gate-v1"
+CURRENT_EVAL_POLICY_VERSION = "m8-gate-v1"
 
 
 def _model_or_404(db: DBSession, version_name: str) -> ModelVersion:

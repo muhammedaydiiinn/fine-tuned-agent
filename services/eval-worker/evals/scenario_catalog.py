@@ -64,4 +64,14 @@ def get_scenario_catalog(trial_period: str = "14 Tage kostenlos") -> dict[str, l
             "Was wollen Sie genau?",
             "Nein, kein Interesse. Bitte nicht mehr anrufen.",
         ],
+        # Backchannel — müşteri yalnızca kısa onaylar veriyor ("ja/mhm"); ajan
+        # KENDİNİ TEKRAR ETMEDEN konuşmayı ilerletmeli (session 397 regresyonu).
+        # response_repetition_rate metriği bunu ölçer.
+        "backchannel": [
+            "Ja?",
+            "Ja, mhm.",
+            "Ja.",
+            "Ja, ja, genau.",
+            "Und weiter?",
+        ],
     }

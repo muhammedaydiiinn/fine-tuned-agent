@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     auto_train_enabled: bool = False
     auto_train_threshold: int = 30
     auto_train_check_interval_seconds: int = 900
+    # "Continuously improve the base": every training run uses the FULL accumulated
+    # approved-feedback corpus (not just the newest unused batch), so improvements
+    # compound on the stable base instead of being one-shot. Pair with the training
+    # worker's TRAINING_STABLE_BASE_PATH. False → legacy one-batch behavior.
+    training_accumulate_feedback: bool = True
 
     # Customer simulator (reactive LLM customer → conversations judged as tests)
     self_base_url: str = "http://localhost:8010"

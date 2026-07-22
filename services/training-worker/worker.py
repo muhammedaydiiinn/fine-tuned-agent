@@ -191,25 +191,31 @@ def handle_train_pipeline(db: Session, job_db_id: int, payload: dict) -> None:
 
     if snapped_parent_id and snapped_parent_name:
         snapped_mv = db.query(ModelVersion).filter(ModelVersion.id == snapped_parent_id).first()
-        if snapped_mv and snapped_mv.merged_path:
-            parent_version_name = snapped_parent_name
-            parent_model_id = snapped_parent_id
-            base_model_path = snapped_mv.merged_path
-        else:
-            parent_version_name = snapped_parent_name
-            parent_model_id = snapped_parent_id
-            base_model_path = str(Path(settings.model_dir) / "merged" / snapped_parent_name)
+        parent_version_name = snapped_parent_name
+        parent_model_id = snapped_parent_id
+        parent_merged = (snapped_mv.merged_path if snapped_mv else None) \
+            or str(Path(settings.model_dir) / "merged" / snapped_parent_name)
     else:
         # Fallback: resolve from active deployment (pre-snapshot jobs or first boot)
         parent_model = _active_model(db)
         if parent_model and parent_model.merged_path:
             parent_version_name = parent_model.version_name
             parent_model_id = parent_model.id
-            base_model_path = parent_model.merged_path
+            parent_merged = parent_model.merged_path
         else:
             parent_version_name = settings.model_active_version
             parent_model_id = None
-            base_model_path = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
+            parent_merged = str(Path(settings.model_dir) / "merged" / settings.model_active_version)
+
+    # Base to fine-tune ON. Two modes:
+    #  - Stable-base ("continuously improve the base"): always fine-tune the fixed
+    #    lab-produced base + the full accumulated feedback/golden. No generation-on-
+    #    generation stacking, so behaviors never drift (photocopy-of-photocopy) —
+    #    set TRAINING_STABLE_BASE_PATH to the lab model.
+    #  - Generational (empty setting): fine-tune on the parent/active model (legacy).
+    # parent_version_name/id are still recorded either way for lineage display.
+    stable_base = (settings.training_stable_base_path or "").strip()
+    base_model_path = stable_base if stable_base else parent_merged
 
     new_version_name = next_version_name(db, parent_version_name, job_db_id)
 
