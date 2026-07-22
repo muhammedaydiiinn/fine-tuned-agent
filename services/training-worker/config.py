@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     model_dir: str = "/models"
     data_dir: str = "/data"
     model_active_version: str = "fine-tuned-agent-v14"
+    # When set, every training run fine-tunes THIS fixed base (the lab-produced
+    # model) + the full golden/feedback corpus, instead of stacking on the parent
+    # model (generational). Prevents behavior drift across feedback rounds. Empty
+    # → legacy generational behavior. Point it at the lab base, e.g.
+    # /models/base/qwen3-8b-lab or a merged lab model under /models/merged/...
+    training_stable_base_path: str = ""
 
     # LoRA hyperparameters (overridable per-job via input_json)
     lora_rank: int = 16
