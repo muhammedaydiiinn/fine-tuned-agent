@@ -571,3 +571,17 @@ def session_voice_notes(session_id: int, request: Request, db: DBSession = Depen
         "_voice_notes.html",
         {"request": request, "notes": notes},
     )
+
+
+@router.get("/sessions/{session_id}/call-recording", response_class=HTMLResponse)
+def session_call_recording(session_id: int, request: Request, db: DBSession = Depends(get_db)):
+    recordings = (
+        db.query(Recording)
+        .filter(Recording.session_id == session_id, Recording.kind == "call")
+        .order_by(Recording.created_at.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        "_call_recording.html",
+        {"request": request, "recordings": recordings},
+    )

@@ -1,0 +1,13 @@
+{% if recordings %}
+<ul class="voice-notes-list">
+  {% for r in recordings %}
+  <li class="voice-note-item">
+    <audio class="voice-note-audio" controls preload="none" src="/recordings/{{ r.id }}/audio"></audio>
+    <time class="voice-note-time" datetime="{{ r.created_at.isoformat() }}" data-panel-datetime></time>
+    <a class="btn btn-outline btn-sm" href="/recordings/{{ r.id }}">Detay</a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="helper-text">Bu görüşme için çağrı kaydı yok.</div>
+{% endif %}

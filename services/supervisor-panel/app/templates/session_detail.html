@@ -260,6 +260,14 @@
   {% include "_session_conversation.html" %}
 </div>
 
+<div class="section-title">
+  Çağrı Kaydı
+</div>
+<div id="session-call-recording"
+     hx-get="/sessions/{{ session.id }}/call-recording"
+     hx-trigger="load"
+     hx-swap="innerHTML"></div>
+
 <details class="collapsible diagnostics-drawer">
   <summary>
     <span>Teknik detaylar ve ham durum</span>
