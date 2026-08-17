@@ -35,6 +35,19 @@ class AgentBackend:
         self._breaker = _CircuitBreakerState()
         self._failure_threshold = max(1, settings.backend_circuit_breaker_failures)
         self._reset_seconds = max(1.0, settings.backend_circuit_breaker_reset_seconds)
+        # Persistent client: reuse the connection pool across turns instead of
+        # paying a fresh TCP/TLS handshake on every request (per-turn latency).
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self._timeout, headers=self.headers)
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
 
     def _now(self) -> float:
         return time.monotonic()
@@ -73,11 +86,11 @@ class AgentBackend:
         self._ensure_circuit_closed()
         url = f"{self.base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.request(method, url, headers=self.headers, **kwargs)
-                response.raise_for_status()
-                self._record_success()
-                return response.json()
+            client = self._get_client()
+            response = await client.request(method, url, **kwargs)
+            response.raise_for_status()
+            self._record_success()
+            return response.json()
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code >= 500:
                 self._record_failure(f"http_{exc.response.status_code}:{method} {path}")
