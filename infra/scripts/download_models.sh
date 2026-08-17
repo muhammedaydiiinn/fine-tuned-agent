@@ -31,7 +31,8 @@ done
 LLM_DIR="$MODELS_DIR/merged/fine-tuned-agent-v14"
 WHISPER_SRC_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german"
 WHISPER_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german-ct2"
-GDRIVE_FOLDER_ID="YOUR_GDRIVE_FOLDER_ID"
+# Override for a new model: GDRIVE_FOLDER_ID=<id> bash download_models.sh --llm-only
+GDRIVE_FOLDER_ID="${GDRIVE_FOLDER_ID:-YOUR_GDRIVE_FOLDER_ID}"
 HF_WHISPER_MODEL="primeline/whisper-large-v3-turbo-german"
 
 # ── Renkli çıktı ──────────────────────────────────────────────────────────
