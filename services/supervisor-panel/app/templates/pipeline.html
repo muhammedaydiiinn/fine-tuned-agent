@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Pipeline{% endblock %}
+{% block title %}Model Yönetimi{% endblock %}
 
 {% block content %}
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Pipeline</h1>
-    <span class="text-muted">Train, evaluate, and deploy model versions.</span>
+    <h1>Model Yönetimi</h1>
+    <span class="text-muted">Model sürümlerini eğitin, değerlendirin ve yayına alın.</span>
   </div>
 </div>
 
@@ -16,17 +16,17 @@
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar">
     <span class="table-toolbar-title">
-      <span class="live-dot" style="margin-right:6px;"></span>Live Model
+      <span class="live-dot" style="margin-right:6px;"></span>Canlı Model
     </span>
     {% if active_deployment %}
     <form hx-post="/pipeline/rollback" hx-target="#pipeline-result" hx-swap="innerHTML"
-          hx-confirm="Roll back to the previous model version?"
-          data-confirm-title="Roll back live model?"
-          data-confirm-label="Roll Back"
+          hx-confirm="Önceki model sürümüne geri dönülsün mü?"
+          data-confirm-title="Canlı model geri alınsın mı?"
+          data-confirm-label="Geri Al"
           data-confirm-kind="warning">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <button class="btn btn-outline btn-sm" type="submit">
-        <i class="fa-solid fa-rotate-left"></i> Roll Back
+        <i class="fa-solid fa-rotate-left"></i> Geri Al
       </button>
     </form>
     {% endif %}
@@ -35,24 +35,24 @@
     {% if active_model %}
     <div class="stats-row" style="margin:0;">
       <div class="stat-card">
-        <div class="stat-label">Version</div>
+        <div class="stat-label">Sürüm</div>
         <div class="stat-value" style="font-size:.9rem;font-family:var(--font-mono);">{{ active_model.version_name }}</div>
       </div>
       {% if active_deployment and active_deployment.deployed_at %}
       <div class="stat-card">
-        <div class="stat-label">Deployed</div>
+        <div class="stat-label">Yayına Alındı</div>
         <div class="stat-value" style="font-size:.85rem;"><time class="panel-datetime" data-panel-datetime datetime="{{ active_deployment.deployed_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ active_deployment.deployed_at.strftime('%Y-%m-%d %H:%M') }} UTC</time></div>
       </div>
       {% endif %}
       {% if active_quality_score is not none %}
       <div class="stat-card green">
-        <div class="stat-label">Quality Score</div>
+        <div class="stat-label">Kalite Puanı</div>
         <div class="stat-value">{{ active_quality_score }}%</div>
       </div>
       {% endif %}
     </div>
     {% else %}
-    <span class="text-muted">No model deployed yet.</span>
+    <span class="text-muted">Henüz yayına alınmış model yok.</span>
     {% endif %}
   </div>
 </div>
@@ -60,17 +60,17 @@
 {# ── NEXT VERSION ────────────────────────────────────────────────────────── #}
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Next Version</span>
+    <span class="table-toolbar-title">Sonraki Sürüm</span>
     {% if phase == 'training' %}
-    <span class="badge badge-running"><span class="live-dot" style="margin-right:4px;"></span>Training</span>
+    <span class="badge badge-running"><span class="live-dot" style="margin-right:4px;"></span>Eğitiliyor</span>
     {% elif phase == 'evaluating' %}
-    <span class="badge badge-running"><span class="live-dot" style="margin-right:4px;"></span>Evaluating</span>
+    <span class="badge badge-running"><span class="live-dot" style="margin-right:4px;"></span>Değerlendiriliyor</span>
     {% elif phase == 'ready_to_publish' %}
-    <span class="badge badge-approved">Pending approval</span>
+    <span class="badge badge-approved">Onay bekliyor</span>
     {% elif phase == 'eval_failed' %}
-    <span class="badge badge-error">Eval failed</span>
+    <span class="badge badge-error">Değerlendirme başarısız</span>
     {% else %}
-    <span class="badge badge-info">{{ ready_count }} correction{{ 's' if ready_count != 1 else '' }} queued</span>
+    <span class="badge badge-info">{{ ready_count }} düzeltme kuyrukta</span>
     {% endif %}
   </div>
 
@@ -82,16 +82,16 @@
       <div>
         <div style="font-size:.95rem;font-weight:600;">
           {% if ready_count > 0 %}
-            {{ ready_count }} new correction{{ 's' if ready_count != 1 else '' }} since {{ active_model.version_name if active_model else 'last run' }}
+            {{ active_model.version_name if active_model else 'son çalıştırma' }} sürümünden bu yana {{ ready_count }} yeni düzeltme
           {% else %}
-            No new training data — add corrections or reviews first.
+            Yeni eğitim verisi yok — önce düzeltme veya inceleme ekleyin.
           {% endif %}
         </div>
       </div>
       <form hx-post="/pipeline/train" hx-target="#pipeline-result" hx-swap="innerHTML">
         <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-        <button class="btn btn-primary" type="submit" {% if ready_count == 0 %}disabled title="No new training data"{% endif %}>
-          <i class="fa-solid fa-play"></i> Start Training
+        <button class="btn btn-primary" type="submit" {% if ready_count == 0 %}disabled title="Yeni eğitim verisi yok"{% endif %}>
+          <i class="fa-solid fa-play"></i> Eğitimi Başlat
         </button>
       </form>
     </div>
@@ -104,7 +104,7 @@
           {% if phase == 'training' %}<i class="fa-solid fa-spinner fa-spin"></i>
           {% else %}<i class="fa-solid fa-check"></i>{% endif %}
         </div>
-        <div class="pipeline-phase-label">Training</div>
+        <div class="pipeline-phase-label">Eğitim</div>
       </div>
       <div class="pipeline-phase-connector"></div>
       <div class="pipeline-phase {% if phase == 'evaluating' %}active{% elif phase == 'training' %}waiting{% else %}done{% endif %}">
@@ -113,18 +113,18 @@
           {% elif phase == 'training' %}<i class="fa-regular fa-clock"></i>
           {% else %}<i class="fa-solid fa-check"></i>{% endif %}
         </div>
-        <div class="pipeline-phase-label">Evaluation</div>
+        <div class="pipeline-phase-label">Değerlendirme</div>
       </div>
       <div class="pipeline-phase-connector"></div>
       <div class="pipeline-phase waiting">
         <div class="pipeline-phase-icon"><i class="fa-regular fa-clock"></i></div>
-        <div class="pipeline-phase-label">Deploy</div>
+        <div class="pipeline-phase-label">Yayına Al</div>
       </div>
     </div>
 
     {% if running_job %}
     <div style="margin-bottom:10px;">
-      <div class="text-muted" style="font-size:.8rem;margin-bottom:4px;">Training job #{{ running_job.id }}</div>
+      <div class="text-muted" style="font-size:.8rem;margin-bottom:4px;">Eğitim işi #{{ running_job.id }}</div>
       <div class="progress-bar" style="height:8px;">
         <div class="progress-fill" style="width:{{ running_job.progress_current }}%;"></div>
       </div>
@@ -136,7 +136,7 @@
 
     {% if running_eval %}
     <div style="margin-bottom:10px;">
-      <div class="text-muted" style="font-size:.8rem;margin-bottom:4px;">Evaluation #{{ running_eval.id }}</div>
+      <div class="text-muted" style="font-size:.8rem;margin-bottom:4px;">Değerlendirme #{{ running_eval.id }}</div>
       <div class="progress-bar" style="height:8px;">
         <div class="progress-fill" style="width:{% if running_eval.progress_total %}{{ (running_eval.progress_current / running_eval.progress_total * 100) | int }}{% else %}0{% endif %}%;"></div>
       </div>
@@ -148,7 +148,7 @@
 
     <div class="text-muted" style="font-size:.8rem;">
       <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>
-      Page does not auto-refresh — reload to see the latest state.
+      Sayfa otomatik yenilenmez — en güncel durumu görmek için yeniden yükleyin.
     </div>
 
     {# ready_to_publish — approve-and-deploy #}
@@ -157,11 +157,11 @@
       <div>
         <div style="font-size:.95rem;font-weight:600;">
           <i class="fa-solid fa-circle-check" style="color:var(--green);margin-right:6px;"></i>
-          <span style="font-family:var(--font-mono);">{{ candidate_model.version_name }}</span> — eval passed
+          <span style="font-family:var(--font-mono);">{{ candidate_model.version_name }}</span> — değerlendirme geçti
         </div>
         {% if quality_score is not none %}
         <div class="text-muted" style="font-size:.85rem;margin-top:2px;">
-          Quality score: <strong>{{ quality_score }}%</strong>
+          Kalite puanı: <strong>{{ quality_score }}%</strong>
         </div>
         {% endif %}
       </div>
@@ -170,18 +170,18 @@
               hx-target="#pipeline-result" hx-swap="innerHTML">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
           <button class="btn btn-primary" type="submit">
-            <i class="fa-solid fa-rocket"></i> Approve &amp; Deploy
+            <i class="fa-solid fa-rocket"></i> Onayla ve Yayına Al
           </button>
         </form>
         <form hx-post="/pipeline/{{ candidate_model.version_name }}/discard"
               hx-target="#pipeline-result" hx-swap="innerHTML"
-              hx-confirm="Discard this version? Its training batch will return to the active queue."
-              data-confirm-title="Discard {{ candidate_model.version_name }}?"
-              data-confirm-label="Discard Version"
+              hx-confirm="Bu sürüm silinsin mi? Eğitim grubu aktif kuyruğa geri döner."
+              data-confirm-title="{{ candidate_model.version_name }} silinsin mi?"
+              data-confirm-label="Sürümü Sil"
               data-confirm-kind="danger">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
           <button class="btn btn-outline" type="submit">
-            <i class="fa-solid fa-xmark"></i> Discard
+            <i class="fa-solid fa-xmark"></i> Sil
           </button>
         </form>
       </div>
@@ -193,25 +193,25 @@
       <div>
         <div style="font-size:.95rem;font-weight:600;">
           <i class="fa-solid fa-circle-xmark" style="color:var(--red);margin-right:6px;"></i>
-          <span style="font-family:var(--font-mono);">{{ candidate_model.version_name }}</span> — eval failed
+          <span style="font-family:var(--font-mono);">{{ candidate_model.version_name }}</span> — değerlendirme başarısız
         </div>
         <div class="text-muted" style="font-size:.8rem;margin-top:2px;">
-          Training batch released — review corrections and retrain.
+          Eğitim grubu serbest bırakıldı — düzeltmeleri gözden geçirip yeniden eğitin.
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <form hx-post="/pipeline/train" hx-target="#pipeline-result" hx-swap="innerHTML">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
           <button class="btn btn-primary" type="submit"
-                  {% if ready_count == 0 %}disabled title="No training data available"{% endif %}>
-            <i class="fa-solid fa-rotate-right"></i> Retrain
+                  {% if ready_count == 0 %}disabled title="Kullanılabilir eğitim verisi yok"{% endif %}>
+            <i class="fa-solid fa-rotate-right"></i> Yeniden Eğit
           </button>
         </form>
         <form hx-post="/pipeline/{{ candidate_model.version_name }}/discard"
               hx-target="#pipeline-result" hx-swap="innerHTML">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
           <button class="btn btn-outline" type="submit">
-            <i class="fa-solid fa-trash"></i> Delete Version
+            <i class="fa-solid fa-trash"></i> Sürümü Sil
           </button>
         </form>
       </div>
@@ -223,17 +223,17 @@
 
 {# ── VERSION HISTORY ─────────────────────────────────────────────────────── #}
 <details class="collapsible" style="margin-bottom:12px;">
-  <summary>Version history</summary>
+  <summary>Sürüm geçmişi</summary>
   <div class="table-wrap">
     <table data-dt-url="/model-registry/models/data" data-dt-order="4,desc">
       <thead>
         <tr>
-          <th data-dt-col-field="version_name" data-dt-col-render="code">Version</th>
-          <th data-dt-col-field="training_source" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Training Source</th>
-          <th data-dt-col-field="quality_check" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Quality Check</th>
-          <th data-dt-col-field="release_status" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Release Status</th>
-          <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>
-          <th data-dt-col-field="actions" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Actions</th>
+          <th data-dt-col-field="version_name" data-dt-col-render="code">Sürüm</th>
+          <th data-dt-col-field="training_source" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Eğitim Kaynağı</th>
+          <th data-dt-col-field="quality_check" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Kalite Kontrolü</th>
+          <th data-dt-col-field="release_status" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Yayın Durumu</th>
+          <th data-dt-col-field="created_at" data-dt-col-render="datetime">Oluşturulma</th>
+          <th data-dt-col-field="actions" data-dt-col-render="rawHtml" data-dt-col-orderable="false">İşlemler</th>
           <th data-dt-col-field="open_id" data-dt-col-render="openBtn" data-dt-col-link-base="/model-registry/" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
         </tr>
       </thead>
@@ -244,19 +244,19 @@
 
 {# ── TRAINING DATA ───────────────────────────────────────────────────────── #}
 <details class="collapsible">
-  <summary>Training data <span class="badge badge-info" style="margin-left:6px;">{{ ready_count }} ready</span></summary>
+  <summary>Eğitim verisi <span class="badge badge-info" style="margin-left:6px;">{{ ready_count }} hazır</span></summary>
   <div class="table-wrap">
     <table data-dt-url="/training-candidates/data" data-dt-order="7,desc">
       <thead>
         <tr>
           <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">#</th>
-          <th data-dt-col-field="source_type" data-dt-col-render="badge">Source</th>
-          <th data-dt-col-field="customer_msg" data-dt-col-render="truncate">Message</th>
-          <th data-dt-col-field="corrected_response" data-dt-col-render="truncate">Correction</th>
-          <th data-dt-col-field="correction_type" data-dt-col-render="badge">Type</th>
-          <th data-dt-col-field="approved" data-dt-col-render="approvedBadge">Status</th>
-          <th data-dt-col-field="exported" data-dt-col-render="boolCheck" data-dt-col-class="td-center">Exported</th>
-          <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>
+          <th data-dt-col-field="source_type" data-dt-col-render="badge">Kaynak</th>
+          <th data-dt-col-field="customer_msg" data-dt-col-render="truncate">Mesaj</th>
+          <th data-dt-col-field="corrected_response" data-dt-col-render="truncate">Düzeltme</th>
+          <th data-dt-col-field="correction_type" data-dt-col-render="badge">Tür</th>
+          <th data-dt-col-field="approved" data-dt-col-render="approvedBadge">Durum</th>
+          <th data-dt-col-field="exported" data-dt-col-render="boolCheck" data-dt-col-class="td-center">Dışa Aktarıldı</th>
+          <th data-dt-col-field="created_at" data-dt-col-render="datetime">Oluşturulma</th>
           <th data-dt-col-field="id" data-dt-col-render="removeOnly" data-dt-col-orderable="false"></th>
         </tr>
       </thead>

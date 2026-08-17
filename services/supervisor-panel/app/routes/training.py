@@ -65,22 +65,22 @@ def candidates_data(db: DBSession = Depends(get_db)):
 def approve_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
-        return toast_fragment("Candidate not found.", kind="error", status_code=404)
+        return toast_fragment("Aday bulunamadı.", kind="error", status_code=404)
     c.approved = True
     db.commit()
     logger.info("training_candidate approved: id=%d", candidate_id)
-    return HTMLResponse('<span class="badge badge-approved">Approved</span>')
+    return HTMLResponse('<span class="badge badge-approved">Onaylandı</span>')
 
 
 @router.post("/training-candidates/{candidate_id}/reject", response_class=HTMLResponse)
 def reject_candidate(candidate_id: int, db: DBSession = Depends(get_db), _csrf: None = Depends(require_csrf)):
     c = db.query(TrainingCandidate).filter(TrainingCandidate.id == candidate_id).first()
     if not c:
-        return toast_fragment("Candidate not found.", kind="error", status_code=404)
+        return toast_fragment("Aday bulunamadı.", kind="error", status_code=404)
     c.approved = False
     db.commit()
     logger.info("training_candidate rejected: id=%d", candidate_id)
-    return HTMLResponse('<span class="badge badge-rejected">Rejected</span>')
+    return HTMLResponse('<span class="badge badge-rejected">Reddedildi</span>')
 
 
 
@@ -135,7 +135,7 @@ def training_job_detail(job_id: int, request: Request, db: DBSession = Depends(g
     """Job detail page — metadata + live log viewer."""
     job = db.query(TrainingJob).filter(TrainingJob.id == job_id).first()
     if not job:
-        return toast_redirect("/pipeline", "Training job not found.", kind="error")
+        return toast_redirect("/pipeline", "Eğitim işi bulunamadı.", kind="error")
 
     pct = 0
     if job.progress_total and job.progress_total > 0:
@@ -165,7 +165,7 @@ def job_logs_proxy(job_id: int, tail: int = 200):
         logs = f"[proxy error: {exc}]"
 
     if not logs:
-        return HTMLResponse('<span style="opacity:.4;padding:12px;display:block;">No log output yet.</span>')
+        return HTMLResponse('<span style="opacity:.4;padding:12px;display:block;">Henüz günlük çıktısı yok.</span>')
 
     escaped = logs.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return HTMLResponse(f'<pre class="log-viewer">{escaped}</pre>')

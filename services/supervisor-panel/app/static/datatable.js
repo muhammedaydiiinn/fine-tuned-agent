@@ -38,12 +38,12 @@
     },
     language: {
       search: "",
-      searchPlaceholder: "Search…",
-      lengthMenu: "Show _MENU_",
-      info: "_START_–_END_ of _TOTAL_",
-      infoEmpty: "No records",
-      infoFiltered: "(filtered from _MAX_)",
-      emptyTable: "No data",
+      searchPlaceholder: "Ara…",
+      lengthMenu: "_MENU_ göster",
+      info: "_TOTAL_ kayıttan _START_–_END_",
+      infoEmpty: "Kayıt yok",
+      infoFiltered: "(_MAX_ kayıttan süzüldü)",
+      emptyTable: "Veri yok",
       paginate: { previous: "‹", next: "›", first: "«", last: "»" },
     },
   };
@@ -63,6 +63,22 @@
     true: "badge-approved",
     false: "badge-rejected",
   };
+
+  // ── Status → Türkçe etiket ────────────────────────────────────────────────
+  var STATUS_LABEL = {
+    active: "aktif", closed: "kapalı", pending: "beklemede", queued: "kuyrukta",
+    running: "çalışıyor", in_progress: "sürüyor", processing: "işleniyor",
+    completed: "tamamlandı", done: "tamam", failed: "başarısız", error: "hata",
+    passed: "geçti", blocked: "engellendi", rejected: "reddedildi",
+    approved: "onaylandı", deployed: "yayında", retired: "emekli", ready: "hazır",
+    imported: "içe aktarıldı", transcribing: "yazıya dökülüyor",
+    transcribed: "yazıya döküldü", "true": "evet", "false": "hayır",
+    low: "düşük", medium: "orta", high: "yüksek",
+  };
+  function statusLabel(d) {
+    if (d == null || d === "") return d;
+    return STATUS_LABEL[String(d).toLowerCase()] || d;
+  }
 
   // ── HTML escaping ─────────────────────────────────────────────────────────
   function esc(s) {
@@ -92,7 +108,7 @@
       if (type !== "display") return d;
       if (!d) return "";
       var cls = STATUS_CLS[String(d)] || "badge-info";
-      return '<span class="badge ' + cls + '">' + esc(d) + "</span>";
+      return '<span class="badge ' + cls + '">' + esc(statusLabel(d)) + "</span>";
     },
 
     /** status badge + progress bar (training_jobs için) */
@@ -105,7 +121,7 @@
         '<span class="badge ' +
         cls +
         '">' +
-        esc(d) +
+        esc(statusLabel(d)) +
         "</span>" +
         '<div class="progress-bar"><div class="progress-fill" style="width:' +
         pct +

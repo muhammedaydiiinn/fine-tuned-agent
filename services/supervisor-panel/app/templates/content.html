@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Content{% endblock %}
+{% block title %}Ayarlar{% endblock %}
 
 {% block content %}
 
@@ -34,24 +34,24 @@
 
 {% macro history_block(section, versions) %}
 <details class="collapsible content-history">
-  <summary>Previous versions ({{ versions|length }})</summary>
+  <summary>Önceki sürümler ({{ versions|length }})</summary>
   <div class="content-history-list">
     {% if not versions %}
-      <p class="text-muted">No previous versions yet. Saving a change adds one here.</p>
+      <p class="text-muted">Henüz önceki sürüm yok. Bir değişikliği kaydettiğinizde buraya bir sürüm eklenir.</p>
     {% endif %}
     {% for h in versions %}
     <div class="content-version">
       <div class="content-version-head">
         <span class="text-muted">
-          Saved
+          Kaydedildi
           <time data-panel-datetime datetime="{{ h.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if h.created_at else '' }}">{{ h.created_at }}</time>
-          {% if h.created_by %}by {{ h.created_by }}{% endif %}
+          {% if h.created_by %}{{ h.created_by }} tarafından{% endif %}
         </span>
         <form method="post" action="/content/{{ section }}/rollback/{{ h.id }}"
-              onsubmit="return confirm('Restore this version? Your current content is saved to history first.');">
+              onsubmit="return confirm('Bu sürüm geri yüklensin mi? Mevcut içeriğiniz önce geçmişe kaydedilir.');">
           <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
           <button class="btn btn-outline btn-sm" type="submit">
-            <i class="fa-solid fa-clock-rotate-left"></i> Restore
+            <i class="fa-solid fa-clock-rotate-left"></i> Geri yükle
           </button>
         </form>
       </div>
@@ -64,29 +64,29 @@
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Sales Content</h1>
-    <span class="text-muted">Edit what the agent says. Changes go live on new calls within about 30 seconds and are included in the next training run.</span>
+    <h1>Satış Ayarları</h1>
+    <span class="text-muted">Temsilcinin ne söyleyeceğini düzenleyin. Değişiklikler yeni görüşmelerde yaklaşık 30 saniye içinde devreye girer ve bir sonraki eğitim çalışmasına dahil edilir.</span>
   </div>
 </div>
 
 <!-- Sales script / persona -->
 <section class="content-card">
-  <h2>Sales script &amp; persona</h2>
-  <p class="text-muted">Who the agent is, how the call should flow, and the hard limits. Write it in plain language — the technical output format is handled automatically.</p>
+  <h2>Satış senaryosu ve persona</h2>
+  <p class="text-muted">Temsilcinin kim olduğu, görüşmenin nasıl ilerlemesi gerektiği ve kesin sınırlar. Sade bir dille yazın — teknik çıktı biçimi otomatik olarak halledilir.</p>
   <form method="post" action="/content/system_instruction">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     <div class="form-group">
       <textarea name="text" rows="16" class="content-mono">{{ system_text }}</textarea>
     </div>
-    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save script</button>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Senaryoyu kaydet</button>
   </form>
   {{ history_block("system_instruction", history.get("system_instruction", [])) }}
 </section>
 
 <!-- Product facts -->
 <section class="content-card">
-  <h2>Product facts</h2>
-  <p class="text-muted">The facts the agent is allowed to state. Edit the values only.</p>
+  <h2>Ürün bilgileri</h2>
+  <p class="text-muted">Temsilcinin belirtmesine izin verilen bilgiler. Yalnızca değerleri düzenleyin.</p>
   <form method="post" action="/content/product_facts">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     {% for key, label in product_fact_fields %}
@@ -95,51 +95,51 @@
       <input type="text" id="fact__{{ key }}" name="fact__{{ key }}" value="{{ product_facts.get(key, '') }}">
     </div>
     {% endfor %}
-    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save facts</button>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Bilgileri kaydet</button>
   </form>
   {{ history_block("product_facts", history.get("product_facts", [])) }}
 </section>
 
 <!-- Rules -->
 <section class="content-card">
-  <h2>Rules</h2>
-  <p class="text-muted">One rule per line. These are always enforced.</p>
+  <h2>Kurallar</h2>
+  <p class="text-muted">Her satıra bir kural. Bunlar her zaman uygulanır.</p>
   <form method="post" action="/content/pdf_rules">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     <div class="form-group">
       <textarea name="rules" rows="8">{{ rules_text }}</textarea>
     </div>
-    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save rules</button>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Kuralları kaydet</button>
   </form>
   {{ history_block("pdf_rules", history.get("pdf_rules", [])) }}
 </section>
 
 <!-- Arguments & FAQ -->
 <section class="content-card">
-  <h2>Arguments &amp; FAQ</h2>
-  <p class="text-muted">How to handle objections. <strong>Trigger</strong> is what the customer says; <strong>answer</strong> is how the agent should respond.</p>
+  <h2>Argümanlar ve SSS</h2>
+  <p class="text-muted">İtirazların nasıl karşılanacağı. <strong>Tetikleyici</strong> müşterinin söylediği şeydir; <strong>yanıt</strong> ise temsilcinin nasıl karşılık vermesi gerektiğidir.</p>
   <form method="post" action="/content/objection_faq">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     <div id="faq-rows" class="faq-rows">
       {% for item in faq_items %}
       <div class="faq-row">
         <div class="form-group">
-          <label>Trigger</label>
+          <label>Tetikleyici</label>
           <input type="text" name="trigger" value="{{ item.get('trigger', '') }}">
         </div>
         <div class="form-group">
-          <label>Answer</label>
+          <label>Yanıt</label>
           <textarea name="answer" rows="2">{{ item.get('answer', '') }}</textarea>
         </div>
         <button class="btn btn-outline btn-sm faq-remove" type="button">
-          <i class="fa-solid fa-trash"></i> Remove
+          <i class="fa-solid fa-trash"></i> Kaldır
         </button>
       </div>
       {% endfor %}
     </div>
     <div class="content-actions">
-      <button class="btn btn-outline" type="button" id="faq-add"><i class="fa-solid fa-plus"></i> Add entry</button>
-      <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save arguments</button>
+      <button class="btn btn-outline" type="button" id="faq-add"><i class="fa-solid fa-plus"></i> Girdi ekle</button>
+      <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Argümanları kaydet</button>
     </div>
   </form>
   {{ history_block("objection_faq", history.get("objection_faq", [])) }}
@@ -147,8 +147,8 @@
 
 <!-- Canned answers -->
 <section class="content-card">
-  <h2>Canned answers</h2>
-  <p class="text-muted">Exact wording the agent uses in these specific situations.</p>
+  <h2>Hazır yanıtlar</h2>
+  <p class="text-muted">Temsilcinin bu belirli durumlarda kullandığı tam ifadeler.</p>
   <form method="post" action="/content/canned_answers">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     {% for key, label in canned_answer_fields %}
@@ -157,7 +157,7 @@
       <textarea id="canned__{{ key }}" name="canned__{{ key }}" rows="2">{{ canned_answers.get(key, '') }}</textarea>
     </div>
     {% endfor %}
-    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Save answers</button>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check"></i> Yanıtları kaydet</button>
   </form>
   {{ history_block("canned_answers", history.get("canned_answers", [])) }}
 </section>
@@ -165,15 +165,15 @@
 <template id="faq-row-template">
   <div class="faq-row">
     <div class="form-group">
-      <label>Trigger</label>
+      <label>Tetikleyici</label>
       <input type="text" name="trigger" value="">
     </div>
     <div class="form-group">
-      <label>Answer</label>
+      <label>Yanıt</label>
       <textarea name="answer" rows="2"></textarea>
     </div>
     <button class="btn btn-outline btn-sm faq-remove" type="button">
-      <i class="fa-solid fa-trash"></i> Remove
+      <i class="fa-solid fa-trash"></i> Kaldır
     </button>
   </div>
 </template>

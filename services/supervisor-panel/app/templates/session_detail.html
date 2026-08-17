@@ -4,7 +4,7 @@
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/">Sessions</a>
+  <a href="/">Görüşmeler</a>
   <span class="breadcrumb-sep">›</span>
   <span>{{ session.external_session_id or ("#" ~ session.id) }}</span>
 </div>
@@ -15,20 +15,20 @@
     <div class="page-header-meta">
       <span class="badge badge-{{ 'active' if session.status == 'active' else 'closed' }}">
         {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}
-        {{ session.status }}
+        {{ 'canlı' if session.status == 'active' else 'kapalı' }}
       </span>
       {% set customer_name = (session.state_json or {}).get('customer_name') %}
       {% if customer_name %}
-      <span class="badge badge-info" title="Customer being called">
+      <span class="badge badge-info" title="Aranan müşteri">
         <i class="fa-solid fa-user"></i>{{ customer_name }}
       </span>
       {% endif %}
       {% if active_model_name %}
-      <span class="badge badge-info" title="Active model version">
+      <span class="badge badge-info" title="Aktif model sürümü">
         <i class="fa-solid fa-microchip"></i>{{ active_model_name }}
       </span>
       {% elif latest_turn and latest_turn.model_version %}
-      <span class="badge badge-pending" title="Model that produced this turn">
+      <span class="badge badge-pending" title="Bu turu üreten model">
         <i class="fa-solid fa-microchip"></i>{{ latest_turn.model_version }}
       </span>
       {% endif %}
@@ -39,12 +39,12 @@
     <form id="end-session-form" action="/sessions/{{ session.id }}/close" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <button class="btn btn-primary" type="submit">
-        <i class="fa-solid fa-stop"></i> End & Review
+        <i class="fa-solid fa-stop"></i> Bitir ve İncele
       </button>
     </form>
     {% else %}
     <a class="btn btn-primary" href="/review/{{ session.id }}">
-      <i class="fa-solid fa-clipboard-check"></i> Review Session
+      <i class="fa-solid fa-clipboard-check"></i> Görüşmeyi İncele
     </a>
     {% endif %}
   </div>
@@ -64,8 +64,8 @@
           <i class="fa-solid fa-microphone"></i>
         </div>
         <div>
-          <div class="voice-test-title">Voice Test</div>
-          <div id="voice-status" class="voice-status" aria-live="polite">Microphone is stopped</div>
+          <div class="voice-test-title">Canlı Bağlantı</div>
+          <div id="voice-status" class="voice-status" aria-live="polite">Mikrofon kapalı</div>
           <div id="voice-level" class="voice-level" aria-hidden="true">
             {% for _ in range(12) %}<span></span>{% endfor %}
           </div>
@@ -74,19 +74,19 @@
       <div class="voice-test-actions">
         <button id="voice-start" class="btn btn-success" type="button">
           <i class="fa-solid fa-microphone"></i>
-          Start Microphone
+          Mikrofonu Başlat
         </button>
         <button id="voice-stop" class="btn btn-danger" type="button" disabled>
           <i class="fa-solid fa-microphone-slash"></i>
-          Stop
+          Durdur
         </button>
       </div>
     </div>
 
     <details class="voice-latency-drawer">
       <summary>
-        <span>Latency metrics</span>
-        <span class="summary-meta">STT, backend, LLM, TTS, total turn (incl. playback)</span>
+        <span>Gecikme ölçümleri</span>
+        <span class="summary-meta">STT, backend, LLM, TTS, toplam tur (oynatma dahil)</span>
       </summary>
       <div class="voice-latency" aria-label="Latest voice latency">
         <div><span>STT</span><strong data-voice-metric="stt_ms">—</strong></div>
@@ -113,8 +113,8 @@
 <section class="live-session-workspace">
   <div class="live-conversation-panel">
     <div class="section-title section-title-compact">
-      Live Conversation
-      <span class="badge badge-active"><span class="live-dot"></span> updating</span>
+      Canlı Konuşma
+      <span class="badge badge-active"><span class="live-dot"></span> güncelleniyor</span>
     </div>
 
     <div id="session-conversation"
@@ -128,12 +128,12 @@
   <section class="supervisor-console">
     <div class="supervisor-console-header">
       <div>
-        <div class="supervisor-console-title">Supervisor Quick Actions</div>
-        <div class="helper-text">Fast feedback for the latest captured turn.</div>
+        <div class="supervisor-console-title">Hızlı Geri Bildirim</div>
+        <div class="helper-text">Son konuşma turu için hızlı müdahale ve geri bildirim.</div>
       </div>
       {% if latest_turn %}
       <a class="btn btn-outline" href="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}">
-        <i class="fa-solid fa-pen"></i> Full Turn
+        <i class="fa-solid fa-pen"></i> Detay
       </a>
       {% endif %}
     </div>
@@ -142,18 +142,16 @@
     <div class="supervisor-console-grid">
       <article class="supervisor-snapshot">
         <div class="turn-meta">
-          <span>Latest turn</span>
-          <span class="badge badge-intent">Turn {{ latest_turn.turn_index }}</span>
-          {% if latest_turn.intent %}<span class="badge badge-intent">{{ latest_turn.intent }}</span>{% endif %}
-          {% if latest_turn.next_action %}<span class="badge badge-action">{{ latest_turn.next_action }}</span>{% endif %}
+          <span>Son tur</span>
+          <span class="badge badge-intent">Tur {{ latest_turn.turn_index }}</span>
         </div>
         <div class="latest-turn-preview">
           <div class="latest-turn-line">
-            <span>Customer</span>
+            <span>Müşteri</span>
             <p>{{ latest_turn.customer_text }}</p>
           </div>
           <div class="latest-turn-line">
-            <span>Agent</span>
+            <span>Ajan</span>
             <p>{{ latest_turn.agent_response or "—" }}</p>
           </div>
         </div>
@@ -167,28 +165,25 @@
       >
         <div id="quick-action-feedback" data-toast-only="true" data-refresh-on-toast="panel-refresh"></div>
         <div class="form-group">
-          <label for="quick-corrected-response">Replacement response</label>
-          <textarea id="quick-corrected-response" name="corrected_response" rows="4">{{ latest_turn.agent_response or "" }}</textarea>
+          <label for="quick-corrected-response">Doğru cevap / düzeltme notu</label>
+          <textarea id="quick-corrected-response" name="corrected_response" rows="4" placeholder="Ajan bunun yerine ne demeliydi?">{{ latest_turn.agent_response or "" }}</textarea>
         </div>
-        <div class="form-group">
-          <label for="quick-corrected-action">Next action</label>
-          <input id="quick-corrected-action" name="corrected_next_action" type="text" value="{{ latest_turn.next_action or '' }}" placeholder="for example: explain_price">
-        </div>
+        <input id="quick-corrected-action" name="corrected_next_action" type="hidden" value="{{ latest_turn.next_action or '' }}">
         <div class="supervisor-form-actions">
           <button class="btn btn-success" type="submit" name="mark_good" value="1">
-            <i class="fa-solid fa-check"></i> Good
+            <i class="fa-solid fa-check"></i> İyi
           </button>
           <button class="btn btn-danger" type="submit" name="mark_bad" value="1">
-            <i class="fa-solid fa-flag"></i> Bad
+            <i class="fa-solid fa-flag"></i> Kötü
           </button>
           <button class="btn btn-warning" id="live-stop-agent" type="button">
-            <i class="fa-solid fa-hand"></i> Stop Agent
+            <i class="fa-solid fa-hand"></i> Ajanı Durdur
           </button>
           <button class="btn btn-primary" id="live-send-replacement" type="button">
-            <i class="fa-solid fa-volume-high"></i> Send Instead
+            <i class="fa-solid fa-volume-high"></i> Bunu Söylet
           </button>
           <button class="btn btn-primary" type="submit">
-            <i class="fa-solid fa-floppy-disk"></i> Save
+            <i class="fa-solid fa-floppy-disk"></i> Kaydet
           </button>
         </div>
       </form>
@@ -196,7 +191,7 @@
     {% else %}
     <div class="empty-state empty-state-compact">
       <div class="empty-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-      <div>Quick actions will appear after the first live turn is captured.</div>
+      <div>İlk canlı tur yakalandığında hızlı işlemler burada görünecek.</div>
     </div>
     {% endif %}
   </section>
@@ -204,8 +199,8 @@
 
 <details class="collapsible diagnostics-drawer">
   <summary>
-    <span>Diagnostics and raw state</span>
-    <span class="summary-meta">voice events, latency table, acceptance checks, JSON</span>
+    <span>Teknik detaylar ve ham durum</span>
+    <span class="summary-meta">ses olayları, gecikme tablosu, kabul kontrolleri, JSON</span>
   </summary>
   <div class="diagnostics-stack">
     <section
@@ -223,7 +218,7 @@
     ></section>
 
     <details class="collapsible nested-collapsible">
-      <summary>State JSON</summary>
+      <summary>Durum JSON</summary>
       <pre class="json-block">{{ state_pretty }}</pre>
     </details>
   </div>
@@ -237,7 +232,7 @@
 </div>
 
 <div class="section-title">
-  Conversation
+  Konuşma
 </div>
 
 <div id="session-conversation"
@@ -249,8 +244,8 @@
 
 <details class="collapsible diagnostics-drawer">
   <summary>
-    <span>Diagnostics and raw state</span>
-    <span class="summary-meta">latency table, acceptance checks, JSON</span>
+    <span>Teknik detaylar ve ham durum</span>
+    <span class="summary-meta">gecikme tablosu, kabul kontrolleri, JSON</span>
   </summary>
   <div class="diagnostics-stack">
     <section
@@ -261,7 +256,7 @@
     ></section>
 
     <details class="collapsible nested-collapsible">
-      <summary>State JSON</summary>
+      <summary>Durum JSON</summary>
       <pre class="json-block">{{ state_pretty }}</pre>
     </details>
   </div>
@@ -285,6 +280,6 @@
 {% if session.status == 'active' %}
 <script src="/static/livekit-client.umd.min.js"></script>
 <script src="/static/voice-session-recovery.js?v=1"></script>
-<script src="/static/voice-session.js?v=10"></script>
+<script src="/static/voice-session.js?v=12"></script>
 {% endif %}
 {% endblock %}

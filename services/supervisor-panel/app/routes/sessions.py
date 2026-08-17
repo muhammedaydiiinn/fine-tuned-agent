@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.csrf import require_csrf
 from app.db import get_db
-from app.livekit_tokens import build_voice_token
+from app.livekit_tokens import build_voice_token, publish_control
 from app.models import Deployment, ModelVersion, Session as SessionModel, Turn, VoiceEvent
 from app.ui_feedback import toast_fragment, toast_redirect
 from app.config import settings
@@ -62,14 +62,14 @@ def start_session(
         logger.exception("Could not start session")
         return toast_redirect(
             "/",
-            f"Could not create the test session: {exc}",
+            f"Test görüşmesi oluşturulamadı: {exc}",
             kind="error",
-            title="Session start failed",
+            title="Görüşme başlatılamadı",
         )
     return toast_redirect(
         f"/sessions/{session_id}",
-        "Test session created. You can start the microphone when ready.",
-        title="Session ready",
+        "Test görüşmesi oluşturuldu. Hazır olduğunuzda mikrofonu başlatabilirsiniz.",
+        title="Görüşme hazır",
     )
 
 
@@ -149,7 +149,7 @@ def sessions_data(db: DBSession = Depends(get_db)):
 def session_detail(session_id: int, request: Request, db: DBSession = Depends(get_db)):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect("/", "Session not found.", kind="error")
+        return toast_redirect("/", "Görüşme bulunamadı.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -194,15 +194,15 @@ def session_voice_token(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if session is None:
-        return JSONResponse({"detail": "Session not found"}, status_code=404)
+        return JSONResponse({"detail": "Görüşme bulunamadı"}, status_code=404)
     if session.status != "active":
         return JSONResponse(
-            {"detail": "Voice can only be started for an active session"},
+            {"detail": "Ses yalnızca aktif bir görüşmede başlatılabilir"},
             status_code=409,
         )
     if not session.external_session_id:
         return JSONResponse(
-            {"detail": "Session has no external session ID"},
+            {"detail": "Görüşmenin dış görüşme kimliği yok"},
             status_code=409,
         )
 
@@ -229,15 +229,15 @@ def session_voice_token_resume(
     """Token without agent dispatch — used when rejoining an existing room."""
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if session is None:
-        return JSONResponse({"detail": "Session not found"}, status_code=404)
+        return JSONResponse({"detail": "Görüşme bulunamadı"}, status_code=404)
     if session.status != "active":
         return JSONResponse(
-            {"detail": "Voice can only be started for an active session"},
+            {"detail": "Ses yalnızca aktif bir görüşmede başlatılabilir"},
             status_code=409,
         )
     if not session.external_session_id:
         return JSONResponse(
-            {"detail": "Session has no external session ID"},
+            {"detail": "Görüşmenin dış görüşme kimliği yok"},
             status_code=409,
         )
 
@@ -263,7 +263,7 @@ def session_conversation(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_fragment("Session not found.", kind="error", status_code=404)
+        return toast_fragment("Görüşme bulunamadı.", kind="error", status_code=404)
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -284,7 +284,7 @@ def session_live_summary(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_fragment("Session not found.", kind="error", status_code=404)
+        return toast_fragment("Görüşme bulunamadı.", kind="error", status_code=404)
     turn_count = (
         db.query(func.count(Turn.id))
         .filter(Turn.session_id == session_id)
@@ -323,7 +323,7 @@ def session_voice_diagnostics(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_fragment("Session not found.", kind="error", status_code=404)
+        return toast_fragment("Görüşme bulunamadı.", kind="error", status_code=404)
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -362,24 +362,24 @@ def session_voice_events(
         .all()
     )
     labels = {
-        "voice_session_ready": "Voice runtime ready",
-        "transcript_final": "Transcript final",
-        "partial_transcript": "Partial transcript",
-        "agent_response": "Agent response ready",
-        "supervisor_action_requested": "Supervisor action requested",
-        "supervisor_stop_applied": "Supervisor stop applied",
-        "supervisor_replacement_started": "Supervisor replacement started",
-        "supervisor_replacement_completed": "Supervisor replacement completed",
-        "supervisor_action_ignored": "Supervisor action ignored",
-        "stt_unavailable": "STT unavailable",
-        "tts_fallback_activated": "TTS fallback activated",
-        "interruption_detected": "Customer interrupted",
-        "playback_cancelled": "Playback cancelled",
-        "backchannel_detected": "Backchannel detected",
-        "duplicate_transcript_ignored": "Duplicate ignored",
-        "stale_response_discarded": "Stale response discarded",
-        "voice_turn_complete": "Turn completed",
-        "voice_error": "Voice error",
+        "voice_session_ready": "Ses çalışma zamanı hazır",
+        "transcript_final": "Transkript kesinleşti",
+        "partial_transcript": "Kısmi transkript",
+        "agent_response": "Ajan yanıtı hazır",
+        "supervisor_action_requested": "Süpervizör işlemi istendi",
+        "supervisor_stop_applied": "Süpervizör durdurması uygulandı",
+        "supervisor_replacement_started": "Süpervizör değişimi başladı",
+        "supervisor_replacement_completed": "Süpervizör değişimi tamamlandı",
+        "supervisor_action_ignored": "Süpervizör işlemi yok sayıldı",
+        "stt_unavailable": "STT kullanılamıyor",
+        "tts_fallback_activated": "TTS yedeği etkinleştirildi",
+        "interruption_detected": "Müşteri sözü kesti",
+        "playback_cancelled": "Oynatma iptal edildi",
+        "backchannel_detected": "Geri bildirim sesi algılandı",
+        "duplicate_transcript_ignored": "Yinelenen yok sayıldı",
+        "stale_response_discarded": "Eski yanıt atıldı",
+        "voice_turn_complete": "Tur tamamlandı",
+        "voice_error": "Ses hatası",
     }
     barge_in_count = (
         db.query(func.count(VoiceEvent.id))
@@ -408,13 +408,13 @@ def close_session(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect("/", "Session not found.", kind="error")
+        return toast_redirect("/", "Görüşme bulunamadı.", kind="error")
     session.status = "closed"
     db.commit()
     return toast_redirect(
         f"/review/{session_id}",
-        "Session closed. Review and training controls are now available.",
-        title="Session moved to review",
+        "Görüşme kapatıldı. İnceleme ve eğitim kontrolleri artık kullanılabilir.",
+        title="Görüşme incelemeye taşındı",
     )
 
 
@@ -430,11 +430,11 @@ def session_voice_action(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if session is None:
-        return JSONResponse({"detail": "Session not found"}, status_code=404)
+        return JSONResponse({"detail": "Görüşme bulunamadı"}, status_code=404)
     if session.status != "active":
-        return JSONResponse({"detail": "Session is not active"}, status_code=409)
+        return JSONResponse({"detail": "Görüşme aktif değil"}, status_code=409)
     if not session.external_session_id:
-        return JSONResponse({"detail": "Session has no external session ID"}, status_code=409)
+        return JSONResponse({"detail": "Görüşmenin dış görüşme kimliği yok"}, status_code=409)
 
     latest_turn = (
         db.query(Turn)
@@ -481,13 +481,13 @@ def session_voice_action(
                 exc.response.text,
             )
             return JSONResponse(
-                {"detail": "Could not persist the live correction"},
+                {"detail": "Canlı düzeltme kaydedilemedi"},
                 status_code=502,
             )
         except Exception:
             logger.exception("Live correction failed — session=%s", session_id)
             return JSONResponse(
-                {"detail": "Could not persist the live correction"},
+                {"detail": "Canlı düzeltme kaydedilemedi"},
                 status_code=502,
             )
         prepared.audit_payload["payload"]["correction_id"] = correction["id"]
@@ -504,8 +504,13 @@ def session_voice_action(
     except Exception:
         logger.exception("Could not persist supervisor action audit event — session=%s", session_id)
 
+    # Deliver the control command server-side so Stop/replace works even when the
+    # supervisor is only monitoring and has NOT joined the audio room.
+    delivered = publish_control(session.external_session_id, prepared.command)
+
     return {
         "ok": True,
         "command": prepared.command,
+        "delivered": delivered,
         "correction_id": correction["id"] if correction else None,
     }

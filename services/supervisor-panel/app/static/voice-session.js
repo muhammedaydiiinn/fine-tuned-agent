@@ -51,14 +51,8 @@
     }
   }
 
-  function assertLiveRoomConnected() {
-    if (!room || room.state !== ConnectionState.Connected) {
-      throw new Error("Connect the voice room before sending supervisor actions.");
-    }
-  }
-
   if (hasConnectedBefore) {
-    startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
+    startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Devam Et';
   }
 
   function setStatus(message, state) {
@@ -69,14 +63,14 @@
 
   function setVoiceState(state, detail) {
     const states = {
-      idle: "Microphone is stopped",
-      listening: "Listening - you can speak",
-      hearing: "Listening to the customer...",
-      processing: "Processing the latest turn...",
-      speaking: "Agent is speaking - interruption is available",
-      interrupted: "Interruption detected - switching turns",
-      reconnecting: "Connection interrupted - reconnecting...",
-      error: detail || "Voice runtime error",
+      idle: "Mikrofon kapalı",
+      listening: "Dinliyor - konuşabilirsiniz",
+      hearing: "Müşteri dinleniyor...",
+      processing: "Son tur işleniyor...",
+      speaking: "Ajan konuşuyor - araya girebilirsiniz",
+      interrupted: "Araya girme algılandı - tur değişiyor",
+      reconnecting: "Bağlantı koptu - yeniden bağlanılıyor...",
+      error: detail || "Ses çalışma zamanı hatası",
     };
     const statusState = state === "listening" ? "ready" : state;
     setStatus(detail || states[state] || states.listening, statusState);
@@ -131,7 +125,7 @@
     if (!recovery || !recovery.shouldAutoResume(recoveryState)) return;
     clearReconnectTimer();
     const delayMs = recovery.nextRecoveryDelayMs(recoveryState.reconnectAttempts);
-    setVoiceState("reconnecting", `Connection lost - retrying in ${Math.round(delayMs / 1000)}s`);
+    setVoiceState("reconnecting", `Bağlantı koptu - ${Math.round(delayMs / 1000)}sn içinde yeniden denenecek`);
     reconnectTimer = window.setTimeout(() => {
       reconnectTimer = null;
       startVoice({ forceResume: true, silentRecovery: true });
@@ -147,23 +141,12 @@
     persistRecoveryState();
     resetVoiceControls(false);
     if (recovery.shouldAutoResume(recoveryState)) {
-      showToast("warning", "The voice room disconnected. Automatic recovery is starting.", "Voice recovery");
+      showToast("warning", "Ses odası bağlantısı koptu. Otomatik kurtarma başlıyor.", "Ses kurtarma");
       scheduleAutoResume();
       return;
     }
-    setVoiceState("error", "Voice recovery exhausted - resume manually");
-    showToast("error", "Automatic recovery reached its retry limit. Resume manually.", "Voice recovery");
-  }
-
-  async function publishControl(command) {
-    if (!room) {
-      throw new Error("Voice room is not connected");
-    }
-    const payload = new TextEncoder().encode(JSON.stringify(command));
-    await room.localParticipant.publishData(payload, {
-      reliable: true,
-      topic: "voice.control",
-    });
+    setVoiceState("error", "Ses kurtarma tükendi - elle devam edin");
+    showToast("error", "Otomatik kurtarma deneme sınırına ulaştı. Elle devam edin.", "Ses kurtarma");
   }
 
   async function requestVoiceAction(actionName) {
@@ -191,16 +174,16 @@
 
     const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
     if (location.protocol !== "https:" && !isLocalhost) {
-      const msg = "Microphone access requires HTTPS. Open this page over https:// or add the origin to Chrome's insecure-origins allowlist (chrome://flags/#unsafely-treat-insecure-origin-as-secure).";
+      const msg = "Mikrofon erişimi HTTPS gerektirir. Bu sayfayı https:// üzerinden açın ya da kaynağı Chrome'un güvensiz-kaynaklar listesine ekleyin (chrome://flags/#unsafely-treat-insecure-origin-as-secure).";
       setStatus(msg, "error");
-      showToast("error", msg, "HTTPS required");
+      showToast("error", msg, "HTTPS gerekli");
       return;
     }
 
     clearReconnectTimer();
     manualDisconnect = false;
     startButton.disabled = true;
-    setStatus("Connecting to voice runtime...", "working");
+    setStatus("Ses çalışma zamanına bağlanılıyor...", "working");
 
     // Only the automatic silent-recovery path (forceResume) rejoins without
     // re-dispatching the agent — there the agent is still in the room after a brief
@@ -220,7 +203,7 @@
       });
       const credentials = await response.json();
       if (!response.ok) {
-        throw new Error(credentials.detail || "Could not create voice token");
+        throw new Error(credentials.detail || "Ses jetonu oluşturulamadı");
       }
 
       const currentRoom = new Room({ adaptiveStream: true, dynacast: true });
@@ -242,53 +225,53 @@
         } else if (event.event === "speech_ended") {
           setVoiceState("processing");
         } else if (event.event === "partial_transcript") {
-          setVoiceState("hearing", "Hearing: " + (event.text || ""));
+          setVoiceState("hearing", "Duyuluyor: " + (event.text || ""));
         } else if (event.event === "transcript_final") {
-          setVoiceState("processing", "Heard: " + (event.text || ""));
+          setVoiceState("processing", "Anlaşılan: " + (event.text || ""));
         } else if (event.event === "agent_response") {
           setVoiceState("speaking");
         } else if (event.event === "agent_playback_started") {
           setVoiceState("speaking");
         } else if (event.event === "possible_barge_in") {
-          setVoiceState("interrupted", "Possible interruption — listening...");
+          setVoiceState("interrupted", "Olası araya girme — dinleniyor...");
         } else if (event.event === "interruption_detected") {
           setVoiceState("interrupted");
         } else if (event.event === "playback_cancelled") {
-          setVoiceState("processing", "Agent stopped - processing your interruption");
-          showToast("warning", "The active playback was cancelled because new customer speech was detected.", "Playback stopped");
+          setVoiceState("processing", "Ajan durdu - araya girmeniz işleniyor");
+          showToast("warning", "Yeni müşteri konuşması algılandığı için aktif oynatma iptal edildi.", "Oynatma durdu");
         } else if (event.event === "backchannel_detected") {
-          setVoiceState("listening", "Acknowledgement detected - continuing");
+          setVoiceState("listening", "Onay algılandı - devam ediliyor");
         } else if (event.event === "duplicate_transcript_ignored") {
-          setVoiceState("listening", "Duplicate audio ignored");
-          showToast("info", "A duplicate transcript was ignored to keep the conversation stable.", "Duplicate ignored");
+          setVoiceState("listening", "Yinelenen ses yok sayıldı");
+          showToast("info", "Konuşmayı kararlı tutmak için yinelenen bir transkript yok sayıldı.", "Yineleme yok sayıldı");
         } else if (event.event === "empty_transcript") {
-          setVoiceState("listening", "No speech detected - still listening");
+          setVoiceState("listening", "Konuşma algılanmadı - hâlâ dinleniyor");
         } else if (event.event === "stt_unavailable") {
-          setVoiceState("listening", "Speech recognition unavailable - listening");
-          showToast("warning", event.detail || "Speech recognition is temporarily unavailable.", "STT unavailable");
+          setVoiceState("listening", "Konuşma tanıma kullanılamıyor - dinleniyor");
+          showToast("warning", event.detail || "Konuşma tanıma geçici olarak kullanılamıyor.", "STT kullanılamıyor");
         } else if (event.event === "voice_error") {
           setVoiceState("error", event.detail);
-          showToast("error", event.detail || "The voice runtime reported an error.", "Voice runtime");
+          showToast("error", event.detail || "Ses çalışma zamanı bir hata bildirdi.", "Ses çalışma zamanı");
         } else if (event.event === "voice_turn_complete") {
           renderMetrics(event.metrics || {});
-          setVoiceState("listening", "Listening - ready for the next turn");
+          setVoiceState("listening", "Dinliyor - sonraki tura hazır");
           if (window.htmx) {
             window.htmx.trigger(document.body, "voice-turn-complete");
           }
         } else if (event.event === "supervisor_stop_applied") {
-          setVoiceState("processing", "Supervisor stopped the active answer");
-          showToast("warning", "The active agent response was stopped.", "Supervisor control");
+          setVoiceState("processing", "Yönetici aktif cevabı durdurdu");
+          showToast("warning", "Aktif ajan cevabı durduruldu.", "Yönetici kontrolü");
         } else if (event.event === "supervisor_replacement_started") {
-          setVoiceState("speaking", "Supervisor replacement is playing");
-          showToast("info", "The replacement answer is being played to the customer.", "Supervisor control");
+          setVoiceState("speaking", "Yönetici cevabı oynatılıyor");
+          showToast("info", "Değiştirilen cevap müşteriye oynatılıyor.", "Yönetici kontrolü");
         } else if (event.event === "supervisor_replacement_completed") {
           renderMetrics({ tts_first_audio_ms: event.tts_first_audio_ms });
-          setVoiceState("listening", "Replacement completed - listening");
-          showToast("success", "The replacement answer was delivered.", "Supervisor control");
+          setVoiceState("listening", "Cevap iletildi - dinleniyor");
+          showToast("success", "Değiştirilen cevap iletildi.", "Yönetici kontrolü");
         } else if (event.event === "supervisor_action_ignored") {
-          showToast("warning", "The supervisor action was ignored by the voice runtime.", "Supervisor control");
+          showToast("warning", "Yönetici işlemi ses çalışma zamanı tarafından yok sayıldı.", "Yönetici kontrolü");
         } else if (event.event === "tts_fallback_activated") {
-          showToast("warning", "Primary TTS failed, mock PCM fallback was used for this turn.", "TTS fallback");
+          showToast("warning", "Birincil TTS başarısız oldu, bu tur için yedek PCM kullanıldı.", "TTS yedeği");
         }
         if (window.htmx && !["speech_started", "speech_ended", "partial_transcript", "possible_barge_in", "agent_playback_started"].includes(event.event)) {
           window.htmx.trigger(document.body, "voice-event");
@@ -300,8 +283,8 @@
       });
       room.on(RoomEvent.Reconnected, () => {
         if (room !== currentRoom) return;
-        setVoiceState("listening", "Reconnected - listening");
-        showToast("success", "The live voice connection was restored.", "Voice reconnected");
+        setVoiceState("listening", "Yeniden bağlandı - dinleniyor");
+        showToast("success", "Canlı ses bağlantısı geri geldi.", "Yeniden bağlandı");
       });
       room.on(RoomEvent.Disconnected, () => {
         if (room !== currentRoom) return;
@@ -320,9 +303,9 @@
       persistRecoveryState();
       hasConnectedBefore = true;
       stopButton.disabled = false;
-      setVoiceState(isResume ? "listening" : "processing", isResume ? "Resumed - listening" : "Waiting for voice agent...");
+      setVoiceState(isResume ? "listening" : "processing", isResume ? "Devam edildi - dinleniyor" : "Ses ajanı bekleniyor...");
       if (opts.silentRecovery) {
-        showToast("success", "The voice room was recovered and rejoined.", "Voice recovery");
+        showToast("success", "Ses odası kurtarıldı ve yeniden katılındı.", "Ses kurtarma");
       }
     } catch (error) {
       const failedRoom = room;
@@ -336,12 +319,12 @@
       }
       console.error(error);
       const userMsg = (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")
-        ? "Microphone permission denied. Allow microphone access in the browser, or use HTTPS."
+        ? "Mikrofon izni reddedildi. Tarayıcıda mikrofon erişimine izin verin ya da HTTPS kullanın."
         : (error.name === "NotSupportedError" || error.name === "NotFoundError")
-          ? "No microphone found or microphone API unavailable. HTTPS is required for microphone access."
-          : (error.message || "Could not start the voice runtime.");
+          ? "Mikrofon bulunamadı ya da mikrofon API'si kullanılamıyor. Mikrofon erişimi için HTTPS gerekir."
+          : (error.message || "Ses çalışma zamanı başlatılamadı.");
       setStatus(userMsg, "error");
-      showToast("error", userMsg, "Voice start failed");
+      showToast("error", userMsg, "Ses başlatma başarısız");
       resetVoiceControls(false);
     }
   }
@@ -366,7 +349,7 @@
     audioContainer.replaceChildren();
     stopLevelMeter();
     if (hasConnectedBefore) {
-      startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Resume';
+      startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Devam Et';
     }
     if (showStopped !== false) setVoiceState("idle");
   }
@@ -377,12 +360,16 @@
     stopAgentButton.addEventListener("click", async () => {
       stopAgentButton.disabled = true;
       try {
-        assertLiveRoomConnected();
+        // Server-side delivery — works even without joining the audio room.
         const response = await requestVoiceAction("stop_agent");
-        await publishControl(response.command);
+        showToast(
+          response.delivered ? "success" : "warning",
+          response.delivered ? "Ajanı durdurma komutu gönderildi." : "Komut gönderildi, teslim doğrulanamadı.",
+          "Yönetici kontrolü"
+        );
       } catch (error) {
         console.error(error);
-        showToast("error", error.message || "Could not stop the agent.", "Supervisor control");
+        showToast("error", error.message || "Ajan durdurulamadı.", "Yönetici kontrolü");
       } finally {
         stopAgentButton.disabled = false;
       }
@@ -392,12 +379,16 @@
     sendReplacementButton.addEventListener("click", async () => {
       sendReplacementButton.disabled = true;
       try {
-        assertLiveRoomConnected();
+        // Server-side delivery — works even without joining the audio room.
         const response = await requestVoiceAction("replace_answer");
-        await publishControl(response.command);
+        showToast(
+          response.delivered ? "success" : "warning",
+          response.delivered ? "Cevap müşteriye gönderildi." : "Komut gönderildi, teslim doğrulanamadı.",
+          "Yönetici kontrolü"
+        );
       } catch (error) {
         console.error(error);
-        showToast("error", error.message || "Could not send the replacement answer.", "Supervisor control");
+        showToast("error", error.message || "Değiştirilen cevap gönderilemedi.", "Yönetici kontrolü");
       } finally {
         sendReplacementButton.disabled = false;
       }
@@ -419,7 +410,7 @@
     if (room) room.disconnect();
   });
   if (recovery && recovery.shouldAutoResume(recoveryState)) {
-    setVoiceState("reconnecting", "Resuming the previous voice session...");
+    setVoiceState("reconnecting", "Önceki ses oturumu sürdürülüyor...");
     window.setTimeout(() => {
       startVoice({ forceResume: true, silentRecovery: true });
     }, 300);

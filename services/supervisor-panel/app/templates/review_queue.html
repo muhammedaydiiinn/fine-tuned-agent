@@ -1,31 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Review & Train{% endblock %}
+{% block title %}İncele ve Eğit{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Review & Train</h1>
-    <span class="text-muted">Finish a conversation, review it once, then train from the approved turns.</span>
+    <h1>İncele ve Eğit</h1>
+    <span class="text-muted">Bir görüşmeyi bitirin, bir kez inceleyin, ardından onaylanan turlardan eğitim yapın.</span>
   </div>
 </div>
 
 <div class="stats-row">
-  <div class="stat-card"><div class="stat-label">Waiting for review</div><div class="stat-value">{{ pending_count }}</div></div>
-  <div class="stat-card"><div class="stat-label">Reviewed sessions</div><div class="stat-value">{{ reviewed_count }}</div></div>
-  <div class="stat-card"><div class="stat-label">Training jobs</div><div class="stat-value">{{ jobs_count }}</div></div>
+  <div class="stat-card"><div class="stat-label">İnceleme bekliyor</div><div class="stat-value">{{ pending_count }}</div></div>
+  <div class="stat-card"><div class="stat-label">İncelenen görüşmeler</div><div class="stat-value">{{ reviewed_count }}</div></div>
+  <div class="stat-card"><div class="stat-label">Eğitim işleri</div><div class="stat-value">{{ jobs_count }}</div></div>
 </div>
 
 <div class="table-container" style="margin-bottom:20px;">
-  <div class="table-toolbar"><span class="table-toolbar-title">Conversation Review Queue</span></div>
+  <div class="table-toolbar"><span class="table-toolbar-title">Görüşme İnceleme Kuyruğu</span></div>
   <table data-dt-url="/review/queue/data" data-dt-order="5,desc">
     <thead>
       <tr>
-        <th data-dt-col-field="session" data-dt-col-render="code">Session</th>
-        <th data-dt-col-field="turns" data-dt-col-class="td-center" data-dt-col-width="60px">Turns</th>
-        <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
-        <th data-dt-col-field="review_badge" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Review</th>
-        <th data-dt-col-field="training" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Training</th>
-        <th data-dt-col-field="updated_at" data-dt-col-render="datetime">Date</th>
+        <th data-dt-col-field="session" data-dt-col-render="code">Görüşme</th>
+        <th data-dt-col-field="turns" data-dt-col-class="td-center" data-dt-col-width="60px">Tur</th>
+        <th data-dt-col-field="status" data-dt-col-render="badge">Durum</th>
+        <th data-dt-col-field="review_badge" data-dt-col-render="rawHtml" data-dt-col-orderable="false">İnceleme</th>
+        <th data-dt-col-field="training" data-dt-col-render="rawHtml" data-dt-col-orderable="false">Eğitim</th>
+        <th data-dt-col-field="updated_at" data-dt-col-render="datetime">Tarih</th>
         <th data-dt-col-field="action" data-dt-col-render="openBtn" data-dt-col-link-base="/review/" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
       </tr>
     </thead>
@@ -34,16 +34,16 @@
 </div>
 
 <details class="collapsible">
-  <summary>Recent training activity</summary>
+  <summary>Son eğitim etkinliği</summary>
   <div class="table-wrap">
     <table data-dt-url="/training-jobs/data" data-dt-order="3,desc">
       <thead>
         <tr>
-          <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">Job</th>
-          <th data-dt-col-field="input_session_id" data-dt-col-render="code">Session</th>
-          <th data-dt-col-field="status" data-dt-col-render="statusProgress">Status</th>
-          <th data-dt-col-field="started_at" data-dt-col-render="datetime">Started</th>
-          <th data-dt-col-field="status" data-dt-col-render="jobOutput" data-dt-col-orderable="false">Output</th>
+          <th data-dt-col-field="id" data-dt-col-class="td-mono td-center" data-dt-col-width="50px">İş</th>
+          <th data-dt-col-field="input_session_id" data-dt-col-render="code">Görüşme</th>
+          <th data-dt-col-field="status" data-dt-col-render="statusProgress">Durum</th>
+          <th data-dt-col-field="started_at" data-dt-col-render="datetime">Başlangıç</th>
+          <th data-dt-col-field="status" data-dt-col-render="jobOutput" data-dt-col-orderable="false">Çıktı</th>
         </tr>
       </thead>
       <tbody></tbody>

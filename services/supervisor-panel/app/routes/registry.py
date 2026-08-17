@@ -62,19 +62,19 @@ def models_data(db: DBSession = Depends(get_db)):
         candidate_ids = metadata.get("dataset_manifest", {}).get("candidate_ids", [])
         training_source = f'<code>{dataset_version}</code>'
         if candidate_ids:
-            training_source += f'<div class="text-muted" style="font-size:11px;">{len(candidate_ids)} reviewed turn(s)</div>'
+            training_source += f'<div class="text-muted" style="font-size:11px;">{len(candidate_ids)} incelenen tur</div>'
 
         # Quality check
         if model.eval_status == "passed":
-            badge_cls, badge_text = "badge-approved", "Passed"
+            badge_cls, badge_text = "badge-approved", "Geçti"
         elif model.eval_status == "failed":
-            badge_cls, badge_text = "badge-error", "Failed"
+            badge_cls, badge_text = "badge-error", "Başarısız"
         else:
-            badge_cls, badge_text = "badge-running", "Waiting"
+            badge_cls, badge_text = "badge-running", "Bekliyor"
         quality_check = f'<span class="badge {badge_cls}">{badge_text}</span>'
         if latest_eval and latest_eval.metrics_json:
             score = int(round((latest_eval.metrics_json or {}).get("quality_score", 0) * 100))
-            quality_check += f'<div class="text-muted" style="font-size:11px;">Score {score}%</div>'
+            quality_check += f'<div class="text-muted" style="font-size:11px;">Puan {score}%</div>'
 
         # Release status
         release_status = f'<span class="badge badge-info">{html.escape(lifecycle)}</span>'
@@ -85,7 +85,7 @@ def models_data(db: DBSession = Depends(get_db)):
         if model.eval_status in ("pending", "failed"):
             action_parts.append(
                 f'<form hx-post="/model-registry/{model.id}/quality-check" hx-target="#registry-result" hx-swap="innerHTML">'
-                f'<button class="btn btn-outline btn-sm" type="submit">Run Quality Check</button></form>'
+                f'<button class="btn btn-outline btn-sm" type="submit">Kalite Kontrolü Çalıştır</button></form>'
             )
         if (
             model.eval_status == "passed"
@@ -95,36 +95,36 @@ def models_data(db: DBSession = Depends(get_db)):
         ):
             action_parts.append(
                 f'<form hx-post="/model-registry/{vn}/approve" hx-target="#registry-result" hx-swap="innerHTML">'
-                f'<button class="btn btn-outline btn-sm" type="submit">Approve Release</button></form>'
+                f'<button class="btn btn-outline btn-sm" type="submit">Yayını Onayla</button></form>'
             )
         if lifecycle == "approved" and gate.get("evidence_mode") == "real":
             action_parts.append(
                 f'<form hx-post="/model-registry/{vn}/deploy" hx-target="#registry-result" hx-swap="innerHTML">'
                 f'<input type="hidden" name="environment" value="production">'
-                f'<button class="btn btn-primary btn-sm" type="submit">Make Live</button></form>'
+                f'<button class="btn btn-primary btn-sm" type="submit">Canlıya Al</button></form>'
             )
         elif lifecycle == "approved":
-            action_parts.append('<span class="badge badge-pending">GPU verification required</span>')
+            action_parts.append('<span class="badge badge-pending">GPU doğrulaması gerekli</span>')
 
         # Technical details collapsible
-        artifact_status = "verified" if artifact and artifact.get("valid", True) else "unverified"
-        eval_link = f'<a href="/eval-jobs/{latest_eval.id}">Open quality report #{latest_eval.id}</a>' if latest_eval else ""
+        artifact_status = "doğrulandı" if artifact and artifact.get("valid", True) else "doğrulanmadı"
+        eval_link = f'<a href="/eval-jobs/{latest_eval.id}">Kalite raporunu aç #{latest_eval.id}</a>' if latest_eval else ""
         serving_base_url = html.escape(serving.get("base_url", ""))
         serving_model_name = html.escape(serving.get("model_name", model.version_name))
         serving_mode = html.escape(serving.get("mode", "—"))
         serving_slot = html.escape(serving.get("slot", "—"))
         technical = (
-            f'<details class="registry-serving-form"><summary>Technical details</summary>'
-            f'<div class="technical-summary">Artifact: {artifact_status}<br>'
-            f'Runtime: {serving_mode} / {serving_slot}<br>{eval_link}</div>'
+            f'<details class="registry-serving-form"><summary>Teknik detaylar</summary>'
+            f'<div class="technical-summary">Dosya: {artifact_status}<br>'
+            f'Çalışma: {serving_mode} / {serving_slot}<br>{eval_link}</div>'
             f'<form hx-post="/model-registry/{vn}/verify" hx-target="#registry-result" hx-swap="innerHTML">'
-            f'<button class="btn btn-outline btn-sm" type="submit">Verify Artifact</button></form>'
+            f'<button class="btn btn-outline btn-sm" type="submit">Dosyayı Doğrula</button></form>'
             f'<form hx-post="/model-registry/{vn}/serving-target" hx-target="#registry-result" hx-swap="innerHTML">'
             f'<select name="mode"><option value="real">real</option><option value="mock">mock</option></select>'
             f'<input type="text" name="base_url" placeholder="http://vllm-candidate:8000/v1" value="{serving_base_url}">'
-            f'<input type="text" name="model_name" required placeholder="served model name" value="{serving_model_name}">'
+            f'<input type="text" name="model_name" required placeholder="sunulan model adı" value="{serving_model_name}">'
             f'<select name="slot"><option value="green">green</option><option value="blue">blue</option><option value="mock">mock</option></select>'
-            f'<button class="btn btn-outline btn-sm" type="submit">Verify target</button></form>'
+            f'<button class="btn btn-outline btn-sm" type="submit">Hedefi Doğrula</button></form>'
             f'</details>'
         )
         actions = f'<div class="registry-actions">{"".join(action_parts)}</div>{technical}'
@@ -143,12 +143,12 @@ def models_data(db: DBSession = Depends(get_db)):
 
 @router.post("/model-registry/{version_name}/verify", response_class=HTMLResponse)
 def verify(version_name: str, _csrf: None = Depends(require_csrf)):
-    return _action(f"/models/{version_name}/verify-artifact", "Artifact verified")
+    return _action(f"/models/{version_name}/verify-artifact", "Artefakt doğrulandı")
 
 
 @router.post("/model-registry/{version_name}/approve", response_class=HTMLResponse)
 def approve(version_name: str, _csrf: None = Depends(require_csrf)):
-    return _action(f"/models/{version_name}/approve", "Model approved")
+    return _action(f"/models/{version_name}/approve", "Model onaylandı")
 
 
 @router.post("/model-registry/{model_version_id}/quality-check", response_class=HTMLResponse)
@@ -156,7 +156,7 @@ def quality_check(model_version_id: int, _csrf: None = Depends(require_csrf)):
     try:
         result = _backend_post("/eval-runs", {"model_version_id": model_version_id})
         return toast_fragment(
-            f"Quality check #{int(result['id'])} started.",
+            f"Kalite kontrolü #{int(result['id'])} başlatıldı.",
             kind="success",
         )
     except httpx.HTTPStatusError as exc:
@@ -179,7 +179,7 @@ def model_detail(version_name: str, request: Request, db: DBSession = Depends(ge
         .first()
     )
     if not model:
-        return toast_redirect("/model-registry", "Model not found.", kind="error")
+        return toast_redirect("/model-registry", "Model bulunamadı.", kind="error")
     eval_runs = (
         db.query(EvalRun)
         .filter(EvalRun.model_version_id == model.id)
@@ -210,7 +210,7 @@ def model_detail(version_name: str, request: Request, db: DBSession = Depends(ge
 def deploy(version_name: str, environment: str = Form("production"), _csrf: None = Depends(require_csrf)):
     return _action(
         f"/models/{version_name}/deploy",
-        f"Model deployed to {environment}",
+        f"Model {environment} ortamına dağıtıldı",
         {"environment": environment, "actor": settings.admin_user},
     )
 
@@ -226,7 +226,7 @@ def serving_target(
 ):
     return _action(
         f"/models/{version_name}/serving-target",
-        "Serving target verified",
+        "Sunum hedefi doğrulandı",
         {
             "mode": mode,
             "base_url": base_url,
@@ -240,7 +240,7 @@ def serving_target(
 def rollback(environment: str, _csrf: None = Depends(require_csrf)):
     return _action(
         f"/deployments/{environment}/rollback",
-        f"{environment.title()} rolled back",
+        f"{environment.title()} geri alındı",
         {"actor": settings.admin_user},
     )
 
