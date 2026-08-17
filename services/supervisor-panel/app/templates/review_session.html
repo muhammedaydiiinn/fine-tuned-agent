@@ -93,7 +93,21 @@
   </div>
 
   <aside class="session-review-card">
-    <h2>Görüşme geri bildirimi</h2>
+    <h2>Çağrı Kaydı</h2>
+    <p class="text-muted">Görüşmeyi dinleyerek inceleyin.</p>
+    <div id="review-call-recording"
+         hx-get="/sessions/{{ session.id }}/call-recording"
+         hx-trigger="load"
+         hx-swap="innerHTML"></div>
+
+    <h2 style="margin-top:20px;">Sesli Notlarım</h2>
+    <p class="text-muted">Görüşme sırasında bıraktığınız notlar.</p>
+    <div id="review-voice-notes"
+         hx-get="/sessions/{{ session.id }}/voice-notes"
+         hx-trigger="load"
+         hx-swap="innerHTML"></div>
+
+    <h2 style="margin-top:20px;">Görüşme geri bildirimi</h2>
     <p class="text-muted">İncelenen turlar kaydedildiğinde otomatik olarak eğitim grubuna eklenir.</p>
     <form action="/review/{{ session.id }}" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">

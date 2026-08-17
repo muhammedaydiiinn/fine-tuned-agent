@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Session {{ session.external_session_id or session.id }}{% endblock %}
+{% block title %}Görüşme {{ session.external_session_id or session.id }}{% endblock %}
 
 {% block content %}
 
@@ -11,7 +11,7 @@
 
 <div class="page-header session-page-header">
   <div class="page-header-left">
-    <h1>{{ session.external_session_id or ("Session #" ~ session.id) }}</h1>
+    <h1>{{ session.external_session_id or ("Görüşme #" ~ session.id) }}</h1>
     <div class="page-header-meta">
       <span class="badge badge-{{ 'active' if session.status == 'active' else 'closed' }}">
         {% if session.status == 'active' %}<span class="live-dot"></span>{% endif %}

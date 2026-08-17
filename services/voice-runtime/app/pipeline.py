@@ -229,9 +229,26 @@ class VoicePipeline:
     async def _run_opening_turn(self, room: rtc.Room) -> None:
         """Play the agent greeting while microphone capture is already active."""
         try:
+            response_generation_id = self._generation
             opening = await self.backend.agent_turn(self.session_id, "")
             opening_text = opening["agent_response"]
-            response_generation_id = self._generation
+            # Customer-spoke-first mode: while the greeting was being generated
+            # the customer may already have said something. Their turn (queued
+            # or in flight) answers them — a late greeting would talk over it.
+            customer_turn_pending = (
+                (self._active_turn_task is not None and not self._active_turn_task.done())
+                or not self._utterances.empty()
+            )
+            if response_generation_id != self._generation or customer_turn_pending:
+                await self._emit(
+                    room,
+                    "opening_skipped",
+                    turn_id=opening["turn_id"],
+                    reason="customer_spoke_first",
+                    response_generation_id=response_generation_id,
+                    state="processing",
+                )
+                return
             await self._emit(
                 room,
                 "agent_response",
@@ -409,6 +426,25 @@ class VoicePipeline:
                     state="listening",
                 )
                 return
+            if interruption_kind is None and not decision.is_backchannel:
+                if self._agent_speaking and not self._looks_like_self_echo(
+                    transcript.text
+                ):
+                    # Speech that began BEFORE playback started (e.g. over the
+                    # opening greeting) carries no overlap_kind, so the probe
+                    # never ran. A real transcript while the agent is audible
+                    # is a definite interruption — cut playback now.
+                    self._trigger_barge_in(
+                        overlap_kind or "playback", source="transcript_final"
+                    )
+                    interruption_kind = self._pending_interruption
+                    self._pending_interruption = None
+                elif self._opening_task is not None and not self._opening_task.done():
+                    # Customer spoke first while the greeting is still being
+                    # generated: invalidate it so it is skipped, and answer
+                    # what the customer actually said instead.
+                    self._generation += 1
+                    interruption_kind = "opening"
             if interruption_kind:
                 generation = self._generation
                 await self._emit(
@@ -598,6 +634,15 @@ class VoicePipeline:
         # utterances can never publish a track and play at the same time.
         self._request_playback_cancel()
         async with self._playback_lock:
+            if (
+                response_generation_id is not None
+                and response_generation_id != self._generation
+            ):
+                # A newer generation superseded this response while it waited
+                # for the lock (e.g. the customer spoke over the opening
+                # greeting) — never start playing stale audio.
+                self._last_spoken_ms = 0.0
+                return None, True, None
             # LOCAL cancel event: a later _speak reassigning self._playback_cancel
             # can never orphan this loop, and _request_playback_cancel() still
             # stops us because we store it as the current one.
@@ -671,9 +716,35 @@ class VoicePipeline:
                         )
                     )
                     spoken_samples += len(pcm_buffer) // 2
-                if not cancelled:
-                    await audio_source.wait_for_playout()
+                if cancelled:
+                    # Drop the buffered-but-unplayed tail so the agent falls
+                    # silent immediately instead of finishing ~1s of audio.
+                    spoken_samples -= self._flush_audio_queue(audio_source)
+                else:
+                    # wait_for_playout alone would ignore a barge-in arriving
+                    # during the buffered tail (the audio would play to the
+                    # end and the response be discarded afterwards) — race it
+                    # against the cancel event instead.
+                    playout_task = asyncio.create_task(audio_source.wait_for_playout())
+                    cancel_task = asyncio.create_task(cancel.wait())
+                    try:
+                        done, _ = await asyncio.wait(
+                            {playout_task, cancel_task},
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        if playout_task not in done:
+                            cancelled = True
+                            spoken_samples -= self._flush_audio_queue(audio_source)
+                            with contextlib.suppress(Exception, asyncio.TimeoutError):
+                                await asyncio.wait_for(playout_task, timeout=2.0)
+                    finally:
+                        for task in (playout_task, cancel_task):
+                            if not task.done():
+                                task.cancel()
+                                with contextlib.suppress(asyncio.CancelledError):
+                                    await task
             finally:
+                spoken_samples = max(0, spoken_samples)
                 self._last_spoken_ms = spoken_samples * 1000 / self.settings.tts_sample_rate
                 # Only clear shared speaking-state if we are still the current
                 # playback — a newer _speak may already have taken over.
@@ -689,6 +760,22 @@ class VoicePipeline:
     def _request_playback_cancel(self) -> None:
         if self._playback_cancel is not None:
             self._playback_cancel.set()
+
+    def _flush_audio_queue(self, audio_source) -> int:
+        """Drop buffered-but-unplayed audio; return the flushed sample count.
+
+        Keeps _last_spoken_ms honest: samples captured into the source but
+        never played must not count as heard by the customer.
+        """
+        try:
+            unplayed_seconds = float(audio_source.queued_duration)
+            audio_source.clear_queue()
+        except Exception:
+            logger.debug(
+                "Audio queue flush failed — session=%s", self.session_id
+            )
+            return 0
+        return int(unplayed_seconds * self.settings.tts_sample_rate)
 
     def _trigger_barge_in(self, overlap_kind: str, *, source: str = "probe") -> None:
         """Increment generation and cancel playback — idempotent within one speech episode.

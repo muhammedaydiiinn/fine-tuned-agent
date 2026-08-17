@@ -612,3 +612,100 @@ class PipelineTurnTakingTests(unittest.IsolatedAsyncioTestCase):
         events = [event["event"] for event in pipeline.events]
         self.assertIn("stt_unavailable", events)
         self.assertNotIn("voice_error", events)
+
+
+@unittest.skipIf(VoicePipeline is None, "LiveKit runtime is not installed")
+class OpeningTurnRaceTests(unittest.IsolatedAsyncioTestCase):
+    """Both call-opening modes must work: agent-first (greeting plays, a real
+    interruption cuts it) and customer-first (the greeting is skipped and the
+    customer's actual words are answered)."""
+
+    make_pipeline = PipelineTurnTakingTests.make_pipeline
+
+    async def test_opening_skipped_when_utterance_already_queued(self):
+        pipeline = self.make_pipeline()
+        pipeline._utterances.put_nowait((b"pcm", None))
+
+        await pipeline._run_opening_turn(None)
+
+        self.assertEqual(pipeline.speak_calls, [])
+        events = [event["event"] for event in pipeline.events]
+        self.assertIn("opening_skipped", events)
+        self.assertNotIn("agent_response", events)
+
+    async def test_opening_skipped_when_generation_changed_during_backend(self):
+        pipeline = self.make_pipeline()
+        pipeline.backend = FakeBackend(pipeline, mutate_generation=True)
+
+        await pipeline._run_opening_turn(None)
+
+        self.assertEqual(pipeline.speak_calls, [])
+        self.assertIn(
+            "opening_skipped", [event["event"] for event in pipeline.events]
+        )
+
+    async def test_opening_plays_normally_when_customer_is_silent(self):
+        pipeline = self.make_pipeline()
+
+        await pipeline._run_opening_turn(None)
+
+        self.assertEqual(len(pipeline.speak_calls), 1)
+        events = [event["event"] for event in pipeline.events]
+        self.assertIn("agent_response", events)
+        self.assertIn("voice_turn_complete", events)
+        self.assertNotIn("opening_skipped", events)
+
+    async def test_real_transcript_while_agent_speaking_triggers_barge_in(self):
+        # Speech that started BEFORE playback began carries overlap_kind=None,
+        # so the probe never ran. The final transcript must still cut playback.
+        pipeline = self.make_pipeline("Ich habe eine Frage dazu")
+        pipeline._agent_speaking = True
+        pipeline._current_agent_text = "Guten Tag, mein Name ist Anna Weber."
+        pipeline._playback_cancel = asyncio.Event()
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind=None)
+
+        self.assertTrue(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 1)
+        interruption = next(
+            event
+            for event in pipeline.events
+            if event["event"] == "interruption_detected"
+        )
+        self.assertEqual(interruption["interruption_kind"], "playback")
+        # The turn re-captured the new generation, so its own response played.
+        self.assertIn(
+            "voice_turn_complete", [event["event"] for event in pipeline.events]
+        )
+
+    async def test_self_echo_transcript_does_not_cut_playback(self):
+        pipeline = self.make_pipeline("mein Name ist Anna Weber")
+        pipeline._agent_speaking = True
+        pipeline._current_agent_text = "Guten Tag, mein Name ist Anna Weber."
+        pipeline._playback_cancel = asyncio.Event()
+
+        await pipeline._run_turn(None, b"pcm", overlap_kind=None)
+
+        self.assertFalse(pipeline._playback_cancel.is_set())
+        self.assertEqual(pipeline._generation, 0)
+
+    async def test_customer_first_supersedes_pending_opening(self):
+        pipeline = self.make_pipeline("Hallo, wer ist da?")
+        pipeline._opening_task = asyncio.create_task(asyncio.sleep(10))
+        try:
+            await pipeline._run_turn(None, b"pcm", overlap_kind=None)
+        finally:
+            pipeline._opening_task.cancel()
+
+        # Generation bumped so the opening greeting will be skipped, while the
+        # customer's own turn re-captured it and completed normally.
+        self.assertEqual(pipeline._generation, 1)
+        interruption = next(
+            event
+            for event in pipeline.events
+            if event["event"] == "interruption_detected"
+        )
+        self.assertEqual(interruption["interruption_kind"], "opening")
+        self.assertIn(
+            "voice_turn_complete", [event["event"] for event in pipeline.events]
+        )
