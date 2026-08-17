@@ -42,6 +42,15 @@ server.setup_fnc = _prewarm_whisper
 async def fine_tuned_agent_voice(ctx: agents.JobContext):
     metadata = json.loads(ctx.job.metadata or "{}")
     session_id = metadata.get("session_id") or ctx.room.name
+
+    if settings.voice_engine == "agentsession":
+        # FLAGGED opt-in engine. Handles its own connect + participant wait.
+        from app.agent_session_engine import run_agent_session
+
+        stt = get_or_create_stt(settings, ctx.proc)
+        await run_agent_session(ctx, session_id, settings, stt)
+        return
+
     await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
     try:
         participant = await ctx.wait_for_participant()

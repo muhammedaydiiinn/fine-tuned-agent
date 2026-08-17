@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     livekit_api_secret: str = "devsecretdevsecretdevsecretdevsecret"
     livekit_agent_name: str = "fine-tuned-agent-voice"
 
+    # Voice engine selection. "legacy" = hand-rolled app.pipeline.VoicePipeline
+    # (default, battle-tested). "agentsession" = FLAGGED opt-in LiveKit
+    # AgentSession engine (app.agent_session_engine) for GPU-host live testing.
+    voice_engine: str = "legacy"
+
     agent_backend_url: str = "http://agent-backend:8010"
     api_key: str = ""
 

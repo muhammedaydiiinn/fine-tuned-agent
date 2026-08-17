@@ -3,5 +3,10 @@ httpx==0.28.1
 numpy==2.4.6
 faster-whisper==1.2.1
 livekit-agents==1.6.2
+# FLAGGED AgentSession engine (voice_engine=agentsession) — turn detection + VAD.
+# Version-locked to livekit-agents 1.6.2. NOT in the current image: an image
+# rebuild is required before the agentsession flag can be enabled.
+livekit-plugins-turn-detector==1.6.2
+livekit-plugins-silero==1.6.2
 redis==5.2.1
 pytest==8.3.4
