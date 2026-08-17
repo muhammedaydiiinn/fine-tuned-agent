@@ -165,3 +165,24 @@ class AgentBackend:
                 payload.get("event_id"),
                 payload.get("event_type"),
             )
+
+    async def upload_recording(
+        self, external_session_id: str, filename: str, wav_bytes: bytes
+    ) -> None:
+        """Upload a full-call recording (best-effort — never breaks the session)."""
+        try:
+            client = self._get_client()
+            response = await client.post(
+                f"{self.base_url}/recordings",
+                files={"file": (filename, wav_bytes, "audio/wav")},
+                data={
+                    "kind": "call",
+                    "external_session_id": external_session_id,
+                    "uploaded_by": "voice-runtime",
+                },
+            )
+            response.raise_for_status()
+        except Exception:  # noqa: BLE001 — recording upload is best-effort
+            logger.warning(
+                "Call recording upload failed — session=%s", external_session_id, exc_info=True
+            )

@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     tts_request_timeout_seconds: float = 45.0
     tts_fallback_to_mock: bool = True
 
+    # Record the full call (customer + agent audio) and upload it to
+    # agent-backend for supervisor playback / training review.
+    record_calls: bool = True
+
 
     def validate_runtime(self) -> None:
         """Fail fast at startup if required runtime configuration is missing.

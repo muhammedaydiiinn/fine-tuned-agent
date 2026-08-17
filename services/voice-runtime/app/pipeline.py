@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from app.backend import AgentBackend, BackendError
 from app.config import Settings
+from app.call_recorder import CallRecorder
 from app.segmenter import SegmentationConfig, UtteranceSegmenter
 from app.stt import FasterWhisperSTT, STTError
 from app.tts import FishTTS
@@ -46,6 +47,7 @@ class VoicePipeline:
         self.backend = AgentBackend(settings)
         self.stt = stt or FasterWhisperSTT(settings)
         self.tts = FishTTS(settings)
+        self._recorder = CallRecorder(out_rate=INPUT_SAMPLE_RATE) if settings.record_calls else None
         self.segmenter = UtteranceSegmenter(
             SegmentationConfig(
                 sample_rate=INPUT_SAMPLE_RATE,
@@ -216,6 +218,13 @@ class VoicePipeline:
             with contextlib.suppress(asyncio.CancelledError):
                 await consumer
             await self._cancel_active_work(room, reason="session_closed")
+            if self._recorder is not None and not self._recorder.is_empty():
+                with contextlib.suppress(Exception):
+                    await self.backend.upload_recording(
+                        self.session_id,
+                        f"call-{self.session_id}.wav",
+                        self._recorder.to_wav_bytes(),
+                    )
 
     async def _run_opening_turn(self, room: rtc.Room) -> None:
         """Play the agent greeting while microphone capture is already active."""
@@ -278,7 +287,10 @@ class VoicePipeline:
         stream: rtc.AudioStream,
     ) -> None:
         async for event in stream:
-            utterance = self.segmenter.push(bytes(event.frame.data))
+            frame_bytes = bytes(event.frame.data)
+            if self._recorder is not None:
+                self._recorder.add_customer(frame_bytes, src_rate=INPUT_SAMPLE_RATE)
+            utterance = self.segmenter.push(frame_bytes)
             if self.segmenter.consume_speech_started():
                 self._speech_started_at = time.perf_counter()
                 self._last_partial_text = ""
@@ -631,6 +643,8 @@ class VoicePipeline:
                             break
                         packet = bytes(pcm_buffer[:frame_bytes])
                         del pcm_buffer[:frame_bytes]
+                        if self._recorder is not None:
+                            self._recorder.add_agent(packet, self.settings.tts_sample_rate)
                         if first_audio_ms is None:
                             first_audio_ms = (time.perf_counter() - tts_started) * 1000
                         await audio_source.capture_frame(
