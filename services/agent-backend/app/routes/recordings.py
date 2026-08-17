@@ -3,7 +3,9 @@
 Upload → transcribe (worker callback or mock) → speaker fix-up → import as
 Session → judge/review. Protected by the global X-API-Key middleware.
 """
+import contextlib
 import logging
+import wave
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
@@ -38,6 +40,16 @@ _MOCK_SEGMENTS: list[dict] = [
     {"speaker": "agent", "text": "Die ersten 14 Tage kostenlos, danach 29,99 Euro monatlich, jederzeit kündbar."},
     {"speaker": "customer", "text": "Gut, das klingt interessant."},
 ]
+
+
+def _wav_duration_seconds(path: Path) -> float | None:
+    """Duration of a PCM WAV file from its header, or None if unreadable."""
+    with contextlib.suppress(Exception):
+        with wave.open(str(path), "rb") as wav:
+            rate = wav.getframerate()
+            if rate:
+                return wav.getnframes() / float(rate)
+    return None
 
 
 def _allowed_exts() -> set[str]:
@@ -136,6 +148,8 @@ def upload_recording(
     # Playback-only kinds (voice notes, full call recordings) skip transcription.
     if kind in _PLAYBACK_ONLY:
         recording.status = _PLAYBACK_ONLY[kind]
+        if ext == ".wav":
+            recording.duration_seconds = _wav_duration_seconds(target_path)
         db.commit()
         db.refresh(recording)
         return _response(db, recording)

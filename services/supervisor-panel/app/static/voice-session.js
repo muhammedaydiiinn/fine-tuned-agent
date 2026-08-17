@@ -303,6 +303,8 @@
       persistRecoveryState();
       hasConnectedBefore = true;
       stopButton.disabled = false;
+      stopButton.hidden = false;
+      startButton.hidden = true;
       setVoiceState(isResume ? "listening" : "processing", isResume ? "Devam edildi - dinleniyor" : "Ses ajanı bekleniyor...");
       if (opts.silentRecovery) {
         showToast("success", "Ses odası kurtarıldı ve yeniden katılındı.", "Ses kurtarma");
@@ -345,7 +347,9 @@
     clearReconnectTimer();
     room = null;
     startButton.disabled = false;
+    startButton.hidden = false;
     stopButton.disabled = true;
+    stopButton.hidden = true;
     audioContainer.replaceChildren();
     stopLevelMeter();
     if (hasConnectedBefore) {

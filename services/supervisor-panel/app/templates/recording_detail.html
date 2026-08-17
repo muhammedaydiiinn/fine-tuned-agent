@@ -34,7 +34,9 @@
 {% if recording.stored_path %}
 <section class="content-card">
   <h2>Ses</h2>
-  <audio controls preload="metadata" class="recording-audio" src="/recordings/{{ recording.id }}/audio"></audio>
+  <div class="ab-player recording-audio"
+       data-audio-src="/recordings/{{ recording.id }}/audio"
+       {% if recording.duration_seconds %}data-duration="{{ recording.duration_seconds }}"{% endif %}></div>
 </section>
 {% endif %}
 

@@ -1,12 +1,14 @@
 {% if notes %}
-<ul class="voice-notes-list">
+<div class="recording-list">
   {% for n in notes %}
-  <li class="voice-note-item">
-    <audio class="voice-note-audio" controls preload="none" src="/recordings/{{ n.id }}/audio"></audio>
+  <div class="recording-row">
+    <div class="ab-player"
+         data-audio-src="/recordings/{{ n.id }}/audio"
+         {% if n.duration_seconds %}data-duration="{{ n.duration_seconds }}"{% endif %}></div>
     <time class="voice-note-time" datetime="{{ n.created_at.isoformat() }}" data-panel-datetime></time>
-  </li>
+  </div>
   {% endfor %}
-</ul>
+</div>
 {% else %}
 <div class="helper-text">Henüz sesli not yok.</div>
 {% endif %}

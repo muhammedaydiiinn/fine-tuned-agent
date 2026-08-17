@@ -81,7 +81,7 @@
         <button id="voice-start" class="btn btn-success" type="button">
           <i class="fa-solid fa-headphones"></i> Dinle
         </button>
-        <button id="voice-stop" class="btn btn-outline" type="button" disabled>
+        <button id="voice-stop" class="btn btn-outline" type="button" hidden>
           <i class="fa-solid fa-microphone-slash"></i> Dinlemeyi Durdur
         </button>
       </div>
@@ -93,10 +93,7 @@
 
 <section class="live-session-workspace">
   <div class="live-conversation-panel">
-    <div class="section-title section-title-compact">
-      Canlı Konuşma
-      <span class="badge badge-active"><span class="live-dot"></span> güncelleniyor</span>
-    </div>
+    <div class="section-title section-title-compact">Canlı Konuşma</div>
 
     <div id="session-conversation"
          hx-get="/sessions/{{ session.id }}/conversation"
@@ -325,6 +322,6 @@
 </script>
 <script src="/static/livekit-client.umd.min.js"></script>
 <script src="/static/voice-session-recovery.js?v=1"></script>
-<script src="/static/voice-session.js?v=12"></script>
+<script src="/static/voice-session.js?v=13"></script>
 {% endif %}
 {% endblock %}

@@ -1,13 +1,14 @@
 {% if recordings %}
-<ul class="voice-notes-list">
+<div class="recording-list">
   {% for r in recordings %}
-  <li class="voice-note-item">
-    <audio class="voice-note-audio" controls preload="none" src="/recordings/{{ r.id }}/audio"></audio>
+  <div class="recording-row">
+    <div class="ab-player"
+         data-audio-src="/recordings/{{ r.id }}/audio"
+         {% if r.duration_seconds %}data-duration="{{ r.duration_seconds }}"{% endif %}></div>
     <time class="voice-note-time" datetime="{{ r.created_at.isoformat() }}" data-panel-datetime></time>
-    <a class="btn btn-outline btn-sm" href="/recordings/{{ r.id }}">Detay</a>
-  </li>
+  </div>
   {% endfor %}
-</ul>
+</div>
 {% else %}
 <div class="helper-text">Bu görüşme için çağrı kaydı yok.</div>
 {% endif %}
