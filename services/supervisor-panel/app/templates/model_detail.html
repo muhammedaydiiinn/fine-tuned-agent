@@ -21,13 +21,13 @@
 {# ── Meta cards ──────────────────────────────────────────────────────────── #}
 <div class="stats-row" style="margin-bottom:20px;">
   <div class="stat-card blue">
-    <div class="stat-label">Lifecycle</div>
+    <div class="stat-label">Yaşam Döngüsü</div>
     <div class="stat-value" style="font-size:.9rem;">
       <span class="badge badge-info">{{ lifecycle }}</span>
     </div>
   </div>
   <div class="stat-card purple">
-    <div class="stat-label">Quality Check</div>
+    <div class="stat-label">Kalite Kontrolü</div>
     <div class="stat-value" style="font-size:.9rem;">
       <span class="badge {% if model.eval_status == 'passed' %}badge-approved{% elif model.eval_status == 'failed' %}badge-error{% else %}badge-running{% endif %}">
         {{ model.eval_status }}
@@ -35,11 +35,11 @@
     </div>
   </div>
   <div class="stat-card orange">
-    <div class="stat-label">Deployment</div>
+    <div class="stat-label">Dağıtım</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">{{ model.deployment_status or '—' }}</div>
   </div>
   <div class="stat-card green">
-    <div class="stat-label">Created</div>
+    <div class="stat-label">Oluşturulma</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">
       <time class="panel-datetime" data-panel-datetime datetime="{{ model.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ model.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>
     </div>
@@ -49,25 +49,25 @@
 {# ── Info + Serving config ───────────────────────────────────────────────── #}
 <div class="detail-grid">
   <div class="table-container detail-card">
-    <div class="table-toolbar"><span class="table-toolbar-title">Model Info</span></div>
+    <div class="table-toolbar"><span class="table-toolbar-title">Model Bilgisi</span></div>
     <table class="detail-table">
-      <tr><td>Base model</td><td><code>{{ model.base_model or '—' }}</code></td></tr>
-      <tr><td>Dataset version</td><td><code>{{ model.dataset_version or '—' }}</code></td></tr>
-      <tr><td>LoRA path</td><td class="detail-path">{{ model.lora_path or '—' }}</td></tr>
-      <tr><td>Merged path</td><td class="detail-path">{{ model.merged_path or '—' }}</td></tr>
+      <tr><td>Temel model</td><td><code>{{ model.base_model or '—' }}</code></td></tr>
+      <tr><td>Veri seti sürümü</td><td><code>{{ model.dataset_version or '—' }}</code></td></tr>
+      <tr><td>LoRA yolu</td><td class="detail-path">{{ model.lora_path or '—' }}</td></tr>
+      <tr><td>Birleştirilmiş yol</td><td class="detail-path">{{ model.merged_path or '—' }}</td></tr>
     </table>
   </div>
   <div class="table-container detail-card">
-    <div class="table-toolbar"><span class="table-toolbar-title">Serving Config</span></div>
+    <div class="table-toolbar"><span class="table-toolbar-title">Sunum Yapılandırması</span></div>
     {% if serving %}
     <table class="detail-table">
-      <tr><td>Mode</td><td><code>{{ serving.get('mode', '—') }}</code></td></tr>
+      <tr><td>Mod</td><td><code>{{ serving.get('mode', '—') }}</code></td></tr>
       <tr><td>Slot</td><td><code>{{ serving.get('slot', '—') }}</code></td></tr>
-      <tr><td>Model name</td><td><code>{{ serving.get('model_name', '—') }}</code></td></tr>
-      <tr><td>Base URL</td><td class="detail-path">{{ serving.get('base_url') or '—' }}</td></tr>
+      <tr><td>Model adı</td><td><code>{{ serving.get('model_name', '—') }}</code></td></tr>
+      <tr><td>Temel URL</td><td class="detail-path">{{ serving.get('base_url') or '—' }}</td></tr>
     </table>
     {% else %}
-      <span class="text-muted">No serving config yet.</span>
+      <span class="text-muted">Henüz sunum yapılandırması yok.</span>
     {% endif %}
   </div>
 </div>
@@ -77,19 +77,19 @@
 {% set gate = (latest_eval.metrics_json or {}).get('deployment_gate', {}) if latest_eval else {} %}
 {% set artifact = metadata.get('artifact_manifest', {}) %}
 <div class="table-container" style="padding:16px;margin-bottom:20px;">
-  <div class="table-toolbar"><span class="table-toolbar-title">Actions</span></div>
+  <div class="table-toolbar"><span class="table-toolbar-title">İşlemler</span></div>
   <div class="registry-actions" style="gap:8px;flex-wrap:wrap;">
     {% if model.eval_status in ('pending', 'failed') %}
     <form hx-post="/model-registry/{{ model.id }}/quality-check" hx-target="#model-detail-result" hx-swap="innerHTML">
       <button class="btn btn-outline btn-sm" type="submit">
-        <i class="fa-solid fa-flask-vial"></i> Run Quality Check
+        <i class="fa-solid fa-flask-vial"></i> Kalite Kontrolü Çalıştır
       </button>
     </form>
     {% endif %}
     {% if model.eval_status == 'passed' and gate.get('passed') and artifact.get('valid') and lifecycle not in ('approved', 'deployed') %}
     <form hx-post="/model-registry/{{ model.version_name }}/approve" hx-target="#model-detail-result" hx-swap="innerHTML">
       <button class="btn btn-outline btn-sm" type="submit">
-        <i class="fa-solid fa-check"></i> Approve Release
+        <i class="fa-solid fa-check"></i> Yayını Onayla
       </button>
     </form>
     {% endif %}
@@ -97,11 +97,11 @@
     <form hx-post="/model-registry/{{ model.version_name }}/deploy" hx-target="#model-detail-result" hx-swap="innerHTML">
       <input type="hidden" name="environment" value="production">
       <button class="btn btn-primary btn-sm" type="submit">
-        <i class="fa-solid fa-rocket"></i> Make Live
+        <i class="fa-solid fa-rocket"></i> Canlıya Al
       </button>
     </form>
     {% elif lifecycle == 'approved' %}
-      <span class="badge badge-pending">GPU verification required before deploy</span>
+      <span class="badge badge-pending">Yayına almadan önce GPU doğrulaması gerekli</span>
     {% endif %}
   </div>
 </div>
@@ -109,11 +109,11 @@
 {# ── Eval history ────────────────────────────────────────────────────────── #}
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-toolbar">
-    <span class="table-toolbar-title"><i class="fa-solid fa-flask-vial" style="margin-right:6px;"></i>Quality Check History</span>
+    <span class="table-toolbar-title"><i class="fa-solid fa-flask-vial" style="margin-right:6px;"></i>Kalite Kontrolü Geçmişi</span>
   </div>
   <table>
     <thead>
-      <tr><th>#</th><th>Status</th><th>Score</th><th>Gate</th><th>Started</th><th></th></tr>
+      <tr><th>#</th><th>Durum</th><th>Puan</th><th>Kapı</th><th>Başlangıç</th><th></th></tr>
     </thead>
     <tbody>
     {% for run in eval_runs %}
@@ -134,15 +134,15 @@
         <td>
           {% if rgate %}
             <span class="badge {% if rgate.get('passed') %}badge-approved{% else %}badge-error{% endif %}">
-              {{ 'passed' if rgate.get('passed') else 'failed' }}
+              {{ 'Geçti' if rgate.get('passed') else 'Başarısız' }}
             </span>
           {% else %}—{% endif %}
         </td>
         <td>{% if run.started_at %}<time class="panel-datetime" data-panel-datetime datetime="{{ run.started_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ run.started_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>{% elif run.created_at %}<time class="panel-datetime" data-panel-datetime datetime="{{ run.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>{% else %}—{% endif %}</td>
-        <td><a href="/eval-jobs/{{ run.id }}" style="font-size:.82rem;">View report</a></td>
+        <td><a href="/eval-jobs/{{ run.id }}" style="font-size:.82rem;">Raporu görüntüle</a></td>
       </tr>
     {% else %}
-      <tr><td colspan="6"><div class="empty-state">No quality checks run yet.</div></td></tr>
+      <tr><td colspan="6"><div class="empty-state">Henüz kalite kontrolü çalıştırılmadı.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -151,11 +151,11 @@
 {# ── Deployment history ──────────────────────────────────────────────────── #}
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title"><i class="fa-solid fa-rocket" style="margin-right:6px;"></i>Deployment History</span>
+    <span class="table-toolbar-title"><i class="fa-solid fa-rocket" style="margin-right:6px;"></i>Dağıtım Geçmişi</span>
   </div>
   <table>
     <thead>
-      <tr><th>#</th><th>Environment</th><th>Status</th><th>Action</th><th>Actor</th><th>Rollback Target</th><th>Time</th></tr>
+      <tr><th>#</th><th>Ortam</th><th>Durum</th><th>İşlem</th><th>Kullanıcı</th><th>Geri Alma Hedefi</th><th>Zaman</th></tr>
     </thead>
     <tbody>
     {% for dep in deployments %}
@@ -174,7 +174,7 @@
         <td>{% if dep.deployed_at %}<time class="panel-datetime" data-panel-datetime datetime="{{ dep.deployed_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ dep.deployed_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7"><div class="empty-state">No deployments for this model.</div></td></tr>
+      <tr><td colspan="7"><div class="empty-state">Bu model için dağıtım yok.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>

@@ -29,35 +29,35 @@ logger = logging.getLogger(__name__)
 # Fixed keys per structured section — labels + order for the editor. The values
 # are edited; the keys stay fixed so the prompt layout stays stable.
 PRODUCT_FACT_FIELDS: tuple[tuple[str, str], ...] = (
-    ("trial_period", "Trial period"),
-    ("monthly_price", "Monthly price (after trial)"),
-    ("check_price_normal", "One-time check — normal price"),
-    ("check_price_today", "One-time check — today"),
-    ("app_stores", "App stores"),
-    ("blocked_numbers", "Blocked numbers"),
-    ("risk_entries_example", "Scan result example"),
-    ("risk_entries_range", "Scan result range"),
-    ("legal_support", "Legal support"),
-    ("support_channel", "Support channel"),
+    ("trial_period", "Deneme süresi"),
+    ("monthly_price", "Aylık ücret (deneme sonrası)"),
+    ("check_price_normal", "Tek seferlik kontrol — normal fiyat"),
+    ("check_price_today", "Tek seferlik kontrol — bugün"),
+    ("app_stores", "Uygulama mağazaları"),
+    ("blocked_numbers", "Engellenen numaralar"),
+    ("risk_entries_example", "Tarama sonucu örneği"),
+    ("risk_entries_range", "Tarama sonucu aralığı"),
+    ("legal_support", "Hukuki destek"),
+    ("support_channel", "Destek kanalı"),
 )
 
 CANNED_ANSWER_FIELDS: tuple[tuple[str, str], ...] = (
-    ("price", "Price / trial — enforced on price questions"),
-    ("check_price", "One-time check price"),
-    ("security", "Security / safe link — enforced on security objection"),
-    ("delay_deferral", "Delay — defer phone entry (enforced)"),
-    ("forbidden_data", "Forbidden data request"),
-    ("closing_brief", "Closing farewell — enforced after close"),
-    ("check_explain", "Check explanation"),
-    ("problem_awareness", "Problem awareness"),
+    ("price", "Fiyat / deneme — fiyat sorularında zorunlu"),
+    ("check_price", "Tek seferlik kontrol fiyatı"),
+    ("security", "Güvenlik / güvenli bağlantı — güvenlik itirazında zorunlu"),
+    ("delay_deferral", "Erteleme — telefon girişini ertele (zorunlu)"),
+    ("forbidden_data", "Yasak veri talebi"),
+    ("closing_brief", "Kapanış vedası — kapanıştan sonra zorunlu"),
+    ("check_explain", "Kontrol açıklaması"),
+    ("problem_awareness", "Sorun farkındalığı"),
 )
 
 SECTION_LABELS: dict[str, str] = {
-    "system_instruction": "Sales script & persona",
-    "product_facts": "Product facts",
-    "pdf_rules": "Rules",
-    "objection_faq": "Arguments & FAQ",
-    "canned_answers": "Canned answers",
+    "system_instruction": "Satış senaryosu ve persona",
+    "product_facts": "Ürün bilgileri",
+    "pdf_rules": "Kurallar",
+    "objection_faq": "Argümanlar ve SSS",
+    "canned_answers": "Hazır cevaplar",
 }
 
 SECTIONS = tuple(SECTION_LABELS)
@@ -172,20 +172,20 @@ async def save_content(
     _csrf: None = Depends(require_csrf),
 ):
     if section not in SECTIONS:
-        return toast_redirect("/content", "Unknown section.", kind="error")
+        return toast_redirect("/content", "Bilinmeyen bölüm.", kind="error")
     value = _build_value(await request.form(), section)
     if value is None:
         return toast_redirect(
             "/content",
-            "Nothing saved — the section cannot be emptied.",
+            "Hiçbir şey kaydedilmedi — bölüm boş bırakılamaz.",
             kind="warning",
         )
     _persist(db, section, value)
     logger.info("policy_content saved: section=%s by=%s", section, settings.admin_user)
     return toast_redirect(
         "/content",
-        f"{SECTION_LABELS[section]} saved — live on new calls within ~30s and included in the next training run.",
-        title="Content updated",
+        f"{SECTION_LABELS[section]} kaydedildi — yeni çağrılarda ~30 sn içinde etkin ve bir sonraki eğitim çalışmasına dahil.",
+        title="İçerik güncellendi",
     )
 
 
@@ -197,7 +197,7 @@ def rollback_content(
     _csrf: None = Depends(require_csrf),
 ):
     if section not in SECTIONS:
-        return toast_redirect("/content", "Unknown section.", kind="error")
+        return toast_redirect("/content", "Bilinmeyen bölüm.", kind="error")
     snapshot = (
         db.query(PolicyContentHistory)
         .filter(
@@ -207,11 +207,11 @@ def rollback_content(
         .first()
     )
     if snapshot is None:
-        return toast_redirect("/content", "Version not found.", kind="error")
+        return toast_redirect("/content", "Sürüm bulunamadı.", kind="error")
     _persist(db, section, snapshot.value_json or {})
     logger.info("policy_content rolled back: section=%s to history=%d", section, history_id)
     return toast_redirect(
         "/content",
-        f"{SECTION_LABELS[section]} restored to an earlier version.",
-        title="Rolled back",
+        f"{SECTION_LABELS[section]} önceki bir sürüme geri alındı.",
+        title="Geri alındı",
     )

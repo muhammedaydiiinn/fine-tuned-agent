@@ -2,34 +2,34 @@
 <div class="voice-diagnostics-card">
   <div class="voice-diagnostics-header">
     <div>
-      <div class="voice-diagnostics-title">Voice Diagnostics</div>
-      <div class="voice-diagnostics-subtitle">Mock acceptance view for latency and failure signals</div>
+      <div class="voice-diagnostics-title">Ses Teknik Detayları</div>
+      <div class="voice-diagnostics-subtitle">Gecikme ve hata sinyalleri için örnek kabul görünümü</div>
     </div>
     <span class="voice-health-badge {{ 'voice-health-badge-warning' if voice_health.get('degraded') else 'voice-health-badge-ok' }}">
-      {{ 'Degraded' if voice_health.get('degraded') else 'Stable' }}
+      {{ 'Bozulmuş' if voice_health.get('degraded') else 'Kararlı' }}
     </span>
   </div>
 
   <div class="voice-diagnostics-grid">
-    <div class="voice-diagnostic-stat"><span>P95 End → Audio</span><strong>{{ (voice_health.get('p95_speech_end_to_first_audio_ms')|round|int ~ ' ms') if voice_health.get('p95_speech_end_to_first_audio_ms') is not none else '—' }}</strong></div>
-    <div class="voice-diagnostic-stat"><span>Avg Total Turn</span><strong>{{ (voice_health.get('avg_total_voice_turn_ms')|round|int ~ ' ms') if voice_health.get('avg_total_voice_turn_ms') is not none else '—' }}</strong></div>
-    <div class="voice-diagnostic-stat"><span>Avg STT</span><strong>{{ (voice_health.get('avg_stt_ms')|round|int ~ ' ms') if voice_health.get('avg_stt_ms') is not none else '—' }}</strong></div>
-    <div class="voice-diagnostic-stat"><span>Barge-ins</span><strong>{{ voice_health.get('barge_in_count', 0) }}</strong></div>
-    <div class="voice-diagnostic-stat"><span>STT Unavailable</span><strong>{{ voice_health.get('stt_unavailable_count', 0) }}</strong></div>
-    <div class="voice-diagnostic-stat"><span>TTS Fallbacks</span><strong>{{ voice_health.get('tts_fallback_count', 0) }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>P95 Bitiş → Ses</span><strong>{{ (voice_health.get('p95_speech_end_to_first_audio_ms')|round|int ~ ' ms') if voice_health.get('p95_speech_end_to_first_audio_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Ort. Toplam Tur</span><strong>{{ (voice_health.get('avg_total_voice_turn_ms')|round|int ~ ' ms') if voice_health.get('avg_total_voice_turn_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Ort. STT</span><strong>{{ (voice_health.get('avg_stt_ms')|round|int ~ ' ms') if voice_health.get('avg_stt_ms') is not none else '—' }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>Sözü kesmeler</span><strong>{{ voice_health.get('barge_in_count', 0) }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>STT Kullanılamadı</span><strong>{{ voice_health.get('stt_unavailable_count', 0) }}</strong></div>
+    <div class="voice-diagnostic-stat"><span>TTS Yedeğe Geçiş</span><strong>{{ voice_health.get('tts_fallback_count', 0) }}</strong></div>
   </div>
 
   <div class="voice-diagnostics-table-wrap">
     <table class="voice-diagnostics-table">
       <thead>
         <tr>
-          <th>Turn</th>
-          <th>Intent</th>
+          <th>Tur</th>
+          <th>Niyet</th>
           <th>STT</th>
-          <th>Backend</th>
-          <th>TTS First</th>
-          <th>End → Audio</th>
-          <th>Total</th>
+          <th>Arka Uç</th>
+          <th>İlk TTS</th>
+          <th>Bitiş → Ses</th>
+          <th>Toplam</th>
         </tr>
       </thead>
       <tbody>
@@ -52,11 +52,11 @@
 <div class="voice-diagnostics-card acceptance-card">
   <div class="voice-diagnostics-header">
     <div>
-      <div class="voice-diagnostics-title">Acceptance Readiness</div>
-      <div class="voice-diagnostics-subtitle">Auto-checks that are feasible before the GPU host is available</div>
+      <div class="voice-diagnostics-title">Kabule Hazırlık</div>
+      <div class="voice-diagnostics-subtitle">GPU ana makinesi hazır olmadan önce yapılabilen otomatik kontroller</div>
     </div>
     <span class="voice-health-badge {{ 'voice-health-badge-ok' if voice_acceptance.get('ready_for_gpu_acceptance') else 'voice-health-badge-warning' }}">
-      {{ voice_acceptance.get('auto_passed') }}/{{ voice_acceptance.get('auto_total') }} auto checks
+      {{ voice_acceptance.get('auto_passed') }}/{{ voice_acceptance.get('auto_total') }} otomatik kontrol
     </span>
   </div>
 

@@ -51,13 +51,13 @@ def compile_turn_instruction(
     )
     if not turn:
         return HTMLResponse(
-            '<div class="alert alert-error">Turn not found.</div>',
+            '<div class="alert alert-error">Tur bulunamadı.</div>',
             status_code=404,
         )
     clean_instruction = instruction.strip()
     if not clean_instruction:
         return HTMLResponse(
-            '<div class="alert alert-warning">Enter a supervisor instruction first.</div>',
+            '<div class="alert alert-warning">Önce bir süpervizör talimatı girin.</div>',
             status_code=422,
         )
 
@@ -78,7 +78,7 @@ def compile_turn_instruction(
     except Exception as exc:
         logger.exception("Review compiler request failed")
         return HTMLResponse(
-            '<div class="alert alert-error">Review compiler is unavailable.</div>',
+            '<div class="alert alert-error">İnceleme derleyicisi kullanılamıyor.</div>',
             status_code=502,
         )
 
@@ -111,7 +111,7 @@ def reject_compiled_instruction(
     )
     if not exists:
         return HTMLResponse(
-            '<div class="alert alert-error">Turn not found.</div>',
+            '<div class="alert alert-error">Tur bulunamadı.</div>',
             status_code=404,
         )
     return HTMLResponse("")
@@ -210,7 +210,7 @@ def review_session(
 ):
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect("/review", "Review not found.", kind="error")
+        return toast_redirect("/review", "İnceleme bulunamadı.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -251,13 +251,13 @@ def save_review(
     if rating not in {"good", "mixed", "bad"}:
         return toast_redirect(
             f"/review/{session_id}",
-            "Select a rating before saving.",
+            "Kaydetmeden önce bir değerlendirme seçin.",
             kind="warning",
-            title="Review not saved",
+            title="İnceleme kaydedilmedi",
         )
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not session:
-        return toast_redirect("/review", "Review not found.", kind="error")
+        return toast_redirect("/review", "İnceleme bulunamadı.", kind="error")
     turns = (
         db.query(Turn)
         .filter(Turn.session_id == session_id)
@@ -284,8 +284,8 @@ def save_review(
     db.commit()
 
     n = len(candidate_ids)
-    msg = f"Review saved · {n} turns added to training data." if n > 0 else "Review saved."
-    return toast_redirect("/review", msg, title="Review saved")
+    msg = f"İnceleme kaydedildi · {n} tur eğitim verisine eklendi." if n > 0 else "İnceleme kaydedildi."
+    return toast_redirect("/review", msg, title="İnceleme kaydedildi")
 
 
 def _collect_review_candidates(

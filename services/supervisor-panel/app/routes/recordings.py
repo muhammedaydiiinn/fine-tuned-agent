@@ -69,14 +69,14 @@ async def upload_recording(
         except Exception:
             detail = exc.response.text[:200]
         logger.warning("Recording upload rejected: %s", detail)
-        return toast_redirect("/recordings", f"Upload rejected: {detail}", kind="error", title="Upload failed")
+        return toast_redirect("/recordings", f"Yükleme reddedildi: {detail}", kind="error", title="Yükleme başarısız")
     except Exception as exc:
         logger.exception("Recording upload failed")
-        return toast_redirect("/recordings", f"Upload failed: {exc}", kind="error", title="Upload failed")
+        return toast_redirect("/recordings", f"Yükleme başarısız: {exc}", kind="error", title="Yükleme başarısız")
     return toast_redirect(
         f"/recordings/{recording_id}",
-        "Recording uploaded. Transcription starts automatically.",
-        title="Recording uploaded",
+        "Kayıt yüklendi. Transkripsiyon otomatik olarak başlıyor.",
+        title="Kayıt yüklendi",
     )
 
 
@@ -84,7 +84,7 @@ async def upload_recording(
 def recording_detail(recording_id: int, request: Request, db: DBSession = Depends(get_db)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if recording is None:
-        return HTMLResponse("<h2>Recording not found</h2>", status_code=404)
+        return HTMLResponse("<h2>Kayıt bulunamadı</h2>", status_code=404)
     segments = (
         db.query(RecordingSegment)
         .filter(RecordingSegment.recording_id == recording_id)
@@ -138,8 +138,8 @@ def recording_status_fragment(recording_id: int, db: DBSession = Depends(get_db)
     if recording.status == "transcribing" or judge_status == "running":
         return HTMLResponse(
             '<div class="alert alert-info"><i class="fa-solid fa-spinner fa-spin"></i> '
-            f"Processing… (status: {recording.status}"
-            + (f", judge: {judge_status}" if judge_status else "")
+            f"İşleniyor… (durum: {recording.status}"
+            + (f", değerlendirici: {judge_status}" if judge_status else "")
             + ")</div>"
         )
     response = HTMLResponse("")
@@ -151,15 +151,15 @@ def recording_status_fragment(recording_id: int, db: DBSession = Depends(get_db)
 def recording_audio(recording_id: int, db: DBSession = Depends(get_db)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if recording is None or not recording.stored_path:
-        return HTMLResponse("Not found", status_code=404)
+        return HTMLResponse("Bulunamadı", status_code=404)
     resolved = Path(recording.stored_path).resolve()
     try:
         resolved.relative_to(_DATA_ROOT.resolve())
     except ValueError:
         logger.warning("Blocked audio path outside /data: %s", recording.stored_path)
-        return HTMLResponse("Forbidden", status_code=403)
+        return HTMLResponse("Yasak", status_code=403)
     if not resolved.is_file():
-        return HTMLResponse("Audio file missing", status_code=404)
+        return HTMLResponse("Ses dosyası bulunamadı", status_code=404)
     media_types = {
         ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
         ".ogg": "audio/ogg", ".flac": "audio/flac", ".opus": "audio/opus",
@@ -193,7 +193,7 @@ def save_segment(
         response.raise_for_status()
     except Exception:
         logger.exception("Segment save failed")
-        return toast_fragment("Segment could not be saved.", kind="error", status_code=502)
+        return toast_fragment("Segment kaydedilemedi.", kind="error", status_code=502)
     segment = (
         db.query(RecordingSegment).filter(RecordingSegment.id == segment_id).first()
     )
@@ -220,19 +220,19 @@ def _proxy_action(recording_id: int, path: str, ok_message: str, timeout: float 
         except Exception:
             detail = exc.response.text[:200]
         return toast_redirect(
-            f"/recordings/{recording_id}", detail or "Action failed.", kind="error", title="Action failed"
+            f"/recordings/{recording_id}", detail or "İşlem başarısız.", kind="error", title="İşlem başarısız"
         )
     except Exception as exc:
         logger.exception("Recording action %s failed", path)
         return toast_redirect(
-            f"/recordings/{recording_id}", f"Action failed: {exc}", kind="error", title="Action failed"
+            f"/recordings/{recording_id}", f"İşlem başarısız: {exc}", kind="error", title="İşlem başarısız"
         )
-    return toast_redirect(f"/recordings/{recording_id}", ok_message, title="Done")
+    return toast_redirect(f"/recordings/{recording_id}", ok_message, title="Tamam")
 
 
 @router.post("/recordings/{recording_id}/reattribute")
 def reattribute(recording_id: int, _csrf: None = Depends(require_csrf)):
-    return _proxy_action(recording_id, "reattribute", "Speaker attribution re-run completed.")
+    return _proxy_action(recording_id, "reattribute", "Konuşmacı ataması yeniden çalıştırıldı.")
 
 
 @router.post("/recordings/{recording_id}/import")
@@ -240,11 +240,11 @@ def import_recording(recording_id: int, _csrf: None = Depends(require_csrf)):
     return _proxy_action(
         recording_id,
         "import",
-        "Recording imported as a session — it is now in the Review queue.",
+        "Kayıt bir görüşme olarak içe aktarıldı — artık İnceleme kuyruğunda.",
         timeout=300.0,
     )
 
 
 @router.post("/recordings/{recording_id}/judge")
 def judge_recording(recording_id: int, _csrf: None = Depends(require_csrf)):
-    return _proxy_action(recording_id, "judge", "Judge analysis started.", timeout=30.0)
+    return _proxy_action(recording_id, "judge", "Değerlendirici analizi başlatıldı.", timeout=30.0)

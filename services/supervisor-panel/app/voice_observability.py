@@ -130,42 +130,42 @@ def build_voice_acceptance(turns, events) -> dict[str, Any]:
 
     checks = [
         {
-            "label": "10 measured voice turns",
+            "label": "10 ölçülen ses turu",
             "status": "pass" if has_ten_turns else "pending",
-            "detail": f"{len(latest_measured_turns)}/10 measured turns captured",
+            "detail": f"{len(latest_measured_turns)}/10 ölçülen tur yakalandı",
         },
         {
-            "label": "Turn indexes 0-9 without gaps",
+            "label": "Tur dizinleri 0-9 arası boşluksuz",
             "status": "pass" if has_contiguous_ten else "pending",
             "detail": (
-                "Indexes are contiguous from 0 to 9"
+                "Dizinler 0'dan 9'a kesintisiz"
                 if has_contiguous_ten
-                else f"Observed baseline indexes: {baseline_indexes or 'none'}"
+                else f"Gözlemlenen temel dizinler: {baseline_indexes or 'yok'}"
             ),
         },
         {
-            "label": "Transcript and agent response persisted",
+            "label": "Transkript ve ajan yanıtı kaydedildi",
             "status": "pass" if has_transcript_and_response and has_ten_turns else "pending",
             "detail": (
-                "All measured turns have transcript and agent response"
+                "Tüm ölçülen turların transkripti ve ajan yanıtı var"
                 if has_transcript_and_response
-                else "Some measured turns are missing transcript or response"
+                else "Bazı ölçülen turlarda transkript veya yanıt eksik"
             ),
         },
         {
-            "label": "P95 speech end to first audio under 2500 ms",
+            "label": "P95 konuşma sonundan ilk sese kadar 2500 ms altında",
             "status": "pass" if p95_ok else "pending",
             "detail": (
-                f"P95 is {round(p95_latest)} ms"
+                f"P95 {round(p95_latest)} ms"
                 if p95_latest is not None
-                else "Not enough measured turns yet"
+                else "Henüz yeterli ölçülen tur yok"
             ),
         },
         {
-            "label": "No degraded voice events recorded",
+            "label": "Kaydedilmiş bozulmuş ses olayı yok",
             "status": "pass" if no_degradation else "fail",
             "detail": (
-                "No STT, TTS fallback, or runtime errors recorded"
+                "STT, TTS yedeği veya çalışma zamanı hatası kaydedilmedi"
                 if no_degradation
                 else (
                     f"voice_error={event_counts.get('voice_error', 0)}, "
@@ -175,19 +175,19 @@ def build_voice_acceptance(turns, events) -> dict[str, Any]:
             ),
         },
         {
-            "label": "Real GPU Whisper + Fish + browser microphone run",
+            "label": "Gerçek GPU Whisper + Fish + tarayıcı mikrofon çalıştırması",
             "status": "manual",
-            "detail": "Requires the target GPU host and a real browser microphone session",
+            "detail": "Hedef GPU sunucusu ve gerçek bir tarayıcı mikrofon oturumu gerektirir",
         },
         {
-            "label": "German numbers, price, and product names spoken",
+            "label": "Almanca sayılar, fiyat ve ürün adları seslendirildi",
             "status": "manual",
-            "detail": "Needs manual scenario coverage during live acceptance",
+            "detail": "Canlı kabul sırasında manuel senaryo kapsamı gerektirir",
         },
         {
-            "label": "Heard audio matches persisted agent response",
+            "label": "Duyulan ses, kaydedilen ajan yanıtıyla eşleşiyor",
             "status": "manual",
-            "detail": "Needs human confirmation while listening to the live session",
+            "detail": "Canlı görüşme dinlenirken insan onayı gerektirir",
         },
     ]
     auto_passed = sum(1 for item in checks if item["status"] == "pass")

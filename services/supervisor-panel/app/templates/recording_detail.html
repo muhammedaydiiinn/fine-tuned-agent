@@ -1,28 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Recording {{ recording.id }}{% endblock %}
+{% block title %}Kayıt {{ recording.id }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Recording #{{ recording.id }} — {{ recording.filename }}</h1>
+    <h1>Kayıt #{{ recording.id }} — {{ recording.filename }}</h1>
     <span class="text-muted">
-      {{ "Good example — learn from this call" if recording.kind == "good_example" else "To correct — rewrite agent lines before training" }}
+      {{ "İyi örnek — bu görüşmeden öğren" if recording.kind == "good_example" else "Düzeltilecek — eğitimden önce temsilci satırlarını yeniden yaz" }}
       {% if recording.notes %} · {{ recording.notes }}{% endif %}
     </span>
   </div>
   <div class="page-header-meta">
-    {% if recording.status == "failed" %}<span class="badge badge-error">failed</span>
-    {% elif recording.status == "imported" %}<span class="badge badge-approved">imported</span>
-    {% elif recording.status == "transcribing" %}<span class="badge badge-running">transcribing</span>
+    {% if recording.status == "failed" %}<span class="badge badge-error">başarısız</span>
+    {% elif recording.status == "imported" %}<span class="badge badge-approved">içe aktarıldı</span>
+    {% elif recording.status == "transcribing" %}<span class="badge badge-running">yazıya dökülüyor</span>
     {% else %}<span class="badge badge-info">{{ recording.status }}</span>{% endif %}
-    {% if recording.attribution_method %}<span class="badge badge-intent">speakers: {{ recording.attribution_method }}</span>{% endif %}
+    {% if recording.attribution_method %}<span class="badge badge-intent">konuşmacılar: {{ recording.attribution_method }}</span>{% endif %}
   </div>
 </div>
 
 {% if recording.status == "transcribing" or analysis.get("judge_status") == "running" %}
 <div hx-get="/recordings/{{ recording.id }}/status" hx-trigger="every 5s" hx-swap="outerHTML">
   <div class="alert alert-info"><i class="fa-solid fa-spinner fa-spin"></i>
-    Processing… (status: {{ recording.status }}{% if analysis.get("judge_status") %}, judge: {{ analysis.get("judge_status") }}{% endif %})
+    İşleniyor… (durum: {{ recording.status }}{% if analysis.get("judge_status") %}, değerlendirici: {{ analysis.get("judge_status") }}{% endif %})
   </div>
 </div>
 {% endif %}
@@ -33,42 +33,42 @@
 
 {% if recording.stored_path %}
 <section class="content-card">
-  <h2>Audio</h2>
+  <h2>Ses</h2>
   <audio controls preload="metadata" class="recording-audio" src="/recordings/{{ recording.id }}/audio"></audio>
 </section>
 {% endif %}
 
 {% if recording.status in ("transcribed", "imported") %}
 <section class="content-card">
-  <h2>Actions</h2>
-  <p class="text-muted">Approved turns count toward the auto-train threshold.</p>
+  <h2>İşlemler</h2>
+  <p class="text-muted">Onaylanan turlar otomatik eğitim eşiğine sayılır.</p>
   <div class="recording-actions">
     {% if recording.status == "transcribed" %}
       {% if unknown_count > 0 %}
-      <span class="badge badge-pending">{{ unknown_count }} segment(s) still unknown — assign speakers before import</span>
+      <span class="badge badge-pending">{{ unknown_count }} segment hâlâ belirsiz — içe aktarmadan önce konuşmacıları atayın</span>
       {% endif %}
       <form method="post" action="/recordings/{{ recording.id }}/reattribute">
         <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-        <button class="btn btn-outline" type="submit"><i class="fa-solid fa-wand-magic-sparkles"></i> Re-run speaker attribution</button>
+        <button class="btn btn-outline" type="submit"><i class="fa-solid fa-wand-magic-sparkles"></i> Konuşmacı atamasını yeniden çalıştır</button>
       </form>
       <form method="post" action="/recordings/{{ recording.id }}/import">
         <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-        <button class="btn btn-primary" type="submit" {% if unknown_count > 0 %}disabled title="Assign all speakers first"{% endif %}>
-          <i class="fa-solid fa-file-import"></i> Import as session
+        <button class="btn btn-primary" type="submit" {% if unknown_count > 0 %}disabled title="Önce tüm konuşmacıları atayın"{% endif %}>
+          <i class="fa-solid fa-file-import"></i> Görüşme olarak içe aktar
         </button>
       </form>
     {% elif recording.status == "imported" %}
       <a class="btn btn-primary" href="/review/{{ recording.session_id }}">
-        <i class="fa-solid fa-clipboard-check"></i> Review &amp; approve for training
+        <i class="fa-solid fa-clipboard-check"></i> Eğitim için incele ve onayla
       </a>
       <a class="btn btn-outline" href="/sessions/{{ recording.session_id }}">
-        <i class="fa-solid fa-pen"></i> Correct individual turns
+        <i class="fa-solid fa-pen"></i> Turları tek tek düzelt
       </a>
       {% if analysis.get("judge_status") != "running" %}
       <form method="post" action="/recordings/{{ recording.id }}/judge">
         <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
         <button class="btn btn-outline" type="submit"><i class="fa-solid fa-scale-balanced"></i>
-          {{ "Re-run judge analysis" if analysis.get("judge_status") == "completed" else "Run judge analysis" }}
+          {{ "Değerlendirici analizini yeniden çalıştır" if analysis.get("judge_status") == "completed" else "Değerlendirici analizini çalıştır" }}
         </button>
       </form>
       {% endif %}
@@ -79,20 +79,20 @@
 
 {% if analysis.get("judge_status") == "completed" %}
 <div class="stats-row">
-  <div class="stat-card"><div class="stat-label">Turns judged</div><div class="stat-value">{{ analysis.get("judged", "—") }}</div></div>
-  <div class="stat-card"><div class="stat-label">Mean score</div><div class="stat-value">{{ "%.2f" | format(analysis.get("mean_overall")) if analysis.get("mean_overall") is not none else "—" }}</div></div>
-  <div class="stat-card"><div class="stat-label">Pass rate</div><div class="stat-value">{{ "%.0f%%" | format(analysis.get("pass_rate") * 100) if analysis.get("pass_rate") is not none else "—" }}</div></div>
+  <div class="stat-card"><div class="stat-label">Değerlendirilen tur</div><div class="stat-value">{{ analysis.get("judged", "—") }}</div></div>
+  <div class="stat-card"><div class="stat-label">Ortalama puan</div><div class="stat-value">{{ "%.2f" | format(analysis.get("mean_overall")) if analysis.get("mean_overall") is not none else "—" }}</div></div>
+  <div class="stat-card"><div class="stat-label">Geçme oranı</div><div class="stat-value">{{ "%.0f%%" | format(analysis.get("pass_rate") * 100) if analysis.get("pass_rate") is not none else "—" }}</div></div>
 </div>
 {% elif analysis.get("judge_status") == "failed" %}
-<div class="alert alert-error">Judge analysis failed: {{ analysis.get("error", "unknown error") }}</div>
+<div class="alert alert-error">Değerlendirici analizi başarısız oldu: {{ analysis.get("error", "bilinmeyen hata") }}</div>
 {% endif %}
 
 {% if recording.status == "imported" and turns %}
 <div class="table-container recording-table">
-  <div class="table-toolbar"><span class="table-toolbar-title">Imported turns</span></div>
+  <div class="table-toolbar"><span class="table-toolbar-title">İçe aktarılan turlar</span></div>
   <table>
     <thead>
-      <tr><th>#</th><th>Customer</th><th>Agent</th><th>Intent</th><th>Warnings</th><th>Judge</th></tr>
+      <tr><th>#</th><th>Müşteri</th><th>Temsilci</th><th>Niyet</th><th>Uyarılar</th><th>Değerlendirici</th></tr>
     </thead>
     <tbody>
       {% for turn in turns %}
@@ -105,7 +105,7 @@
         <td><span class="badge badge-intent">{{ turn.intent }}</span></td>
         <td>
           {% for warning in warnings %}
-          <span class="badge badge-pending" title="Fix via corrections before approving — a violating example fails the whole training build">
+          <span class="badge badge-pending" title="Onaylamadan önce düzeltmelerle giderin — kural ihlali olan bir örnek tüm eğitim derlemesini başarısız kılar">
             <i class="fa-solid fa-triangle-exclamation"></i> {{ warning }}</span>
           {% else %}<span class="text-muted">—</span>{% endfor %}
         </td>
@@ -128,12 +128,12 @@
 {% if segments %}
 <div class="table-container recording-table">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Transcript segments</span>
-    <span class="table-toolbar-meta">Set the speaker for each line{% if recording.kind == "to_correct" %}, and rewrite agent lines in the second box{% endif %}. Changes after import require re-importing a new upload.</span>
+    <span class="table-toolbar-title">Transkript segmentleri</span>
+    <span class="table-toolbar-meta">Her satır için konuşmacıyı belirleyin{% if recording.kind == "to_correct" %} ve temsilci satırlarını ikinci kutuda yeniden yazın{% endif %}. İçe aktardıktan sonraki değişiklikler yeni bir yüklemenin yeniden içe aktarılmasını gerektirir.</span>
   </div>
   <table>
     <thead>
-      <tr><th class="segment-time-col">Time</th><th colspan="3">Speaker &amp; text</th></tr>
+      <tr><th class="segment-time-col">Zaman</th><th colspan="3">Konuşmacı ve metin</th></tr>
     </thead>
     <tbody>
       {% for segment in segments %}

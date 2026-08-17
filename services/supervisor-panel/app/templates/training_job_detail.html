@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Job #{{ job.id }}{% endblock %}
+{% block title %}İş #{{ job.id }}{% endblock %}
 
 {% block content %}
 
@@ -8,38 +8,38 @@
     <a href="/pipeline" class="btn btn-outline" style="margin-right:12px;">
       <i class="fa-solid fa-arrow-left"></i>
     </a>
-    <h1>Training Job <span class="text-muted">#{{ job.id }}</span></h1>
+    <h1>Eğitim İşi <span class="text-muted">#{{ job.id }}</span></h1>
   </div>
 </div>
 
 {# ── Meta cards ──────────────────────────────────────────────────────────── #}
 <div class="stats-row" style="margin-bottom:20px;">
   <div class="stat-card blue">
-    <div class="stat-label">Status</div>
+    <div class="stat-label">Durum</div>
     <div class="stat-value" style="font-size:1rem;">
       {% if job.status == 'pending' %}
-        <span class="badge badge-pending">pending</span>
+        <span class="badge badge-pending">beklemede</span>
       {% elif job.status == 'running' %}
-        <span class="badge badge-running">running</span>
+        <span class="badge badge-running">çalışıyor</span>
       {% elif job.status == 'completed' %}
-        <span class="badge badge-approved">completed</span>
+        <span class="badge badge-approved">tamamlandı</span>
       {% else %}
         <span class="badge badge-error">{{ job.status }}</span>
       {% endif %}
     </div>
   </div>
   <div class="stat-card purple">
-    <div class="stat-label">Progress</div>
+    <div class="stat-label">İlerleme</div>
     <div class="stat-value" style="font-size:1rem;">{{ pct }}%</div>
   </div>
   <div class="stat-card orange">
-    <div class="stat-label">Started</div>
+    <div class="stat-label">Başlangıç</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">
       {% if job.started_at %}<time class="panel-datetime" data-panel-datetime datetime="{{ job.started_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ job.started_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>{% else %}—{% endif %}
     </div>
   </div>
   <div class="stat-card green">
-    <div class="stat-label">Duration</div>
+    <div class="stat-label">Süre</div>
     <div class="stat-value" style="font-size:.85rem;font-weight:500;">
       {% if job.started_at and job.finished_at %}
         {% set s = (job.finished_at - job.started_at).seconds %}
@@ -47,7 +47,7 @@
         {% elif s >= 60 %}{{ s // 60 }}m {{ s % 60 }}s
         {% else %}{{ s }}s{% endif %}
       {% elif job.started_at %}
-        running…
+        çalışıyor…
       {% else %}—{% endif %}
     </div>
   </div>
@@ -64,7 +64,7 @@
 
 {% if job.status == 'failed' and job.error_message %}
 <div class="table-container" style="margin-bottom:16px;">
-  <div class="table-toolbar"><span class="table-toolbar-title">Error</span></div>
+  <div class="table-toolbar"><span class="table-toolbar-title">Hata</span></div>
   <pre style="font-size:.8rem;color:var(--red);white-space:pre-wrap;word-break:break-all;padding:12px 16px;margin:0;">{{ job.error_message }}</pre>
 </div>
 {% endif %}
@@ -72,12 +72,12 @@
 <details class="table-container" style="margin-bottom:16px;">
   <summary style="padding:12px 16px;cursor:pointer;font-weight:600;font-size:.85rem;list-style:none;">
     <i class="fa-solid fa-chevron-right" style="margin-right:6px;font-size:.75rem;transition:transform .15s;" data-summary-icon></i>
-    Technical details
+    Teknik ayrıntılar
   </summary>
   <div style="padding:0 16px 16px;">
-    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Input</div>
+    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Girdi</div>
     <pre class="detail-code" style="margin-bottom:12px;">{{ job.input_json | tojson(indent=2) if job.input_json else '—' }}</pre>
-    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Output</div>
+    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;">Çıktı</div>
     {% if job.output_json %}
       <pre class="detail-code">{{ job.output_json | tojson(indent=2) }}</pre>
     {% else %}
@@ -100,10 +100,10 @@
 <div class="table-container">
   <div class="table-toolbar">
     <span class="table-toolbar-title">
-      <i class="fa-solid fa-terminal" style="margin-right:6px;"></i>Logs
+      <i class="fa-solid fa-terminal" style="margin-right:6px;"></i>Günlükler
     </span>
     {% if job.status in ('pending', 'running') %}
-      <span class="badge badge-running" style="font-size:.72rem;">live</span>
+      <span class="badge badge-running" style="font-size:.72rem;">canlı</span>
     {% endif %}
   </div>
   <div id="log-container"

@@ -1,25 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Turn #{{ turn.turn_index }}{% endblock %}
+{% block title %}Tur #{{ turn.turn_index }}{% endblock %}
 
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/">Sessions</a>
+  <a href="/">Görüşmeler</a>
   <span class="breadcrumb-sep">›</span>
   <a href="/sessions/{{ session.id }}">{{ session.external_session_id or ("#" ~ session.id) }}</a>
   <span class="breadcrumb-sep">›</span>
-  <span>Turn #{{ turn.turn_index }}</span>
+  <span>Tur #{{ turn.turn_index }}</span>
 </div>
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Turn #{{ turn.turn_index }}</h1>
+    <h1>Tur #{{ turn.turn_index }}</h1>
     <div class="flex-center" style="gap:6px;flex-wrap:wrap;">
       {% if turn.intent %}<span class="badge badge-intent">{{ turn.intent }}</span>{% endif %}
       {% if turn.next_action %}<span class="badge badge-action">{{ turn.next_action }}</span>{% endif %}
       {% if turn.risk %}<span class="badge badge-risk-{{ turn.risk }}">{{ turn.risk }}</span>{% endif %}
       {% if not turn.allowed_to_continue %}
-        <span class="badge badge-error">Blocked</span>
+        <span class="badge badge-error">Engellendi</span>
       {% endif %}
     </div>
   </div>
@@ -33,11 +33,11 @@
     <div class="info-value" style="font-size:16px;">{{ turn.latency_json.get('llm_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
   </div>
   <div class="info-card">
-    <div class="info-label">Backend</div>
+    <div class="info-label">Arka Uç</div>
     <div class="info-value" style="font-size:16px;">{{ turn.latency_json.get('backend_ms', 0)|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
   </div>
   <div class="info-card">
-    <div class="info-label">Total</div>
+    <div class="info-label">Toplam</div>
     <div class="info-value" style="font-size:16px;color:var(--accent-2)">{{ turn.latency_json.get('total_voice_turn_ms', turn.latency_json.get('total_ms', 0))|round|int }} <span style="font-size:11px;font-weight:400;color:var(--text-3)">ms</span></div>
   </div>
   {% if turn.model_version %}
@@ -50,32 +50,32 @@
 {% endif %}
 
 <!-- Conversation -->
-<div class="section-title">Conversation</div>
+<div class="section-title">Görüşme</div>
 <div class="chat-block">
   <div class="chat-bubble chat-customer">
-    <div class="bubble-label">Customer</div>
+    <div class="bubble-label">Müşteri</div>
     {{ turn.customer_text }}
   </div>
   <div class="chat-bubble chat-agent">
-    <div class="bubble-label">Agent</div>
+    <div class="bubble-label">Ajan</div>
     {{ turn.agent_response or "—" }}
   </div>
 </div>
 
 <!-- Existing Corrections -->
 {% if corrections %}
-<div class="section-title">Previous Corrections ({{ corrections|length }})</div>
+<div class="section-title">Önceki Düzeltmeler ({{ corrections|length }})</div>
 <div class="table-container" style="margin-bottom:20px;">
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Type</th>
-          <th>Old Response</th>
-          <th>New Response</th>
-          <th>Memory</th>
-          <th>Training</th>
-          <th>Date</th>
+          <th>Tür</th>
+          <th>Eski Cevap</th>
+          <th>Yeni Cevap</th>
+          <th>Hafıza</th>
+          <th>Eğitim</th>
+          <th>Tarih</th>
         </tr>
       </thead>
       <tbody>
@@ -98,7 +98,7 @@
 <!-- Correction Form -->
 <div class="correction-panel">
   <div class="correction-header">
-    <div class="correction-header-title">Add Correction</div>
+    <div class="correction-header-title">Düzeltme Ekle</div>
     <div id="correction-result" data-toast-only="true"></div>
   </div>
 
@@ -109,43 +109,43 @@
     <div class="quick-actions">
       <button type="submit" name="mark_good" value="1" class="btn btn-success">
         <i class="fa-solid fa-check" style="font-size:12px;"></i>
-        Mark as Good
+        İyi olarak işaretle
       </button>
     </div>
 
     <hr class="divider">
 
     <div class="form-group">
-      <label>Current Response</label>
+      <label>Mevcut Cevap</label>
       <textarea class="readonly-area" readonly rows="3">{{ turn.agent_response or "" }}</textarea>
     </div>
 
     <div class="form-group">
-      <label for="corrected_response">Corrected Response</label>
+      <label for="corrected_response">Düzeltilmiş Cevap</label>
       <textarea id="corrected_response" name="corrected_response" rows="4"
-                placeholder="Enter the correct German response here...">{{ turn.agent_response or "" }}</textarea>
+                placeholder="Doğru Almanca cevabı buraya girin...">{{ turn.agent_response or "" }}</textarea>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label>Current Next Action</label>
+        <label>Mevcut Sonraki Adım</label>
         <input type="text" readonly value="{{ turn.next_action or '' }}" class="readonly-input">
       </div>
       <div class="form-group">
-        <label for="corrected_next_action">Corrected Next Action</label>
+        <label for="corrected_next_action">Düzeltilmiş Sonraki Adım</label>
         <input type="text" id="corrected_next_action" name="corrected_next_action"
-               placeholder="e.g. explain_price" value="{{ turn.next_action or '' }}">
+               placeholder="örn. explain_price" value="{{ turn.next_action or '' }}">
       </div>
     </div>
 
     <div class="form-group">
-      <label for="notes">Notes (optional)</label>
-      <input type="text" id="notes" name="notes" placeholder="Why was this correction made?">
+      <label for="notes">Notlar (isteğe bağlı)</label>
+      <input type="text" id="notes" name="notes" placeholder="Bu düzeltme neden yapıldı?">
     </div>
 
     <button type="submit" class="btn btn-primary">
       <i class="fa-solid fa-floppy-disk" style="font-size:12px;"></i>
-      Save Correction
+      Düzeltmeyi Kaydet
     </button>
   </form>
 </div>

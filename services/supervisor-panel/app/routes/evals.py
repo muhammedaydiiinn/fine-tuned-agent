@@ -72,7 +72,7 @@ def eval_job_detail(
 ):
     run = db.query(EvalRun).filter(EvalRun.id == eval_run_id).first()
     if not run:
-        return toast_redirect("/pipeline", "Evaluation not found.", kind="error")
+        return toast_redirect("/pipeline", "Değerlendirme bulunamadı.", kind="error")
     model_version = (
         db.query(ModelVersion)
         .filter(ModelVersion.id == run.model_version_id)
@@ -127,6 +127,6 @@ def eval_job_logs(eval_run_id: int, tail: int = 200):
 
     if not logs:
         return HTMLResponse(
-            '<span style="opacity:.4;padding:12px;display:block;">No log output yet.</span>'
+            '<span style="opacity:.4;padding:12px;display:block;">Henüz günlük çıktısı yok.</span>'
         )
     return HTMLResponse(f'<pre class="log-viewer">{html.escape(logs)}</pre>')
