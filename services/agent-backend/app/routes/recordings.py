@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.config import settings
 from app.core import recording_pipeline
 from app.db import get_db, SessionLocal
-from app.models import Recording, RecordingSegment, TurnEvaluation, Turn
+from app.models import Recording, RecordingSegment, Session as SessionModel, TurnEvaluation, Turn
 from app.schemas import (
     RecordingResponse,
     RecordingSegmentResponse,
@@ -24,7 +24,9 @@ from app.workers.queue import enqueue_transcribe_job
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_KINDS = ("good_example", "to_correct", "supervisor_note")
+_KINDS = ("good_example", "to_correct", "supervisor_note", "call")
+# Kinds stored for playback only — no transcription pipeline.
+_PLAYBACK_ONLY = {"supervisor_note": "note", "call": "recorded"}
 
 # GPU-free development/CI: TRANSCRIBE_MODE=mock skips the worker queue and
 # writes this canned German dialogue as the transcript.
@@ -73,10 +75,21 @@ def upload_recording(
     notes: str = Form(""),
     uploaded_by: str = Form(""),
     session_id: int | None = Form(None),
+    external_session_id: str = Form(""),
     db: DBSession = Depends(get_db),
 ):
     if kind not in _KINDS:
         raise HTTPException(status_code=422, detail=f"kind must be one of {_KINDS}")
+
+    # Callers that only know the external/room id (e.g. voice-runtime) can pass
+    # external_session_id; resolve it to the internal FK.
+    if session_id is None and external_session_id:
+        resolved = (
+            db.query(SessionModel.id)
+            .filter(SessionModel.external_session_id == external_session_id)
+            .first()
+        )
+        session_id = resolved[0] if resolved else None
     ext = Path(file.filename or "").suffix.lower()
     if ext not in _allowed_exts():
         raise HTTPException(
@@ -120,9 +133,9 @@ def upload_recording(
         raise HTTPException(status_code=422, detail="Uploaded file is empty")
     recording.stored_path = str(target_path)
 
-    # Supervisor voice notes are stored for playback only — no transcription.
-    if kind == "supervisor_note":
-        recording.status = "note"
+    # Playback-only kinds (voice notes, full call recordings) skip transcription.
+    if kind in _PLAYBACK_ONLY:
+        recording.status = _PLAYBACK_ONLY[kind]
         db.commit()
         db.refresh(recording)
         return _response(db, recording)
