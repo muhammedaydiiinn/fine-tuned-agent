@@ -12,6 +12,7 @@ from app.models import Session as SessionModel, Turn, LatencyMetric
 from app.schemas import AgentTurnRequest, AgentTurnResponse, LatencyInfo, PolicySummary
 from app.core import (
     state_manager,
+    agent_identity,
     correction_memory,
     prompt_builder,
     vllm_client,
@@ -54,10 +55,11 @@ def agent_turn(
         SessionModel.external_session_id == req.session_id
     ).first()
     if not session:
+        identity = agent_identity.pick_identity()
         session = SessionModel(
             external_session_id=req.session_id,
             status="active",
-            state_json={},
+            state_json={"agent_name": identity["name"], "agent_role": identity["role"]},
         )
         db.add(session)
         db.commit()

@@ -5,6 +5,7 @@ Used by both routes/corrections.py and routes/training.py to avoid duplication.
 import json
 import logging
 
+from app.core import prompt_builder
 from app.core.policy_prompt import build_system_content
 
 logger = logging.getLogger(__name__)
@@ -35,20 +36,16 @@ def build_candidate_from_turn(
         "voice_style": {"tone": "clear", "pace": "normal", "confidence": "high"},
     }
 
+    state = turn.state_before_json or {}
+    user_payload = prompt_builder.build_user_payload(turn.customer_text, state, [])
     messages = [
         {
             "role": "system",
-            "content": build_system_content(),
+            "content": build_system_content(state.get("agent_name"), state.get("agent_role")),
         },
         {
             "role": "user",
-            "content": json.dumps(
-                {
-                    "customer_message": turn.customer_text,
-                    "state": turn.state_before_json or {},
-                },
-                ensure_ascii=False,
-            ),
+            "content": json.dumps(user_payload, ensure_ascii=False),
         },
         {
             "role": "assistant",
