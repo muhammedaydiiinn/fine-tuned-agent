@@ -28,7 +28,8 @@ for arg in "$@"; do
     esac
 done
 
-LLM_DIR="$MODELS_DIR/merged/fine-tuned-agent-v14"
+# Override target version: LLM_MODEL_DIR=fine-tuned-agent-v15 bash download_models.sh ...
+LLM_DIR="$MODELS_DIR/merged/${LLM_MODEL_DIR:-fine-tuned-agent-v14}"
 WHISPER_SRC_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german"
 WHISPER_DIR="$MODELS_DIR/whisper/whisper-large-v3-turbo-german-ct2"
 # Override for a new model: GDRIVE_FOLDER_ID=<id> bash download_models.sh --llm-only
