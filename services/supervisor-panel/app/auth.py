@@ -113,6 +113,13 @@ def logout_response() -> RedirectResponse:
 
 
 def check_credentials(username: str, password: str) -> bool:
-    user_ok = hmac.compare_digest(username, settings.admin_user)
-    pass_ok = hmac.compare_digest(password, settings.admin_password)
+    # Compare as UTF-8 bytes: hmac.compare_digest rejects str inputs that contain
+    # non-ASCII characters (e.g. Turkish/German letters in the password) with a
+    # TypeError, which would otherwise surface as a 500 on login.
+    user_ok = hmac.compare_digest(
+        (username or "").encode("utf-8"), (settings.admin_user or "").encode("utf-8")
+    )
+    pass_ok = hmac.compare_digest(
+        (password or "").encode("utf-8"), (settings.admin_password or "").encode("utf-8")
+    )
     return user_ok and pass_ok
