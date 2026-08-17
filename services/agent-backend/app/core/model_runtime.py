@@ -367,5 +367,9 @@ def promote_production_model(source_path: str) -> dict[str, Any]:
             )
             response.raise_for_status()
             return response.json()
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(
+            f"Model manager promotion failed: {exc} — {exc.response.text}"
+        ) from exc
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Model manager promotion failed: {exc}") from exc
