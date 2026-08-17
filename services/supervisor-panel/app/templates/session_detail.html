@@ -64,51 +64,32 @@
           <i class="fa-solid fa-microphone"></i>
         </div>
         <div>
-          <div class="voice-test-title">Canlı Bağlantı</div>
           <div id="voice-status" class="voice-status" aria-live="polite">Mikrofon kapalı</div>
+          <div class="helper-text">
+            <i class="fa-solid fa-circle" style="color:#e5484d;font-size:.5em;vertical-align:middle;"></i>
+            Görüşme sesli kaydediliyor
+          </div>
           <div id="voice-level" class="voice-level" aria-hidden="true">
             {% for _ in range(12) %}<span></span>{% endfor %}
           </div>
         </div>
       </div>
       <div class="voice-test-actions">
-        <button id="voice-start" class="btn btn-success" type="button">
-          <i class="fa-solid fa-microphone"></i>
-          Mikrofonu Başlat
+        <button id="live-stop-agent" class="btn btn-danger" type="button">
+          <i class="fa-solid fa-hand"></i> Ajanı Durdur
         </button>
-        <button id="voice-stop" class="btn btn-danger" type="button" disabled>
-          <i class="fa-solid fa-microphone-slash"></i>
-          Durdur
+        <button id="voice-start" class="btn btn-success" type="button">
+          <i class="fa-solid fa-headphones"></i> Dinle
+        </button>
+        <button id="voice-stop" class="btn btn-outline" type="button" disabled>
+          <i class="fa-solid fa-microphone-slash"></i> Dinlemeyi Durdur
         </button>
       </div>
     </div>
-
-    <details class="voice-latency-drawer">
-      <summary>
-        <span>Gecikme ölçümleri</span>
-        <span class="summary-meta">STT, backend, LLM, TTS, toplam tur (oynatma dahil)</span>
-      </summary>
-      <div class="voice-latency" aria-label="Latest voice latency">
-        <div><span>STT</span><strong data-voice-metric="stt_ms">—</strong></div>
-        <div><span>Backend</span><strong data-voice-metric="backend_ms">—</strong></div>
-        <div><span>LLM</span><strong data-voice-metric="llm_ms">—</strong></div>
-        <div><span>TTS First Audio</span><strong data-voice-metric="tts_first_audio_ms">—</strong></div>
-        <div><span>End → First Audio</span><strong data-voice-metric="speech_end_to_first_audio_ms">—</strong></div>
-        <div><span>Turn Duration</span><strong data-voice-metric="total_voice_turn_ms">—</strong></div>
-        <div><span>Barge-in Latency</span><strong data-voice-metric="interruption_latency_ms">—</strong></div>
-      </div>
-    </details>
   </div>
 
   <div id="voice-audio" hidden></div>
 </section>
-
-<div class="card-row session-summary-strip"
-     hx-get="/sessions/{{ session.id }}/live-summary"
-     hx-trigger="every 2s, voice-turn-complete from:body, panel-refresh from:body"
-     hx-swap="innerHTML">
-  {% include "_session_summary.html" %}
-</div>
 
 <section class="live-session-workspace">
   <div class="live-conversation-panel">
@@ -119,79 +100,48 @@
 
     <div id="session-conversation"
          hx-get="/sessions/{{ session.id }}/conversation"
-         hx-trigger="load, every 2s, voice-turn-complete from:body, panel-refresh from:body"
+         hx-trigger="load, every 1s, voice-turn-complete from:body, panel-refresh from:body"
          hx-swap="innerHTML">
       {% include "_session_conversation.html" %}
     </div>
   </div>
 
   <section class="supervisor-console">
-    <div class="supervisor-console-header">
-      <div>
-        <div class="supervisor-console-title">Hızlı Geri Bildirim</div>
-        <div class="helper-text">Son konuşma turu için hızlı müdahale ve geri bildirim.</div>
-      </div>
-      {% if latest_turn %}
-      <a class="btn btn-outline" href="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}">
-        <i class="fa-solid fa-pen"></i> Detay
-      </a>
-      {% endif %}
-    </div>
+    <div class="supervisor-console-title">Hızlı Geri Bildirim</div>
 
     {% if latest_turn %}
-    <div class="supervisor-console-grid">
-      <article class="supervisor-snapshot">
-        <div class="turn-meta">
-          <span>Son tur</span>
-          <span class="badge badge-intent">Tur {{ latest_turn.turn_index }}</span>
-        </div>
-        <div class="latest-turn-preview">
-          <div class="latest-turn-line">
-            <span>Müşteri</span>
-            <p>{{ latest_turn.customer_text }}</p>
-          </div>
-          <div class="latest-turn-line">
-            <span>Ajan</span>
-            <p>{{ latest_turn.agent_response or "—" }}</p>
-          </div>
-        </div>
-      </article>
-
-      <form
-        class="supervisor-form"
-        hx-post="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}/correct"
-        hx-target="#quick-action-feedback"
-        hx-swap="innerHTML"
-      >
-        <div id="quick-action-feedback" data-toast-only="true" data-refresh-on-toast="panel-refresh"></div>
-        <div class="form-group">
-          <label for="quick-corrected-response">Doğru cevap / düzeltme notu</label>
-          <textarea id="quick-corrected-response" name="corrected_response" rows="4" placeholder="Ajan bunun yerine ne demeliydi?">{{ latest_turn.agent_response or "" }}</textarea>
-        </div>
-        <input id="quick-corrected-action" name="corrected_next_action" type="hidden" value="{{ latest_turn.next_action or '' }}">
-        <div class="supervisor-form-actions">
-          <button class="btn btn-success" type="submit" name="mark_good" value="1">
-            <i class="fa-solid fa-check"></i> İyi
-          </button>
-          <button class="btn btn-danger" type="submit" name="mark_bad" value="1">
-            <i class="fa-solid fa-flag"></i> Kötü
-          </button>
-          <button class="btn btn-warning" id="live-stop-agent" type="button">
-            <i class="fa-solid fa-hand"></i> Ajanı Durdur
-          </button>
-          <button class="btn btn-primary" id="live-send-replacement" type="button">
-            <i class="fa-solid fa-volume-high"></i> Bunu Söylet
-          </button>
-          <button class="btn btn-primary" type="submit">
-            <i class="fa-solid fa-floppy-disk"></i> Kaydet
-          </button>
-        </div>
-      </form>
-    </div>
+    <form
+      class="supervisor-form"
+      hx-post="/sessions/{{ session.id }}/turns/{{ latest_turn.id }}/correct"
+      hx-target="#quick-action-feedback"
+      hx-swap="innerHTML"
+    >
+      <div id="quick-action-feedback" data-toast-only="true" data-refresh-on-toast="panel-refresh"></div>
+      <div class="latest-turn-preview">
+        <div class="latest-turn-line"><span>Müşteri</span><p>{{ latest_turn.customer_text }}</p></div>
+        <div class="latest-turn-line"><span>Ajan</span><p>{{ latest_turn.agent_response or "—" }}</p></div>
+      </div>
+      <textarea id="quick-corrected-response" name="corrected_response" rows="3"
+                placeholder="Ajan bunun yerine ne demeliydi? Buraya yaz, Kaydet'e bas.">{{ latest_turn.agent_response or "" }}</textarea>
+      <input id="quick-corrected-action" name="corrected_next_action" type="hidden" value="{{ latest_turn.next_action or '' }}">
+      <div class="supervisor-form-actions">
+        <button class="btn btn-success" type="submit" name="mark_good" value="1">
+          <i class="fa-solid fa-check"></i> İyi
+        </button>
+        <button class="btn btn-danger" type="submit" name="mark_bad" value="1">
+          <i class="fa-solid fa-flag"></i> Kötü
+        </button>
+        <button class="btn btn-primary" id="live-send-replacement" type="button">
+          <i class="fa-solid fa-volume-high"></i> Bunu Söylet
+        </button>
+        <button class="btn btn-primary" type="submit">
+          <i class="fa-solid fa-floppy-disk"></i> Kaydet
+        </button>
+      </div>
+    </form>
     {% else %}
     <div class="empty-state empty-state-compact">
-      <div class="empty-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-      <div>İlk canlı tur yakalandığında hızlı işlemler burada görünecek.</div>
+      <div>İlk konuşma turu gelince buradan anında düzeltip kaydedebilirsin.</div>
     </div>
     {% endif %}
 
@@ -221,6 +171,14 @@
     <span class="summary-meta">ses olayları, gecikme tablosu, kabul kontrolleri, JSON</span>
   </summary>
   <div class="diagnostics-stack">
+    <div class="voice-latency" aria-label="Gecikme">
+      <div><span>STT</span><strong data-voice-metric="stt_ms">—</strong></div>
+      <div><span>Backend</span><strong data-voice-metric="backend_ms">—</strong></div>
+      <div><span>LLM</span><strong data-voice-metric="llm_ms">—</strong></div>
+      <div><span>TTS</span><strong data-voice-metric="tts_first_audio_ms">—</strong></div>
+      <div><span>Tur süresi</span><strong data-voice-metric="total_voice_turn_ms">—</strong></div>
+      <div><span>Kesme</span><strong data-voice-metric="interruption_latency_ms">—</strong></div>
+    </div>
     <section
       id="voice-event-timeline"
       hx-get="/sessions/{{ session.id }}/voice-events"
