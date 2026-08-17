@@ -42,7 +42,11 @@ class Settings(BaseSettings):
 
     speech_rms_threshold: int = 350
     speech_min_ms: int = 250
-    speech_end_silence_ms: int = 700
+    # End-of-turn silence before an utterance is flushed to STT. This tail is
+    # paid on EVERY turn, so it dominates perceived response latency. 500ms is a
+    # snappier conversational default; raise it (env override) if the customer
+    # gets cut off mid-sentence. A semantic turn-detector (B5) will replace this.
+    speech_end_silence_ms: int = 500
     speech_max_ms: int = 20000
     speech_preroll_ms: int = 240
     utterance_queue_size: int = 8
