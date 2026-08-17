@@ -58,7 +58,7 @@
         ${toast.title ? `<div class="toast-title">${toast.title}</div>` : ""}
         <div class="toast-message"></div>
       </div>
-      <button class="toast-close" type="button" aria-label="Dismiss notification">
+      <button class="toast-close" type="button" aria-label="Bildirimi kapat">
         <i class="fa-solid fa-xmark"></i>
       </button>
     `;
@@ -204,10 +204,10 @@
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(String(payload.detail || payload.message || "").trim() || "Download failed");
+          throw new Error(String(payload.detail || payload.message || "").trim() || "İndirme başarısız");
         }
         const text = await response.text();
-        throw new Error(text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "Download failed");
+        throw new Error(text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "İndirme başarısız");
       }
 
       const blob = await response.blob();
@@ -222,11 +222,11 @@
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      showToast({ kind: "success", title: "Export ready", message: `${filename} downloaded.` });
+      showToast({ kind: "success", title: "Dışa aktarma hazır", message: `${filename} indirildi.` });
     } catch (error) {
       showToast({
         kind: "error",
-        title: "Export failed",
+        title: "Dışa aktarma başarısız",
         message: String(error && error.message ? error.message : error),
       });
     } finally {

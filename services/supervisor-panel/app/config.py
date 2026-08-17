@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     model_active_version: str = "fine-tuned-agent-v14"
 
     livekit_public_url: str = "ws://localhost:7880"
+    # Server-to-server LiveKit endpoint (from inside the panel container), used to
+    # deliver supervisor control commands without the supervisor joining the room.
+    livekit_api_url: str = "http://livekit-server:7880"
     livekit_api_key: str = "devkey"
     livekit_api_secret: str = "devsecretdevsecretdevsecretdevsecret"
     livekit_agent_name: str = "fine-tuned-agent-voice"

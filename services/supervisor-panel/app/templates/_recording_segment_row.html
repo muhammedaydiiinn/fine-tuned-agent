@@ -6,23 +6,23 @@
           class="segment-form">
       <div class="segment-speaker-col">
         <select name="speaker" class="segment-speaker {% if segment.speaker == 'unknown' %}segment-speaker-unknown{% endif %}">
-          <option value="agent" {% if segment.speaker == "agent" %}selected{% endif %}>Agent</option>
-          <option value="customer" {% if segment.speaker == "customer" %}selected{% endif %}>Customer</option>
-          <option value="unknown" {% if segment.speaker == "unknown" %}selected{% endif %}>Unknown</option>
+          <option value="agent" {% if segment.speaker == "agent" %}selected{% endif %}>Temsilci</option>
+          <option value="customer" {% if segment.speaker == "customer" %}selected{% endif %}>Müşteri</option>
+          <option value="unknown" {% if segment.speaker == "unknown" %}selected{% endif %}>Belirsiz</option>
         </select>
-        {% if segment.confidence %}<div class="segment-confidence">conf {{ "%.2f" | format(segment.confidence) }}</div>{% endif %}
+        {% if segment.confidence %}<div class="segment-confidence">güven {{ "%.2f" | format(segment.confidence) }}</div>{% endif %}
       </div>
       <div class="segment-text-col">
         <textarea name="text" rows="2">{{ segment.text }}</textarea>
         {% if recording.kind == "to_correct" %}
         <textarea name="corrected_text" rows="2" class="segment-corrected"
-                  placeholder="Say it like this instead… (only for agent lines; leave empty to keep the original)">{{ segment.corrected_text or "" }}</textarea>
+                  placeholder="Bunun yerine şöyle söyle… (yalnızca temsilci satırları için; orijinali korumak istiyorsanız boş bırakın)">{{ segment.corrected_text or "" }}</textarea>
         {% else %}
         <input type="hidden" name="corrected_text" value="{{ segment.corrected_text or '' }}">
         {% endif %}
       </div>
       <div>
-        <button class="btn btn-outline btn-sm" type="submit"><i class="fa-solid fa-check"></i> Save</button>
+        <button class="btn btn-outline btn-sm" type="submit"><i class="fa-solid fa-check"></i> Kaydet</button>
       </div>
     </form>
   </td>

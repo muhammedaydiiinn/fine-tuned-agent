@@ -1,8 +1,8 @@
 {% if events %}
 <div class="voice-event-card">
   <div class="voice-event-header">
-    <span>Voice activity</span>
-    <span class="text-muted">latest {{ events|length }} events{% if barge_in_count %} · {{ barge_in_count }} barge-in{% if barge_in_count != 1 %}s{% endif %}{% endif %}</span>
+    <span>Ses etkinliği</span>
+    <span class="text-muted">son {{ events|length }} olay{% if barge_in_count %} · {{ barge_in_count }} söz kesme{% endif %}</span>
   </div>
   <div class="voice-event-list">
     {% for item in events %}

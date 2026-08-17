@@ -6,20 +6,21 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.core.guardrails import apply_with_context
 from app.core.product_facts import CLOSING_BRIEF_TEMPLATE, PRICE_TEMPLATE
-from app.core.response_repair import repair_all, repair_invented_facts, repair_premature_link
+from app.core.response_repair import repair_all, repair_invented_facts
 
 
 class ResponseRepairTests(TestCase):
-    def test_premature_link_keeps_model_explanation(self):
+    def test_link_and_alternatives_are_preserved(self):
+        # A2 legal-floor refactor: the app-funnel repair (premature_link) was
+        # removed, so the model may mention the link and offer alternatives
+        # (self-entry, website) without being stripped.
         model = (
-            "Wir überprüfen Ihre Nummer über externe Datenbanken, ohne Zugriff auf "
-            "persönliche Daten. Ich leite Sie jetzt zum offiziellen App Store."
+            "Sie können die App selbst im App Store öffnen oder direkt über unsere "
+            "Webseite www.callshield-demo.de starten."
         )
-        fixed, hit = repair_premature_link(model, {}, "Ja und?")
-        self.assertTrue(hit)
-        self.assertIn("externe Datenbanken", fixed)
-        self.assertNotIn("App Store", fixed)
-        self.assertNotIn("Bevor wir zur Installation kommen", fixed)
+        fixed, rules = repair_all(model, {"filled_slots": {}}, "Ich will keinen Link öffnen.")
+        self.assertEqual(fixed, model)
+        self.assertNotIn("premature_link", rules)
 
     def test_invented_facts_strips_only_bad_sentences(self):
         model = (

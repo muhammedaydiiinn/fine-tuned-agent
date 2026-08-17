@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Sessions{% endblock %}
+{% block title %}Görüşmeler{% endblock %}
 
 {% block content %}
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Sessions</h1>
+    <h1>Görüşmeler</h1>
   </div>
 </div>
 
@@ -13,42 +13,42 @@
   <div class="voice-test-launcher-copy">
     <div class="voice-test-launcher-title">
       <i class="fa-solid fa-microphone"></i>
-      Start Voice Test
+      Sesli Test Başlat
     </div>
-    <div class="text-muted">Call a customer by name and speak through this panel.</div>
+    <div class="text-muted">Bir müşteriyi adıyla arayın ve bu panel üzerinden konuşun.</div>
   </div>
   <button class="btn btn-primary" type="button" data-open-launcher>
     <i class="fa-solid fa-plus"></i>
-    New Test Session
+    Yeni Test Görüşmesi
   </button>
 </div>
 
 {# Launcher modal — customer name + optional session name #}
 <div id="voice-launcher-modal" class="confirm-modal" data-launcher-modal hidden>
   <button class="confirm-modal-backdrop" type="button" data-launcher-cancel
-          aria-label="Close"></button>
+          aria-label="Kapat"></button>
   <section class="confirm-modal-card launcher-card" role="dialog" aria-modal="true"
            aria-labelledby="launcher-title">
     <form action="/sessions/start" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
-      <h2 id="launcher-title">Start Voice Test</h2>
+      <h2 id="launcher-title">Sesli Test Başlat</h2>
       <p class="text-muted" style="margin:0 0 16px;">
-        The agent (Anna Weber) will call this customer and open the conversation.
+        Ajan (Anna Weber) bu müşteriyi arayacak ve görüşmeyi başlatacak.
       </p>
       <div class="form-group">
-        <label for="launcher-customer-name">Customer name</label>
+        <label for="launcher-customer-name">Müşteri adı</label>
         <input id="launcher-customer-name" type="text" name="customer_name"
-               placeholder="e.g. Herr Müller" autocomplete="off">
+               placeholder="örn. Herr Müller" autocomplete="off">
       </div>
       <div class="form-group">
-        <label for="launcher-session-name">Session name</label>
+        <label for="launcher-session-name">Görüşme adı</label>
         <input id="launcher-session-name" type="text" name="external_session_id"
-               placeholder="Generated automatically">
+               placeholder="Otomatik oluşturulur">
       </div>
       <div class="confirm-modal-actions">
-        <button class="btn btn-outline" type="button" data-launcher-cancel>Cancel</button>
+        <button class="btn btn-outline" type="button" data-launcher-cancel>İptal</button>
         <button class="btn btn-primary" type="submit">
-          <i class="fa-solid fa-microphone"></i> Create Test Session
+          <i class="fa-solid fa-microphone"></i> Test Görüşmesi Oluştur
         </button>
       </div>
     </form>
@@ -57,36 +57,36 @@
 
 <div class="stats-row">
   <div class="stat-card blue">
-    <div class="stat-label">Total</div>
+    <div class="stat-label">Toplam</div>
     <div class="stat-value">{{ total_count }}</div>
   </div>
   <div class="stat-card green">
-    <div class="stat-label">Active</div>
+    <div class="stat-label">Aktif</div>
     <div class="stat-value">{{ active_count }}</div>
   </div>
   <div class="stat-card purple">
-    <div class="stat-label">Total Turns</div>
+    <div class="stat-label">Toplam Tur</div>
     <div class="stat-value">{{ total_turns }}</div>
   </div>
   <div class="stat-card yellow">
-    <div class="stat-label">Closed</div>
+    <div class="stat-label">Kapalı</div>
     <div class="stat-value">{{ closed_count }}</div>
   </div>
 </div>
 
 <div class="table-container">
   <div class="table-toolbar">
-    <span class="table-toolbar-title">Live and Recent Sessions</span>
+    <span class="table-toolbar-title">Canlı ve Yakın Zamanlı Görüşmeler</span>
   </div>
   <table data-dt-url="/sessions/data" data-dt-order="5,desc">
     <thead>
       <tr>
-        <th data-dt-col-field="external_session_id" data-dt-col-render="sessionId">Session</th>
-        <th data-dt-col-field="status" data-dt-col-render="badge">Status</th>
-        <th data-dt-col-field="stage" data-dt-col-render="badge">Stage</th>
-        <th data-dt-col-field="turns" data-dt-col-class="td-center">Turns</th>
-        <th data-dt-col-field="hard_decline" data-dt-col-render="hardDecline" data-dt-col-class="td-center">Hard Decline</th>
-        <th data-dt-col-field="created_at" data-dt-col-render="datetime">Created</th>
+        <th data-dt-col-field="external_session_id" data-dt-col-render="sessionId">Görüşme</th>
+        <th data-dt-col-field="status" data-dt-col-render="badge">Durum</th>
+        <th data-dt-col-field="stage" data-dt-col-render="badge">Aşama</th>
+        <th data-dt-col-field="turns" data-dt-col-class="td-center">Tur</th>
+        <th data-dt-col-field="hard_decline" data-dt-col-render="hardDecline" data-dt-col-class="td-center">Kesin Ret</th>
+        <th data-dt-col-field="created_at" data-dt-col-render="datetime">Oluşturulma</th>
         <th data-dt-col-field="id" data-dt-col-render="sessionLink" data-dt-col-orderable="false" data-dt-col-width="90px"></th>
       </tr>
     </thead>

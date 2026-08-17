@@ -79,6 +79,10 @@ class VoicePipeline:
         self._playback_task: asyncio.Task | None = None
         self._partial_task: asyncio.Task | None = None
         self._playback_cancel: asyncio.Event | None = None
+        # Serializes _speak so two utterances can never publish a track and play
+        # at the same time (the "stacked audio" bug). A new _speak cancels the
+        # in-flight one first, then takes the lock.
+        self._playback_lock = asyncio.Lock()
         self._agent_speaking = False
         self._pending_interruption: str | None = None
         self._speech_overlap_kind: str | None = None
@@ -577,82 +581,95 @@ class VoicePipeline:
         tts_started = time.perf_counter()
         first_audio_ms: float | None = None
         spoken_samples = 0
-        self._last_spoken_ms = 0.0
-        self._playback_cancel = asyncio.Event()
-        self._current_agent_text = text
-        self._last_agent_text = text
-        self._agent_speaking = True
-        self._playback_seq += 1
-        playback_id = f"{self.session_id}:pb:{self._playback_seq}"
-        self._current_playback_id = playback_id
-        generation_id = (
-            self._generation if response_generation_id is None else response_generation_id
-        )
-        await self._emit(
-            room,
-            "agent_playback_started",
-            turn_id=turn_id,
-            playback_id=playback_id,
-            response_generation_id=generation_id,
-            state="speaking",
-        )
-        audio_source = _rtc().AudioSource(self.settings.tts_sample_rate, 1)
-        audio_track = _rtc().LocalAudioTrack.create_audio_track(track_label, audio_source)
-        publication = None
-        cancelled = False
-        try:
-            publication = await room.local_participant.publish_track(
-                audio_track,
-                _rtc().TrackPublishOptions(source=_rtc().TrackSource.SOURCE_MICROPHONE),
+
+        # Cancel any in-flight playback, then serialize on the lock so two
+        # utterances can never publish a track and play at the same time.
+        self._request_playback_cancel()
+        async with self._playback_lock:
+            # LOCAL cancel event: a later _speak reassigning self._playback_cancel
+            # can never orphan this loop, and _request_playback_cancel() still
+            # stops us because we store it as the current one.
+            cancel = asyncio.Event()
+            self._playback_cancel = cancel
+            self._last_spoken_ms = 0.0
+            self._current_agent_text = text
+            self._last_agent_text = text
+            self._agent_speaking = True
+            self._playback_seq += 1
+            playback_id = f"{self.session_id}:pb:{self._playback_seq}"
+            self._current_playback_id = playback_id
+            generation_id = (
+                self._generation if response_generation_id is None else response_generation_id
             )
-            pcm_buffer = bytearray()
-            async for chunk in self.tts.stream(text, voice_style):
-                if self._playback_cancel.is_set():
-                    cancelled = True
-                    break
-                pcm_buffer.extend(chunk)
-                frame_bytes = self.settings.tts_sample_rate // 50 * 2
-                while len(pcm_buffer) >= frame_bytes:
-                    if self._playback_cancel.is_set():
+            await self._emit(
+                room,
+                "agent_playback_started",
+                turn_id=turn_id,
+                playback_id=playback_id,
+                response_generation_id=generation_id,
+                state="speaking",
+            )
+            audio_source = _rtc().AudioSource(self.settings.tts_sample_rate, 1)
+            audio_track = _rtc().LocalAudioTrack.create_audio_track(track_label, audio_source)
+            publication = None
+            cancelled = False
+            try:
+                publication = await room.local_participant.publish_track(
+                    audio_track,
+                    _rtc().TrackPublishOptions(source=_rtc().TrackSource.SOURCE_MICROPHONE),
+                )
+                pcm_buffer = bytearray()
+                async for chunk in self.tts.stream(text, voice_style):
+                    if cancel.is_set():
                         cancelled = True
                         break
-                    packet = bytes(pcm_buffer[:frame_bytes])
-                    del pcm_buffer[:frame_bytes]
+                    pcm_buffer.extend(chunk)
+                    frame_bytes = self.settings.tts_sample_rate // 50 * 2
+                    while len(pcm_buffer) >= frame_bytes:
+                        if cancel.is_set():
+                            cancelled = True
+                            break
+                        packet = bytes(pcm_buffer[:frame_bytes])
+                        del pcm_buffer[:frame_bytes]
+                        if first_audio_ms is None:
+                            first_audio_ms = (time.perf_counter() - tts_started) * 1000
+                        await audio_source.capture_frame(
+                            _rtc().AudioFrame(
+                                data=packet,
+                                sample_rate=self.settings.tts_sample_rate,
+                                num_channels=1,
+                                samples_per_channel=len(packet) // 2,
+                            )
+                        )
+                        spoken_samples += len(packet) // 2
+                    if cancelled:
+                        break
+                if pcm_buffer and not cancelled:
+                    pcm_buffer.extend(b"\x00" * (-len(pcm_buffer) % 2))
                     if first_audio_ms is None:
                         first_audio_ms = (time.perf_counter() - tts_started) * 1000
                     await audio_source.capture_frame(
                         _rtc().AudioFrame(
-                            data=packet,
+                            data=bytes(pcm_buffer),
                             sample_rate=self.settings.tts_sample_rate,
                             num_channels=1,
-                            samples_per_channel=len(packet) // 2,
+                            samples_per_channel=len(pcm_buffer) // 2,
                         )
                     )
-                    spoken_samples += len(packet) // 2
-                if cancelled:
-                    break
-            if pcm_buffer and not cancelled:
-                pcm_buffer.extend(b"\x00" * (-len(pcm_buffer) % 2))
-                if first_audio_ms is None:
-                    first_audio_ms = (time.perf_counter() - tts_started) * 1000
-                await audio_source.capture_frame(
-                    _rtc().AudioFrame(
-                        data=bytes(pcm_buffer),
-                        sample_rate=self.settings.tts_sample_rate,
-                        num_channels=1,
-                        samples_per_channel=len(pcm_buffer) // 2,
-                    )
-                )
-                spoken_samples += len(pcm_buffer) // 2
-            if not cancelled:
-                await audio_source.wait_for_playout()
-        finally:
-            self._last_spoken_ms = spoken_samples * 1000 / self.settings.tts_sample_rate
-            self._agent_speaking = False
-            self._current_agent_text = ""
-            if publication is not None:
-                with contextlib.suppress(Exception):
-                    await room.local_participant.unpublish_track(publication.sid)
+                    spoken_samples += len(pcm_buffer) // 2
+                if not cancelled:
+                    await audio_source.wait_for_playout()
+            finally:
+                self._last_spoken_ms = spoken_samples * 1000 / self.settings.tts_sample_rate
+                # Only clear shared speaking-state if we are still the current
+                # playback — a newer _speak may already have taken over.
+                if self._playback_cancel is cancel:
+                    self._agent_speaking = False
+                    self._current_agent_text = ""
+                    self._playback_cancel = None
+                if publication is not None:
+                    with contextlib.suppress(Exception):
+                        await room.local_participant.unpublish_track(publication.sid)
         return first_audio_ms, cancelled, playback_id
 
     def _request_playback_cancel(self) -> None:

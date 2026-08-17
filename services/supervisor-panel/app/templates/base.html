@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css?v=22">
   <script src="/static/htmx.min.js" defer></script>
-  <script src="/static/panel-ui.js?v=5" defer></script>
+  <script src="/static/panel-ui.js?v=6" defer></script>
   <!-- Send CSRF token on every HTMX mutating request -->
   <script>
     window.formatPanelDateTime = function (value) {
@@ -24,7 +24,7 @@
       const absMin = Math.abs(offsetMin);
       const hours = String(Math.floor(absMin / 60)).padStart(2, "0");
       const minutes = String(absMin % 60).padStart(2, "0");
-      const local = dt.toLocaleString("en-GB", {
+      const local = dt.toLocaleString("tr-TR", {
         day: "2-digit",
         month: "short",
         hour: "2-digit",
@@ -58,7 +58,7 @@
   </script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js" defer></script>
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js" defer></script>
-  <script src="/static/datatable.js?v=10" defer></script>
+  <script src="/static/datatable.js?v=11" defer></script>
 </head>
 <body>
 <script id="panel-flash-toast" type="application/json">
@@ -67,18 +67,18 @@
 <div class="toast-stack" data-toast-root aria-live="polite" aria-atomic="false"></div>
 <div class="confirm-modal" data-confirm-modal hidden>
   <button class="confirm-modal-backdrop" type="button" data-confirm-cancel
-          aria-label="Close confirmation"></button>
+          aria-label="Onayı kapat"></button>
   <section class="confirm-modal-card" role="dialog" aria-modal="true"
            aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
     <div class="confirm-modal-icon" data-confirm-icon aria-hidden="true">
       <i class="fa-solid fa-triangle-exclamation"></i>
     </div>
     <div class="confirm-modal-content">
-      <h2 id="confirm-modal-title" data-confirm-title>Confirm action</h2>
+      <h2 id="confirm-modal-title" data-confirm-title>İşlemi onayla</h2>
       <p id="confirm-modal-message" data-confirm-message></p>
       <div class="confirm-modal-actions">
-        <button class="btn btn-outline" type="button" data-confirm-cancel>Cancel</button>
-        <button class="btn btn-danger" type="button" data-confirm-submit>Confirm</button>
+        <button class="btn btn-outline" type="button" data-confirm-cancel>İptal</button>
+        <button class="btn btn-danger" type="button" data-confirm-submit>Onayla</button>
       </div>
     </div>
   </section>
@@ -90,43 +90,43 @@
       <div class="brand-icon">AB</div>
       <div>
         <div class="brand-name">CallShield</div>
-        <div class="brand-sub">Supervisor Panel</div>
+        <div class="brand-sub">Yönetici Paneli</div>
       </div>
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Workspace</div>
+      <div class="nav-section-label">Çalışma Alanı</div>
 
       <a href="/" class="nav-item {% if request.url.path == '/' %}active{% endif %}">
         <i class="fa-solid fa-phone nav-icon"></i>
-        Sessions
+        Görüşmeler
       </a>
 
       <a href="/review" class="nav-item {% if request.url.path.startswith('/review') %}active{% endif %}">
         <i class="fa-solid fa-clipboard-check nav-icon"></i>
-        Review
+        İnceleme
       </a>
 
       <a href="/recordings" class="nav-item {% if request.url.path.startswith('/recordings') %}active{% endif %}">
         <i class="fa-solid fa-file-audio nav-icon"></i>
-        Recordings
+        Kayıtlar
       </a>
 
       <a href="/pipeline" class="nav-item {% if request.url.path.startswith('/pipeline') or request.url.path.startswith('/training') or request.url.path.startswith('/model-registry') or request.url.path.startswith('/eval-jobs') %}active{% endif %}">
         <i class="fa-solid fa-microchip nav-icon"></i>
-        Pipeline
+        Model Yönetimi
       </a>
 
       <a href="/content" class="nav-item {% if request.url.path.startswith('/content') %}active{% endif %}">
         <i class="fa-solid fa-pen-to-square nav-icon"></i>
-        Content
+        Ayarlar
       </a>
     </nav>
 
     <div class="sidebar-footer">
       <a href="/logout" class="nav-item nav-logout">
         <i class="fa-solid fa-right-from-bracket nav-icon"></i>
-        Sign Out
+        Çıkış
       </a>
     </div>
   </aside>

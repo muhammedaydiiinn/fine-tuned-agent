@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Review {{ session.external_session_id or session.id }}{% endblock %}
+{% block title %}İncele {{ session.external_session_id or session.id }}{% endblock %}
 
 {% block content %}
-<div class="breadcrumb"><a href="/review">Review & Train</a><span class="breadcrumb-sep">›</span><span>{{ session.external_session_id or session.id }}</span></div>
+<div class="breadcrumb"><a href="/review">İncele ve Eğit</a><span class="breadcrumb-sep">›</span><span>{{ session.external_session_id or session.id }}</span></div>
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Session Review</h1>
-    <span class="text-muted">{{ turns|length }} conversation turns</span>
+    <h1>Görüşmeyi İncele</h1>
+    <span class="text-muted">{{ turns|length }} görüşme turu</span>
   </div>
   <div class="page-header-right">
-    <a class="btn btn-outline" href="/sessions/{{ session.id }}">Open Conversation</a>
+    <a class="btn btn-outline" href="/sessions/{{ session.id }}">Görüşmeyi Aç</a>
   </div>
 </div>
 
@@ -19,33 +19,33 @@
     {% for turn in turns %}
     <article class="conversation-turn">
       <div class="turn-meta">
-        <span>Turn {{ turn.turn_index }}</span>
+        <span>Tur {{ turn.turn_index }}</span>
         {% if turn.intent %}<span class="badge badge-intent">{{ turn.intent }}</span>{% endif %}
-        {% if correction_counts.get(turn.id) %}<span class="badge badge-approved">{{ correction_counts.get(turn.id) }} feedback</span>{% endif %}
+        {% if correction_counts.get(turn.id) %}<span class="badge badge-approved">{{ correction_counts.get(turn.id) }} geri bildirim</span>{% endif %}
       </div>
-      <div class="chat-bubble chat-customer"><div class="bubble-label">Customer</div>{{ turn.customer_text }}</div>
-      <div class="chat-bubble chat-agent"><div class="bubble-label">Agent</div>{{ turn.agent_response or '—' }}</div>
+      <div class="chat-bubble chat-customer"><div class="bubble-label">Müşteri</div>{{ turn.customer_text }}</div>
+      <div class="chat-bubble chat-agent"><div class="bubble-label">Ajan</div>{{ turn.agent_response or '—' }}</div>
 
       <details class="collapsible turn-inline-edit review-compiler">
-        <summary>Compile Supervisor Note</summary>
+        <summary>Süpervizör Notu Derle</summary>
         <div class="correction-panel" style="margin-top:12px;">
           <div class="correction-header">
             <div>
-              <div class="correction-header-title">Natural-language correction</div>
-              <div class="helper-text">Rules only; no LLM. Preview before anything is saved.</div>
+              <div class="correction-header-title">Doğal dilde düzeltme</div>
+              <div class="helper-text">Yalnızca kurallar; LLM yok. Herhangi bir şey kaydedilmeden önce önizleyin.</div>
             </div>
           </div>
           <form hx-post="/review/{{ session.id }}/turns/{{ turn.id }}/compile"
                 hx-target="#compiler-output-{{ turn.id }}"
                 hx-swap="innerHTML">
             <div class="form-group">
-              <label for="compiler-instruction-{{ turn.id }}">Supervisor instruction</label>
+              <label for="compiler-instruction-{{ turn.id }}">Süpervizör talimatı</label>
               <textarea id="compiler-instruction-{{ turn.id }}" name="instruction" rows="3"
-                        placeholder="E.g. customer asked about price, agent should mention the 14-day free trial first"
+                        placeholder="Örn. müşteri fiyatı sordu, ajan önce 14 günlük ücretsiz denemeden bahsetmeli"
                         required></textarea>
             </div>
             <button class="btn btn-outline btn-sm" type="submit">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Build preview
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Önizleme oluştur
             </button>
           </form>
           <div id="compiler-output-{{ turn.id }}" class="review-compiler-output"></div>
@@ -53,36 +53,36 @@
       </details>
 
       <details class="collapsible turn-inline-edit">
-        <summary>Edit Response</summary>
+        <summary>Cevabı Düzenle</summary>
         <div class="correction-panel" style="margin-top:12px;">
           <div id="inline-result-{{ turn.id }}" data-toast-only="true"></div>
           <form hx-post="/sessions/{{ session.id }}/turns/{{ turn.id }}/correct"
                 hx-target="#inline-result-{{ turn.id }}"
                 hx-swap="innerHTML">
             <div class="form-group">
-              <label>Current Response</label>
+              <label>Mevcut Cevap</label>
               <textarea class="readonly-area" readonly rows="3">{{ turn.agent_response or "" }}</textarea>
             </div>
             <div class="form-group">
-              <label>Corrected Response</label>
+              <label>Düzeltilmiş Cevap</label>
               <textarea name="corrected_response" rows="4">{{ turn.agent_response or "" }}</textarea>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>Current Action</label>
+                <label>Mevcut Adım</label>
                 <input type="text" readonly value="{{ turn.next_action or '' }}" class="readonly-input">
               </div>
               <div class="form-group">
-                <label>Corrected Action</label>
+                <label>Düzeltilmiş Adım</label>
                 <input type="text" name="corrected_next_action" value="{{ turn.next_action or '' }}">
               </div>
             </div>
             <div style="display:flex;gap:8px;margin-top:12px;">
               <button type="submit" name="mark_good" value="1" class="btn btn-sm btn-success">
-                <i class="fa-solid fa-check" style="font-size:11px;"></i> Mark Good
+                <i class="fa-solid fa-check" style="font-size:11px;"></i> İyi olarak işaretle
               </button>
               <button type="submit" class="btn btn-sm btn-primary">
-                <i class="fa-solid fa-floppy-disk" style="font-size:11px;"></i> Save Correction
+                <i class="fa-solid fa-floppy-disk" style="font-size:11px;"></i> Düzeltmeyi Kaydet
               </button>
             </div>
           </form>
@@ -93,27 +93,27 @@
   </div>
 
   <aside class="session-review-card">
-    <h2>Conversation feedback</h2>
-    <p class="text-muted">Reviewed turns are automatically added to the training batch on save.</p>
+    <h2>Görüşme geri bildirimi</h2>
+    <p class="text-muted">İncelenen turlar kaydedildiğinde otomatik olarak eğitim grubuna eklenir.</p>
     <form action="/review/{{ session.id }}" method="post">
       <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
       <div class="rating-options">
-        <label><input type="radio" name="rating" value="good" required {% if review and review.rating == 'good' %}checked{% endif %}><span>Good</span></label>
-        <label><input type="radio" name="rating" value="mixed" {% if review and review.rating == 'mixed' %}checked{% endif %}><span>Mixed</span></label>
-        <label><input type="radio" name="rating" value="bad" {% if review and review.rating == 'bad' %}checked{% endif %}><span>Bad</span></label>
+        <label><input type="radio" name="rating" value="good" required {% if review and review.rating == 'good' %}checked{% endif %}><span>İyi</span></label>
+        <label><input type="radio" name="rating" value="mixed" {% if review and review.rating == 'mixed' %}checked{% endif %}><span>Karışık</span></label>
+        <label><input type="radio" name="rating" value="bad" {% if review and review.rating == 'bad' %}checked{% endif %}><span>Kötü</span></label>
       </div>
       <div class="form-group">
-        <label>Session notes</label>
-        <textarea name="notes" rows="5" placeholder="What should the agent learn from this conversation?">{{ review.notes if review else '' }}</textarea>
+        <label>Görüşme notları</label>
+        <textarea name="notes" rows="5" placeholder="Ajan bu görüşmeden ne öğrenmeli?">{{ review.notes if review else '' }}</textarea>
       </div>
       <button class="btn btn-primary" type="submit">
-        <i class="fa-solid fa-check"></i> Save Review
+        <i class="fa-solid fa-check"></i> İncelemeyi Kaydet
       </button>
     </form>
     {% if review and review.candidate_ids_json %}
     <div class="alert alert-success" style="margin-top:16px;">
-      {{ review.candidate_ids_json|length }} turns are in this session's training batch.
-      {% if review.training_job_id %}<a href="/training-jobs/{{ review.training_job_id }}">Open job #{{ review.training_job_id }}</a>{% endif %}
+      {{ review.candidate_ids_json|length }} tur bu görüşmenin eğitim grubunda.
+      {% if review.training_job_id %}<a href="/training-jobs/{{ review.training_job_id }}">#{{ review.training_job_id }} numaralı işi aç</a>{% endif %}
     </div>
     {% endif %}
   </aside>

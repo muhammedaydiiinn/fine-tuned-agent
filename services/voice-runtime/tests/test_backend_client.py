@@ -38,12 +38,16 @@ class _FakeResponse:
 class _FakeAsyncClient:
     def __init__(self, responses):
         self._responses = list(responses)
+        self.is_closed = False
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         return None
+
+    async def aclose(self):
+        self.is_closed = True
 
     async def request(self, method, url, headers=None, **kwargs):
         result = self._responses.pop(0)
@@ -87,6 +91,9 @@ class AgentBackendCircuitBreakerTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(BackendError):
                 await backend.create_session("s1")
 
+        # Persistent-client design: force a fresh client for the recovery block
+        # (in production the pooled client reconnects transparently).
+        backend._client = None
         with patch("app.backend.httpx.AsyncClient", return_value=second_client):
             result = await backend.create_session("s1")
 

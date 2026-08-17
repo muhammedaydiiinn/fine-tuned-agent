@@ -1,14 +1,57 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _api():
     from livekit import api  # noqa: PLC0415
 
     return api
+
+
+CONTROL_TOPIC = "voice.control"
+
+
+def publish_control(room_name: str, command: dict) -> bool:
+    """Deliver a supervisor control command to the voice room server-side.
+
+    Lets a supervisor Stop/replace the agent WITHOUT joining the audio room —
+    the panel publishes the "voice.control" data packet directly via the LiveKit
+    server API. Best-effort: returns True on success, False on failure (logged).
+    """
+    api = _api()
+    payload = json.dumps(command, separators=(",", ":")).encode("utf-8")
+
+    async def _send() -> None:
+        lkapi = api.LiveKitAPI(
+            settings.livekit_api_url,
+            settings.livekit_api_key,
+            settings.livekit_api_secret,
+        )
+        try:
+            # kind defaults to 0 (RELIABLE); omit it to avoid the enum import.
+            await lkapi.room.send_data(
+                api.SendDataRequest(
+                    room=room_name,
+                    data=payload,
+                    topic=CONTROL_TOPIC,
+                )
+            )
+        finally:
+            await lkapi.aclose()
+
+    try:
+        asyncio.run(_send())
+        return True
+    except Exception:  # noqa: BLE001 — control delivery must not break the request
+        logger.exception("Server-side voice control delivery failed — room=%s", room_name)
+        return False
 
 
 def build_voice_token(
