@@ -194,6 +194,24 @@
       <div>İlk canlı tur yakalandığında hızlı işlemler burada görünecek.</div>
     </div>
     {% endif %}
+
+    <div class="voice-note-panel" data-session-id="{{ session.id }}">
+      <div class="section-title section-title-compact">Sesli Not</div>
+      <div class="helper-text">Konuşurken sesli geri bildirim bırakın — kaydedilir ve buradan dinlenir.</div>
+      <div class="voice-note-actions">
+        <button id="voice-note-record" class="btn btn-outline" type="button">
+          <i class="fa-solid fa-microphone"></i> Kaydet
+        </button>
+        <button id="voice-note-stop" class="btn btn-danger" type="button" hidden>
+          <i class="fa-solid fa-stop"></i> Bitir
+        </button>
+        <span id="voice-note-status" class="helper-text"></span>
+      </div>
+      <div id="voice-notes-list"
+           hx-get="/sessions/{{ session.id }}/voice-notes"
+           hx-trigger="load, voice-note-saved from:body"
+           hx-swap="innerHTML"></div>
+    </div>
   </section>
 </section>
 
@@ -278,6 +296,67 @@
   });
 </script>
 {% if session.status == 'active' %}
+<script>
+  // Supervisor voice-note recorder — independent of the LiveKit voice room.
+  (function () {
+    var panel = document.querySelector(".voice-note-panel");
+    if (!panel || !navigator.mediaDevices || !window.MediaRecorder) return;
+    var sessionId = panel.dataset.sessionId;
+    var recBtn = document.getElementById("voice-note-record");
+    var stopBtn = document.getElementById("voice-note-stop");
+    var statusEl = document.getElementById("voice-note-status");
+    var mr = null, chunks = [];
+
+    function pickMime() {
+      var cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+      for (var i = 0; i < cands.length; i++) {
+        if (MediaRecorder.isTypeSupported(cands[i])) return cands[i];
+      }
+      return "";
+    }
+
+    recBtn.addEventListener("click", async function () {
+      try {
+        var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        var mime = pickMime();
+        mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        chunks = [];
+        mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        mr.onstop = async function () {
+          stream.getTracks().forEach(function (t) { t.stop(); });
+          var type = (mr.mimeType || "audio/webm");
+          var ext = type.indexOf("mp4") >= 0 ? ".m4a" : type.indexOf("ogg") >= 0 ? ".ogg" : ".webm";
+          var blob = new Blob(chunks, { type: type });
+          var fd = new FormData();
+          fd.append("file", blob, "sesli-not" + ext);
+          var csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+          statusEl.textContent = "Yükleniyor...";
+          try {
+            var r = await fetch("/sessions/" + sessionId + "/voice-note", {
+              method: "POST", headers: { "X-CSRF-Token": csrf }, body: fd,
+            });
+            if (!r.ok) throw new Error("upload failed");
+            statusEl.textContent = "Kaydedildi.";
+            window.agentUI?.showToast?.({ kind: "success", message: "Sesli not kaydedildi." });
+            if (window.htmx) window.htmx.trigger(document.body, "voice-note-saved");
+          } catch (err) {
+            statusEl.textContent = "Hata.";
+            window.agentUI?.showToast?.({ kind: "error", message: "Sesli not kaydedilemedi." });
+          }
+        };
+        mr.start();
+        recBtn.hidden = true; stopBtn.hidden = false; statusEl.textContent = "Kaydediliyor...";
+      } catch (err) {
+        window.agentUI?.showToast?.({ kind: "error", message: "Mikrofon açılamadı — izin gerekli." });
+      }
+    });
+
+    stopBtn.addEventListener("click", function () {
+      if (mr && mr.state !== "inactive") mr.stop();
+      recBtn.hidden = false; stopBtn.hidden = true;
+    });
+  })();
+</script>
 <script src="/static/livekit-client.umd.min.js"></script>
 <script src="/static/voice-session-recovery.js?v=1"></script>
 <script src="/static/voice-session.js?v=12"></script>

@@ -3,7 +3,7 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DBSession
 from app.csrf import require_csrf
 from app.db import get_db
 from app.livekit_tokens import build_voice_token, publish_control
-from app.models import Deployment, ModelVersion, Session as SessionModel, Turn, VoiceEvent
+from app.models import Deployment, ModelVersion, Recording, Session as SessionModel, Turn, VoiceEvent
 from app.ui_feedback import toast_fragment, toast_redirect
 from app.config import settings
 from app.voice_actions import prepare_voice_action
@@ -514,3 +514,60 @@ def session_voice_action(
         "delivered": delivered,
         "correction_id": correction["id"] if correction else None,
     }
+
+
+@router.post("/sessions/{session_id}/voice-note")
+async def session_voice_note(
+    session_id: int,
+    file: UploadFile = File(...),
+    note: str = Form(""),
+    db: DBSession = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    """Store a supervisor voice note for the session (playback only, no transcription)."""
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if session is None:
+        return JSONResponse({"detail": "Görüşme bulunamadı"}, status_code=404)
+    try:
+        resp = httpx.post(
+            f"{settings.agent_backend_url}/recordings",
+            files={
+                "file": (
+                    file.filename or "sesli-not.webm",
+                    file.file,
+                    file.content_type or "audio/webm",
+                )
+            },
+            data={
+                "kind": "supervisor_note",
+                "notes": note or "Yönetici sesli notu",
+                "uploaded_by": settings.admin_user,
+                "session_id": str(session_id),
+            },
+            headers=_backend_headers(),
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        recording = resp.json()
+    except Exception:
+        logger.exception("Voice note upload failed — session=%s", session_id)
+        return JSONResponse({"detail": "Sesli not kaydedilemedi"}, status_code=502)
+    return {
+        "ok": True,
+        "recording_id": recording["id"],
+        "audio_url": f"/recordings/{recording['id']}/audio",
+    }
+
+
+@router.get("/sessions/{session_id}/voice-notes", response_class=HTMLResponse)
+def session_voice_notes(session_id: int, request: Request, db: DBSession = Depends(get_db)):
+    notes = (
+        db.query(Recording)
+        .filter(Recording.session_id == session_id, Recording.kind == "supervisor_note")
+        .order_by(Recording.created_at.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        "_voice_notes.html",
+        {"request": request, "notes": notes},
+    )
