@@ -64,7 +64,7 @@
           <i class="fa-solid fa-microphone"></i>
         </div>
         <div>
-          <div id="voice-status" class="voice-status" aria-live="polite">Mikrofon kapalı</div>
+          <div id="voice-status" class="voice-status" aria-live="polite">Görüşmede değilsiniz</div>
           <div class="helper-text">
             <i class="fa-solid fa-circle" style="color:#e5484d;font-size:.5em;vertical-align:middle;"></i>
             Görüşme sesli kaydediliyor
@@ -75,14 +75,8 @@
         </div>
       </div>
       <div class="voice-test-actions">
-        <button id="live-stop-agent" class="btn btn-danger" type="button">
-          <i class="fa-solid fa-hand"></i> Ajanı Durdur
-        </button>
-        <button id="voice-start" class="btn btn-success" type="button">
-          <i class="fa-solid fa-headphones"></i> Dinle
-        </button>
-        <button id="voice-stop" class="btn btn-outline" type="button" hidden>
-          <i class="fa-solid fa-microphone-slash"></i> Dinlemeyi Durdur
+        <button id="voice-toggle" class="btn btn-success" type="button" data-connected="false">
+          <i class="fa-solid fa-phone"></i> Görüşmeye Katıl
         </button>
       </div>
     </div>
@@ -322,6 +316,6 @@
 </script>
 <script src="/static/livekit-client.umd.min.js"></script>
 <script src="/static/voice-session-recovery.js?v=1"></script>
-<script src="/static/voice-session.js?v=13"></script>
+<script src="/static/voice-session.js?v=14"></script>
 {% endif %}
 {% endblock %}

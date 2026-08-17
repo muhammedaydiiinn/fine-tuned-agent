@@ -6,15 +6,13 @@
 
   const { ConnectionState, Room, RoomEvent, Track } = window.LivekitClient;
   const sessionId = consoleElement.dataset.sessionId;
-  const startButton = document.querySelector("#voice-start");
-  const stopButton = document.querySelector("#voice-stop");
+  const toggleButton = document.querySelector("#voice-toggle");
   const statusElement = document.querySelector("#voice-status");
   const orbElement = document.querySelector("#voice-orb");
   const levelElement = document.querySelector("#voice-level");
   const levelBars = Array.from(levelElement?.querySelectorAll("span") || []);
   const audioContainer = document.querySelector("#voice-audio");
   const endSessionForm = document.querySelector("#end-session-form");
-  const stopAgentButton = document.querySelector("#live-stop-agent");
   const sendReplacementButton = document.querySelector("#live-send-replacement");
   const replacementField = document.querySelector("#quick-corrected-response");
   const replacementActionField = document.querySelector("#quick-corrected-action");
@@ -51,8 +49,22 @@
     }
   }
 
-  if (hasConnectedBefore) {
-    startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Devam Et';
+  // Single call button: one control that joins or leaves the conversation.
+  function setToggle(mode) {
+    if (!toggleButton) return;
+    if (mode === "connecting") {
+      toggleButton.disabled = true;
+      toggleButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Bağlanılıyor...';
+      return;
+    }
+    const connected = mode === "connected";
+    toggleButton.disabled = false;
+    toggleButton.dataset.connected = connected ? "true" : "false";
+    toggleButton.classList.toggle("btn-success", !connected);
+    toggleButton.classList.toggle("btn-outline", connected);
+    toggleButton.innerHTML = connected
+      ? '<i class="fa-solid fa-phone-slash"></i> Ayrıl'
+      : '<i class="fa-solid fa-phone"></i> Görüşmeye Katıl';
   }
 
   function setStatus(message, state) {
@@ -63,12 +75,12 @@
 
   function setVoiceState(state, detail) {
     const states = {
-      idle: "Mikrofon kapalı",
-      listening: "Dinliyor - konuşabilirsiniz",
-      hearing: "Müşteri dinleniyor...",
-      processing: "Son tur işleniyor...",
+      idle: "Görüşmede değilsiniz",
+      listening: "Ajan sizi dinliyor - konuşabilirsiniz",
+      hearing: "Konuşmanız duyuluyor...",
+      processing: "Ajan yanıt hazırlıyor...",
       speaking: "Ajan konuşuyor - araya girebilirsiniz",
-      interrupted: "Araya girme algılandı - tur değişiyor",
+      interrupted: "Araya girdiniz - ajan susuyor",
       reconnecting: "Bağlantı koptu - yeniden bağlanılıyor...",
       error: detail || "Ses çalışma zamanı hatası",
     };
@@ -141,12 +153,12 @@
     persistRecoveryState();
     resetVoiceControls(false);
     if (recovery.shouldAutoResume(recoveryState)) {
-      showToast("warning", "Ses odası bağlantısı koptu. Otomatik kurtarma başlıyor.", "Ses kurtarma");
+      showToast("warning", "Bağlantı koptu. Yeniden bağlanılıyor.", "Bağlantı");
       scheduleAutoResume();
       return;
     }
-    setVoiceState("error", "Ses kurtarma tükendi - elle devam edin");
-    showToast("error", "Otomatik kurtarma deneme sınırına ulaştı. Elle devam edin.", "Ses kurtarma");
+    setVoiceState("error", "Bağlantı kurtarılamadı - Görüşmeye Katıl ile tekrar deneyin");
+    showToast("error", "Otomatik yeniden bağlanma başarısız oldu. Görüşmeye Katıl butonuyla tekrar deneyin.", "Bağlantı");
   }
 
   async function requestVoiceAction(actionName) {
@@ -182,8 +194,8 @@
 
     clearReconnectTimer();
     manualDisconnect = false;
-    startButton.disabled = true;
-    setStatus("Ses çalışma zamanına bağlanılıyor...", "working");
+    setToggle("connecting");
+    setStatus("Görüşmeye bağlanılıyor...", "working");
 
     // Only the automatic silent-recovery path (forceResume) rejoins without
     // re-dispatching the agent — there the agent is still in the room after a brief
@@ -237,8 +249,8 @@
         } else if (event.event === "interruption_detected") {
           setVoiceState("interrupted");
         } else if (event.event === "playback_cancelled") {
-          setVoiceState("processing", "Ajan durdu - araya girmeniz işleniyor");
-          showToast("warning", "Yeni müşteri konuşması algılandığı için aktif oynatma iptal edildi.", "Oynatma durdu");
+          setVoiceState("processing", "Ajan sustu - söyledikleriniz işleniyor");
+          showToast("warning", "Siz konuşmaya başladığınız için ajan sustu.", "Araya girme");
         } else if (event.event === "backchannel_detected") {
           setVoiceState("listening", "Onay algılandı - devam ediliyor");
         } else if (event.event === "duplicate_transcript_ignored") {
@@ -262,12 +274,12 @@
           setVoiceState("processing", "Yönetici aktif cevabı durdurdu");
           showToast("warning", "Aktif ajan cevabı durduruldu.", "Yönetici kontrolü");
         } else if (event.event === "supervisor_replacement_started") {
-          setVoiceState("speaking", "Yönetici cevabı oynatılıyor");
-          showToast("info", "Değiştirilen cevap müşteriye oynatılıyor.", "Yönetici kontrolü");
+          setVoiceState("speaking", "Yazdığınız cevap söyleniyor");
+          showToast("info", "Yazdığınız cevap müşteriye söyleniyor.", "Bunu Söylet");
         } else if (event.event === "supervisor_replacement_completed") {
           renderMetrics({ tts_first_audio_ms: event.tts_first_audio_ms });
-          setVoiceState("listening", "Cevap iletildi - dinleniyor");
-          showToast("success", "Değiştirilen cevap iletildi.", "Yönetici kontrolü");
+          setVoiceState("listening", "Cevap söylendi - dinleniyor");
+          showToast("success", "Yazdığınız cevap müşteriye iletildi.", "Bunu Söylet");
         } else if (event.event === "supervisor_action_ignored") {
           showToast("warning", "Yönetici işlemi ses çalışma zamanı tarafından yok sayıldı.", "Yönetici kontrolü");
         } else if (event.event === "tts_fallback_activated") {
@@ -284,7 +296,7 @@
       room.on(RoomEvent.Reconnected, () => {
         if (room !== currentRoom) return;
         setVoiceState("listening", "Yeniden bağlandı - dinleniyor");
-        showToast("success", "Canlı ses bağlantısı geri geldi.", "Yeniden bağlandı");
+        showToast("success", "Görüşme bağlantısı geri geldi.", "Bağlantı");
       });
       room.on(RoomEvent.Disconnected, () => {
         if (room !== currentRoom) return;
@@ -302,12 +314,10 @@
       recoveryState = recovery ? recovery.recordConnected() : recoveryState;
       persistRecoveryState();
       hasConnectedBefore = true;
-      stopButton.disabled = false;
-      stopButton.hidden = false;
-      startButton.hidden = true;
-      setVoiceState(isResume ? "listening" : "processing", isResume ? "Devam edildi - dinleniyor" : "Ses ajanı bekleniyor...");
+      setToggle("connected");
+      setVoiceState(isResume ? "listening" : "processing", isResume ? "Görüşmeye dönüldü - dinleniyor" : "Ajan aranıyor...");
       if (opts.silentRecovery) {
-        showToast("success", "Ses odası kurtarıldı ve yeniden katılındı.", "Ses kurtarma");
+        showToast("success", "Görüşmeye yeniden bağlanıldı.", "Bağlantı");
       }
     } catch (error) {
       const failedRoom = room;
@@ -338,7 +348,7 @@
       recoveryState = recovery.recordExpectedDisconnect(recoveryState);
       persistRecoveryState();
     }
-    stopButton.disabled = true;
+    if (toggleButton) toggleButton.disabled = true;
     if (room) await room.disconnect();
     resetVoiceControls();
   }
@@ -346,36 +356,18 @@
   function resetVoiceControls(showStopped) {
     clearReconnectTimer();
     room = null;
-    startButton.disabled = false;
-    startButton.hidden = false;
-    stopButton.disabled = true;
-    stopButton.hidden = true;
+    setToggle("idle");
     audioContainer.replaceChildren();
     stopLevelMeter();
-    if (hasConnectedBefore) {
-      startButton.innerHTML = '<i class="fa-solid fa-microphone"></i> Devam Et';
-    }
     if (showStopped !== false) setVoiceState("idle");
   }
 
-  startButton.addEventListener("click", startVoice);
-  stopButton.addEventListener("click", stopVoice);
-  if (stopAgentButton) {
-    stopAgentButton.addEventListener("click", async () => {
-      stopAgentButton.disabled = true;
-      try {
-        // Server-side delivery — works even without joining the audio room.
-        const response = await requestVoiceAction("stop_agent");
-        showToast(
-          response.delivered ? "success" : "warning",
-          response.delivered ? "Ajanı durdurma komutu gönderildi." : "Komut gönderildi, teslim doğrulanamadı.",
-          "Yönetici kontrolü"
-        );
-      } catch (error) {
-        console.error(error);
-        showToast("error", error.message || "Ajan durdurulamadı.", "Yönetici kontrolü");
-      } finally {
-        stopAgentButton.disabled = false;
+  if (toggleButton) {
+    toggleButton.addEventListener("click", () => {
+      if (toggleButton.dataset.connected === "true") {
+        stopVoice();
+      } else {
+        startVoice();
       }
     });
   }
@@ -414,7 +406,7 @@
     if (room) room.disconnect();
   });
   if (recovery && recovery.shouldAutoResume(recoveryState)) {
-    setVoiceState("reconnecting", "Önceki ses oturumu sürdürülüyor...");
+    setVoiceState("reconnecting", "Görüşmeye yeniden bağlanılıyor...");
     window.setTimeout(() => {
       startVoice({ forceResume: true, silentRecovery: true });
     }, 300);
