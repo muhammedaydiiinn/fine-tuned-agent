@@ -24,7 +24,7 @@ from app.workers.queue import enqueue_transcribe_job
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_KINDS = ("good_example", "to_correct")
+_KINDS = ("good_example", "to_correct", "supervisor_note")
 
 # GPU-free development/CI: TRANSCRIBE_MODE=mock skips the worker queue and
 # writes this canned German dialogue as the transcript.
@@ -72,6 +72,7 @@ def upload_recording(
     kind: str = Form(...),
     notes: str = Form(""),
     uploaded_by: str = Form(""),
+    session_id: int | None = Form(None),
     db: DBSession = Depends(get_db),
 ):
     if kind not in _KINDS:
@@ -89,6 +90,7 @@ def upload_recording(
         status="uploaded",
         notes=notes or None,
         uploaded_by=uploaded_by or None,
+        session_id=session_id,
     )
     db.add(recording)
     db.flush()
@@ -117,6 +119,13 @@ def upload_recording(
         db.rollback()
         raise HTTPException(status_code=422, detail="Uploaded file is empty")
     recording.stored_path = str(target_path)
+
+    # Supervisor voice notes are stored for playback only — no transcription.
+    if kind == "supervisor_note":
+        recording.status = "note"
+        db.commit()
+        db.refresh(recording)
+        return _response(db, recording)
 
     if settings.transcribe_mode == "mock":
         for idx, seg in enumerate(_MOCK_SEGMENTS):

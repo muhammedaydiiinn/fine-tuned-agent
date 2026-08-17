@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # "real" -> jobs go to the transcribe-worker via Redis.
     transcribe_mode: str = "mock"
     recording_max_bytes: int = 300 * 1024 * 1024
-    recording_allowed_exts: str = ".wav,.mp3,.m4a,.ogg,.flac,.opus"
+    recording_allowed_exts: str = ".wav,.mp3,.m4a,.ogg,.flac,.opus,.webm"
 
     @property
     def recordings_dir(self) -> str:
