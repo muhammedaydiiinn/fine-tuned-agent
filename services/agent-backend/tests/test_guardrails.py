@@ -5,7 +5,7 @@ from unittest import TestCase
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.core.guardrails import apply, apply_with_context
-from app.core.product_facts import CLOSING_BRIEF_TEMPLATE, PRICE_TEMPLATE, SECURITY_TEMPLATE
+from app.core.product_facts import CLOSING_BRIEF_TEMPLATE, PRICE_TEMPLATE
 
 
 class HardDeclineGuardrailTests(TestCase):
@@ -50,17 +50,22 @@ class PdfGuardrailTests(TestCase):
         self.assertEqual(policy["agent_response"], PRICE_TEMPLATE)
         self.assertEqual(policy["next_action"], "explain_price")
 
-    def test_security_objection_uses_pdf_template(self):
+    def test_security_objection_keeps_model_answer(self):
+        # Legal-floor refactor: the verbatim security template is no longer
+        # forced — the model answers a security objection in its own words.
         policy = apply(
             {
                 "intent": "security_objection",
                 "next_action": "handle_objection",
                 "allowed_to_continue": True,
-                "agent_response": "Keine Sorge.",
+                "agent_response": "Keine Sorge, der Link führt nur zum offiziellen App Store.",
             },
             {},
         )
-        self.assertEqual(policy["agent_response"], SECURITY_TEMPLATE)
+        self.assertEqual(
+            policy["agent_response"],
+            "Keine Sorge, der Link führt nur zum offiziellen App Store.",
+        )
 
     def test_delay_blocks_phone_collection(self):
         policy = apply_with_context(

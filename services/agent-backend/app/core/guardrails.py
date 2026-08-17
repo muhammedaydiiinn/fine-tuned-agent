@@ -86,14 +86,16 @@ def apply_with_context(
     state: dict[str, Any],
     customer_message: str = "",
 ) -> dict[str, Any]:
+    # Legal/accuracy floor only — persuasion, alternatives, flow and closing are
+    # left to the model's own intelligence (learned via fine-tuning). The old
+    # stylistic overrides (verbatim security template, identity-before-link
+    # funnel) were removed so the model can offer alternatives and phrase freely.
     p = dict(policy)
     p["next_action"] = normalize_next_action(p.get("next_action", ""))
     p = _rule_post_close_brief(p, state, customer_message)
     p = _rule_hard_decline(p, state)
-    p = _rule_identity_before_link(p, state)
     p = _rule_delay_no_phone_collection(p, customer_message)
     p = _rule_price_template(p, customer_message)
-    p = _rule_security_template(p)
     p = _rule_closing_flags(p)
     p = _rule_loop_detection(p, state)
     return p
@@ -122,18 +124,6 @@ def _rule_hard_decline(policy: dict, state: dict) -> dict:
         policy["next_action"] = "close_call"
         policy["behavior_strategy"] = "graceful_exit"
         policy["allowed_to_continue"] = False
-    return policy
-
-
-def _rule_identity_before_link(policy: dict, state: dict) -> dict:
-    if policy.get("next_action") == "send_activation_link":
-        if not state.get("identity_confirmed", False):
-            logger.info("guardrail: identity not confirmed -> blocking send_activation_link")
-            policy["next_action"] = "qualify_lead"
-            policy["behavior_strategy"] = "ask_for_name_first"
-            policy["agent_response"] = (
-                "Bevor ich Ihnen den Link sende, darf ich kurz Ihren Namen bestätigen?"
-            )
     return policy
 
 
@@ -189,15 +179,6 @@ def _rule_price_template(policy: dict, customer_message: str) -> dict:
         logger.info("guardrail: unsafe price answer -> PDF template")
         policy["agent_response"] = content_store.canned("price")
     policy["next_action"] = "explain_price"
-    return policy
-
-
-def _rule_security_template(policy: dict) -> dict:
-    intent = policy.get("intent", "")
-    if intent == "security_objection":
-        logger.info("guardrail: PDF security template applied")
-        policy["agent_response"] = content_store.canned("security")
-        policy["next_action"] = "address_security"
     return policy
 
 

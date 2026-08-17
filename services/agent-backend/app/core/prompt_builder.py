@@ -1,15 +1,16 @@
 """Builds the message list for vLLM.
 
-System instruction + product facts + current state + recent turns +
-correction hints + customer text -> OpenAI chat messages format.
+Single-turn rich payload matching the fine-tuning format:
+system (mission persona, name filled) + one user message carrying
+{task, customer, known_customer_data, company_policy, last_agent_message,
+customer_message}. Facts/script/objections travel in known_customer_data, not
+in the system prompt.
 """
 import json
 from typing import Any
 
+from app.core import state_manager
 from app.core.policy_prompt import build_system_content
-
-# Number of previous turns included in the prompt
-HISTORY_WINDOW = 5
 
 
 def build(
@@ -19,16 +20,12 @@ def build(
     correction_hints: list[dict],
 ) -> list[dict]:
     """Return the OpenAI chat messages list."""
-    messages: list[dict] = []
+    agent_name = (state.get("agent_name") or "").strip()
+    agent_role = (state.get("agent_role") or "").strip()
 
-    messages.append({"role": "system", "content": build_system_content()})
-
-    state_summary = _format_state(state)
-    if state_summary:
-        messages.append({
-            "role": "system",
-            "content": f"Current state:\n{state_summary}",
-        })
+    messages: list[dict] = [
+        {"role": "system", "content": build_system_content(agent_name, agent_role)},
+    ]
 
     if correction_hints:
         hints_text = "Correction memory (these instructions take priority):\n"
@@ -39,74 +36,109 @@ def build(
                 hints_text += f"  next_action: {h['correct_next_action']}\n"
         messages.append({"role": "system", "content": hints_text.strip()})
 
-    for turn in recent_turns[-HISTORY_WINDOW:]:
-        messages.append({"role": "user", "content": turn.customer_text})
-        if getattr(turn, "was_interrupted", False):
-            # Represent only what the customer actually heard, then flag the
-            # cut-off so the model resumes contextually instead of repeating.
-            heard = (getattr(turn, "spoken_response", None) or "").strip()
-            if heard:
-                messages.append({"role": "assistant", "content": heard})
-            messages.append({
-                "role": "system",
-                "content": (
-                    "(Your previous reply was interrupted by the customer here; "
-                    "they did not hear the rest. Do not repeat what you already "
-                    "said — address their new input, then continue naturally.)"
-                ),
-            })
-        elif turn.agent_response:
-            messages.append({"role": "assistant", "content": turn.agent_response})
+    if recent_turns and getattr(recent_turns[-1], "was_interrupted", False):
+        # last_agent_message carries only the heard prefix; flag the cut-off so
+        # the model resumes contextually instead of repeating the unheard rest.
+        messages.append({
+            "role": "system",
+            "content": (
+                "(Your previous reply was interrupted by the customer; they did "
+                "not hear the rest. Do not repeat what you already said — address "
+                "their new input, then continue naturally.)"
+            ),
+        })
 
-    if not customer_text:
-        customer_name = (state.get("customer_name") or "").strip()
-        if customer_name:
-            opening = (
-                f"The call just connected — you are calling {customer_name}. "
-                "The customer may already be speaking; keep the greeting to one or two "
-                "short sentences. Address {name} by name, introduce yourself as Anna Weber, "
-                "Sicherheitsberaterin von CallShield, and briefly mention that their "
-                "number may be exposed to fraud misuse and you will help them check it safely."
-            ).format(name=customer_name)
-        else:
-            opening = (
-                "The call just connected. The customer may already be speaking; keep the "
-                "greeting to one or two short sentences. Introduce yourself as Anna Weber, "
-                "Sicherheitsberaterin von CallShield, and briefly mention safe number "
-                "protection."
-            )
-        messages.append({"role": "system", "content": opening})
-    user_payload = json.dumps(
-        {"customer_message": customer_text, "state": _compact_state(state)},
-        ensure_ascii=False,
-    )
-    messages.append({"role": "user", "content": user_payload})
-
+    user_payload = build_user_payload(customer_text, state, recent_turns)
+    messages.append({"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)})
     return messages
 
 
-def _format_state(state: dict[str, Any]) -> str:
-    lines = []
-    if state.get("hard_decline_count", 0) > 0:
-        lines.append(f"- hard_decline_count: {state['hard_decline_count']}")
-    if state.get("identity_confirmed"):
-        lines.append("- identity confirmed")
-    if state.get("offer_terms_explained"):
-        lines.append("- offer terms explained")
-    if state.get("stage") != "initial":
-        lines.append(f"- stage: {state.get('stage')}")
-    return "\n".join(lines)
+def _last_agent_message(recent_turns: list) -> str:
+    if not recent_turns:
+        return ""
+    turn = recent_turns[-1]
+    if getattr(turn, "was_interrupted", False):
+        return (getattr(turn, "spoken_response", None) or "").strip()
+    return (getattr(turn, "agent_response", None) or "").strip()
 
 
-def _compact_state(state: dict[str, Any]) -> dict:
-    """Return only the fields that matter for prompt size."""
-    compact = {
-        "stage": state.get("stage"),
-        "hard_decline_count": state.get("hard_decline_count", 0),
-        "identity_confirmed": state.get("identity_confirmed", False),
-        "offer_terms_explained": state.get("offer_terms_explained", False),
-        "price_explained": state.get("price_explained", False),
+def _build_task(state: dict[str, Any]) -> dict:
+    required = list(state_manager.ALL_FLOW_SLOTS)
+    filled = state.get("filled_slots") or {}
+    return {
+        "type": "sales",
+        "goal": state.get("goal", "sell_activation"),
+        "stage": state.get("stage", "initial"),
+        "required_slots": required,
+        "filled_slots": {k: "yes" for k in required if filled.get(k)},
+        "missing_slots": [k for k in required if not filled.get(k)],
+        "status": "in_progress",
     }
-    if (state.get("customer_name") or "").strip():
-        compact["customer_name"] = state["customer_name"]
-    return compact
+
+
+def _build_known_customer_data(state: dict[str, Any]) -> dict:
+    from app.core import content_store, product_facts
+
+    facts = content_store.product_facts()
+    agent_name = (state.get("agent_name") or "Anna Weber").strip()
+    agent_role = (state.get("agent_role") or "").strip() or "Sicherheitsberaterin"
+    customer_name = (state.get("customer_name") or "").strip() or "der Kunde"
+    website = facts.get("website", "")
+
+    product = {
+        "name": "CallShield Gold Paket",
+        "trial_period": facts.get("trial_period", ""),
+        "monthly_price": facts.get("monthly_price", ""),
+        "check_price_normal": facts.get("check_price_normal", ""),
+        "check_price_today": facts.get("check_price_today", ""),
+        "platforms": facts.get("app_stores", ""),
+        "risk_entries_example": facts.get("risk_entries_example", ""),
+        "risk_entries_range": facts.get("risk_entries_range", ""),
+        "blocked_numbers": facts.get("blocked_numbers", ""),
+        "legal_support": facts.get("legal_support", ""),
+        "support_channel": facts.get("support_channel", ""),
+        "website": website,
+    }
+    sales_script = {
+        "opening": (
+            f"Guten Tag, mein Name ist {agent_name}, {agent_role} von CallShield. "
+            "Ich rufe an, weil es um den Schutz Ihrer Rufnummer vor unerwünschten "
+            "Anrufen und möglichen Betrugsversuchen geht."
+        ),
+        "safe_link": "Der Link führt ausschließlich zum offiziellen Apple App Store oder Google Play Store.",
+        "value_pitch": (
+            "Mit der App können Sie prüfen, ob Ihre Rufnummer in Risiko-, Werbe- oder "
+            "Beschwerdedatenbanken auftaucht. Zusätzlich werden bekannte Risikonummern "
+            "automatisch blockiert."
+        ),
+        "website_start": (
+            "Wenn Sie keinen Link öffnen möchten, können Sie die App auch selbst öffnen und "
+            f"Ihre Nummer eingeben — oder den Schutz direkt auf unserer Webseite {website} "
+            "starten. Ich bleibe dabei an Ihrer Seite."
+        ),
+    }
+    sales_script.update(product_facts.build_sales_script(product))
+    return {
+        "customer": {"name_placeholder": customer_name, "phone_number": "die angerufene Rufnummer"},
+        "product": product,
+        "sales_script": sales_script,
+        "objection_handling": product_facts.build_objection_handling(product),
+        "agent": {"name": agent_name, "role": agent_role},
+    }
+
+
+def build_user_payload(customer_text: str, state: dict[str, Any], recent_turns: list) -> dict:
+    from app.core import content_store
+
+    return {
+        "task": _build_task(state),
+        "customer": {"risk": "low"},
+        "known_customer_data": _build_known_customer_data(state),
+        "company_policy": {
+            "price_fixed": True,
+            "no_personal_data_on_call": True,
+            "rules": list(content_store.pdf_rules()),
+        },
+        "last_agent_message": _last_agent_message(recent_turns),
+        "customer_message": customer_text,
+    }
