@@ -66,3 +66,27 @@ class PromptBuilderInterruptionTests(TestCase):
         self.assertTrue(
             any("interrupted by the customer" in m for m in _by_role(messages, "system"))
         )
+
+
+class ObjectionLibrarySelectionTests(TestCase):
+    """WP-4: the panel-editable objection library reaches the prompt, per turn."""
+
+    def test_matching_objection_is_injected(self):
+        from app.core.prompt_builder import build_user_payload
+
+        payload = build_user_payload("Wie überprüfen Sie das eigentlich?", {}, [])
+        library = payload["known_customer_data"].get("objection_library") or []
+        self.assertTrue(library, "expected at least one matching objection entry")
+        self.assertTrue(any("prüfen" in (e["answer"] or "").lower() for e in library))
+
+    def test_opening_turn_injects_no_objections(self):
+        from app.core.prompt_builder import build_user_payload
+
+        payload = build_user_payload("", {}, [])
+        self.assertNotIn("objection_library", payload["known_customer_data"])
+
+    def test_small_talk_injects_no_objections(self):
+        from app.core.prompt_builder import build_user_payload
+
+        payload = build_user_payload("Schönes Wetter heute, oder?", {}, [])
+        self.assertNotIn("objection_library", payload["known_customer_data"])

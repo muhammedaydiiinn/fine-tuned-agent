@@ -76,7 +76,50 @@ def _build_task(state: dict[str, Any]) -> dict:
     }
 
 
-def _build_known_customer_data(state: dict[str, Any]) -> dict:
+# Words too common in German small talk to signal which objection is meant.
+_STOPWORDS = frozenset(
+    "ich sie das ist ein eine der die und nicht mir mich was wie zu es den dem "
+    "ja nein auch doch noch schon bitte haben habe sind mit für auf im in an am "
+    "um aber dann wenn oder wir ihr ihre ihren sich da so nur mal ganz kein "
+    "keine meine mein wird werden kann können möchte will".split()
+)
+
+
+def _tokens(text: str) -> set[str]:
+    import re
+
+    return {
+        token
+        for token in re.findall(r"[a-zäöüß0-9]+", (text or "").lower())
+        if len(token) > 2 and token not in _STOPWORDS
+    }
+
+
+def _select_objections(customer_text: str, limit: int = 4) -> list[dict]:
+    """Panel-editable objection library entries relevant to this turn.
+
+    The library can grow to dozens of entries, so instead of stuffing all of
+    them into every prompt, score each entry by token overlap with the current
+    customer message and inject only the best matches. An opening turn (empty
+    text) or small talk with no overlap injects nothing.
+    """
+    from app.core import content_store
+
+    text_tokens = _tokens(customer_text)
+    if not text_tokens:
+        return []
+    scored: list[tuple[int, dict]] = []
+    for item in content_store.objection_faq():
+        trigger_overlap = len(text_tokens & _tokens(item.get("trigger", "")))
+        answer_overlap = len(text_tokens & _tokens(item.get("answer", "")))
+        score = trigger_overlap * 2 + answer_overlap
+        if trigger_overlap or answer_overlap >= 2:
+            scored.append((score, {"trigger": item["trigger"], "answer": item["answer"]}))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [item for _, item in scored[:limit]]
+
+
+def _build_known_customer_data(state: dict[str, Any], customer_text: str = "") -> dict:
     from app.core import content_store, product_facts
 
     facts = content_store.product_facts()
@@ -118,13 +161,18 @@ def _build_known_customer_data(state: dict[str, Any]) -> dict:
         ),
     }
     sales_script.update(product_facts.build_sales_script(product))
-    return {
+    data = {
         "customer": {"name_placeholder": customer_name, "phone_number": "die angerufene Rufnummer"},
         "product": product,
         "sales_script": sales_script,
         "objection_handling": product_facts.build_objection_handling(product),
         "agent": {"name": agent_name, "role": agent_role},
     }
+    # Panel-editable objection library, narrowed to this turn (WP-4).
+    objections = _select_objections(customer_text)
+    if objections:
+        data["objection_library"] = objections
+    return data
 
 
 def build_user_payload(customer_text: str, state: dict[str, Any], recent_turns: list) -> dict:
@@ -133,7 +181,7 @@ def build_user_payload(customer_text: str, state: dict[str, Any], recent_turns: 
     return {
         "task": _build_task(state),
         "customer": {"risk": "low"},
-        "known_customer_data": _build_known_customer_data(state),
+        "known_customer_data": _build_known_customer_data(state, customer_text),
         "company_policy": {
             "price_fixed": True,
             "no_personal_data_on_call": True,
