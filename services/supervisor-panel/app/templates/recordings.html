@@ -15,8 +15,8 @@
   <form method="post" action="/recordings/upload" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="{{ request.state.csrf_token | default('') }}">
     <div class="form-group">
-      <label for="rec-file">Ses dosyası (.wav, .mp3, .m4a, .ogg, .flac, .opus)</label>
-      <input type="file" id="rec-file" name="file" accept=".wav,.mp3,.m4a,.ogg,.flac,.opus,audio/*" required>
+      <label for="rec-file">Ses dosyaları (.wav, .mp3, .m4a, .ogg, .flac, .opus) — birden fazla dosya seçebilirsiniz</label>
+      <input type="file" id="rec-file" name="file" accept=".wav,.mp3,.m4a,.ogg,.flac,.opus,audio/*" multiple required>
     </div>
     <div class="form-group">
       <label for="rec-kind">Amaç</label>
@@ -32,6 +32,7 @@
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload"></i> Yükle</button>
   </form>
 </section>
+<script src="/static/recordings-upload.js?v=1" defer></script>
 
 <div class="table-container">
   <div class="table-toolbar"><span class="table-toolbar-title">Yüklenen kayıtlar</span></div>

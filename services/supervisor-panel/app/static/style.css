@@ -2522,3 +2522,15 @@ table.dataTable thead th.dt-ordering-desc span.dt-column-order { opacity: 1; col
   margin-bottom: 8px;
 }
 .recording-row .voice-note-time { flex: 0 0 auto; }
+
+/* ── Background/bulk recording upload progress (recordings-upload.js) ── */
+.upload-progress-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.upload-row { border: 1px solid var(--border, #d8dee4); border-radius: 8px; padding: 8px 12px; }
+.upload-row-head { display: flex; gap: 12px; align-items: baseline; font-size: 13px; }
+.upload-name { font-weight: 600; overflow-wrap: anywhere; }
+.upload-state { margin-left: auto; white-space: nowrap; }
+.upload-bar { height: 6px; border-radius: 3px; background: rgba(127, 127, 127, 0.18); margin-top: 6px; overflow: hidden; }
+.upload-bar-fill { height: 100%; width: 0; border-radius: 3px; background: var(--primary, #2563eb); transition: width 0.15s ease; }
+.upload-ok .upload-bar-fill { background: var(--success, #16a34a); }
+.upload-failed .upload-bar-fill { background: var(--danger, #dc2626); }
+.upload-failed .upload-state { color: var(--danger, #dc2626); }

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session as DBSession
 
@@ -47,11 +47,15 @@ def recordings_list(request: Request, db: DBSession = Depends(get_db)):
 
 @router.post("/recordings/upload")
 async def upload_recording(
+    request: Request,
     file: UploadFile = File(...),
     kind: str = Form(...),
     notes: str = Form(""),
     _csrf: None = Depends(require_csrf),
 ):
+    # The JS uploader (background/bulk upload) sends this header and expects
+    # JSON per file; the plain form flow keeps the redirect+toast behavior.
+    wants_json = request.headers.get("x-panel-upload") == "async"
     try:
         response = httpx.post(
             _backend("/recordings"),
@@ -69,10 +73,16 @@ async def upload_recording(
         except Exception:
             detail = exc.response.text[:200]
         logger.warning("Recording upload rejected: %s", detail)
+        if wants_json:
+            return JSONResponse({"error": detail or "Yükleme reddedildi"}, status_code=exc.response.status_code)
         return toast_redirect("/recordings", f"Yükleme reddedildi: {detail}", kind="error", title="Yükleme başarısız")
     except Exception as exc:
         logger.exception("Recording upload failed")
+        if wants_json:
+            return JSONResponse({"error": f"Yükleme başarısız: {exc}"}, status_code=502)
         return toast_redirect("/recordings", f"Yükleme başarısız: {exc}", kind="error", title="Yükleme başarısız")
+    if wants_json:
+        return JSONResponse({"id": recording_id, "filename": file.filename or "recording"})
     return toast_redirect(
         f"/recordings/{recording_id}",
         "Kayıt yüklendi. Transkripsiyon otomatik olarak başlıyor.",
