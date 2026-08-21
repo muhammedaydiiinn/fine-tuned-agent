@@ -20,8 +20,18 @@ def build_system_content(agent_name: str = "", agent_role: str = "") -> str:
 
     Fills the {name}/{persona} placeholders in the mission persona. Uses str
     .replace (not .format) so the literal JSON braces in the contract survive.
+
+    The intent/next_action legend is a technical contract (like
+    SYSTEM_OUTPUT_CONTRACT) and is appended in code: the panel-editable mission
+    text stays free of taxonomy jargon, and a content edit can never silently
+    drop the enum guidance the guided decoding relies on.
     """
+    from app.core import product_facts
+
     text = load_system_instruction().rstrip()
     name = (agent_name or "Anna Weber").strip()
     persona = (agent_role or "").strip() or agent_identity.role_for_name(name)
-    return text.replace("{name}", name).replace("{persona}", persona)
+    text = text.replace("{name}", name).replace("{persona}", persona)
+    if "intent=price_question" not in text:  # skip if the editable text already carries a legend
+        text += product_facts.NEXT_ACTION_LEGEND
+    return text

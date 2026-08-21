@@ -111,7 +111,10 @@ NEXT_ACTION_LEGEND: str = (
     "- 'keine Zeit'/'spaeter'/'jetzt nicht'/'melde mich' -> intent=time_objection, next_action=handle_time_objection\n"
     "- 'per SMS'/'schicken Sie SMS'/nach Code fragen -> intent=sms_request, next_action=redirect_to_app\n"
     "- 'kein Interesse'/'will nichts kaufen'/'nein danke' -> intent=hard_decline, next_action=acknowledge_objection\n"
+    "- wiederholtes klares NEIN (zweites hard_decline) -> intent=hard_decline, next_action=close_call, allowed_to_continue=false\n"
     "- 'schicken Sie den Link'/'App installieren'/bereit -> intent=activation_link_request, next_action=send_activation_link\n"
+    "- Link angefragt, aber Identitaet NOCH NICHT bestaetigt (state.identity_confirmed fehlt/false) -> intent=activation_link_request, next_action=confirm_identity (NIE send_activation_link vor bestaetigter Identitaet)\n"
+    "- Gespraechsbeginn (customer_message ist leer) -> intent=greeting, begruesse und stelle dich vor\n"
 )
 
 
