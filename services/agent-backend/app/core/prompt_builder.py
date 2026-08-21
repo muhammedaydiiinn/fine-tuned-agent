@@ -119,6 +119,17 @@ def _select_objections(customer_text: str, limit: int = 4) -> list[dict]:
     return [item for _, item in scored[:limit]]
 
 
+def opening_line(state: dict[str, Any]) -> str:
+    """Deterministic call opening — also spoken directly on turn 0 (no LLM)."""
+    agent_name = (state.get("agent_name") or "Anna Weber").strip()
+    agent_role = (state.get("agent_role") or "").strip() or "Sicherheitsberaterin"
+    return (
+        f"Guten Tag, mein Name ist {agent_name}, {agent_role} von CallShield. "
+        "Ich rufe an, weil es um den Schutz Ihrer Rufnummer vor unerwünschten "
+        "Anrufen und möglichen Betrugsversuchen geht."
+    )
+
+
 def _build_known_customer_data(state: dict[str, Any], customer_text: str = "") -> dict:
     from app.core import content_store, product_facts
 
@@ -143,11 +154,7 @@ def _build_known_customer_data(state: dict[str, Any], customer_text: str = "") -
         "website": website,
     }
     sales_script = {
-        "opening": (
-            f"Guten Tag, mein Name ist {agent_name}, {agent_role} von CallShield. "
-            "Ich rufe an, weil es um den Schutz Ihrer Rufnummer vor unerwünschten "
-            "Anrufen und möglichen Betrugsversuchen geht."
-        ),
+        "opening": opening_line(state),
         "safe_link": "Der Link führt ausschließlich zum offiziellen Apple App Store oder Google Play Store.",
         "value_pitch": (
             "Mit der App können Sie prüfen, ob Ihre Rufnummer in Risiko-, Werbe- oder "

@@ -96,39 +96,56 @@ def agent_turn(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    # 6. vLLM call — constrain policy output to the canonical enums so model
-    # output, guardrails and the deploy-gate scenarios share one taxonomy.
-    response_format = None
-    if settings.policy_guided_decoding and runtime_target.get("mode") == "real":
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "policy",
-                "schema": product_facts.policy_response_schema(),
-                "strict": True,
-            },
-        }
+    # 6. Scripted opening (WP-2): the greeting is deterministic, so turn 0 with
+    # no customer speech never touches the LLM — the caller hears the agent in
+    # well under a second instead of after a full generation.
+    scripted_opening = not req.customer_text.strip() and int(state.get("turn_count", 0)) == 0
     llm_start = time.perf_counter()
-    try:
-        raw_output = vllm_client.chat(messages, runtime_target, response_format=response_format)
-    except Exception as exc:
+    if scripted_opening:
+        llm_ms = 0.0
+        raw_policy = repaired_policy = {
+            "intent": "greeting",
+            "emotion": "neutral",
+            "risk": "low",
+            "next_action": "qualify_lead",
+            "behavior_strategy": "scripted_opening",
+            "allowed_to_continue": True,
+            "agent_response": prompt_builder.opening_line(state),
+            "voice_style": {"tone": "warm", "pace": "normal", "confidence": "high"},
+        }
+    else:
+        # vLLM call — constrain policy output to the canonical enums so model
+        # output, guardrails and the deploy-gate scenarios share one taxonomy.
+        response_format = None
+        if settings.policy_guided_decoding and runtime_target.get("mode") == "real":
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "policy",
+                    "schema": product_facts.policy_response_schema(),
+                    "strict": True,
+                },
+            }
+        try:
+            raw_output = vllm_client.chat(messages, runtime_target, response_format=response_format)
+        except Exception as exc:
+            llm_ms = (time.perf_counter() - llm_start) * 1000
+            logger.exception(
+                "vLLM call failed — session=%s llm=%.0fms",
+                req.session_id,
+                llm_ms,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="LLM upstream unavailable",
+            ) from exc
         llm_ms = (time.perf_counter() - llm_start) * 1000
-        logger.exception(
-            "vLLM call failed — session=%s llm=%.0fms",
-            req.session_id,
-            llm_ms,
-        )
-        raise HTTPException(
-            status_code=503,
-            detail="LLM upstream unavailable",
-        ) from exc
-    llm_ms = (time.perf_counter() - llm_start) * 1000
 
-    # 7. Extract JSON
-    raw_policy = json_repair.extract_json(raw_output)
+        # 7. Extract JSON
+        raw_policy = json_repair.extract_json(raw_output)
 
-    # 8. Repair
-    repaired_policy = json_repair.repair(raw_policy)
+        # 8. Repair
+        repaired_policy = json_repair.repair(raw_policy)
 
     # 9. Correction memory override. Policy-intent matching is evaluated after
     # repair so intent-keyed hotfixes work for natural-language customer input.
