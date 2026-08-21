@@ -50,6 +50,11 @@ def create_tables() -> None:
         "ADD COLUMN IF NOT EXISTS was_interrupted BOOLEAN",
         "ADD COLUMN IF NOT EXISTS spoken_response TEXT",
     )
+    correction_memory_columns = (
+        "ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE",
+        "ADD COLUMN IF NOT EXISTS trigger_count INTEGER DEFAULT 0 NOT NULL",
+        "ADD COLUMN IF NOT EXISTS last_triggered_at TIMESTAMP WITH TIME ZONE",
+    )
     with engine.begin() as connection:
         for clause in eval_run_columns:
             connection.execute(text(f"ALTER TABLE eval_runs {clause}"))
@@ -57,6 +62,8 @@ def create_tables() -> None:
             connection.execute(text(f"ALTER TABLE training_jobs {clause}"))
         for clause in turn_columns:
             connection.execute(text(f"ALTER TABLE turns {clause}"))
+        for clause in correction_memory_columns:
+            connection.execute(text(f"ALTER TABLE correction_memory {clause}"))
         # Additive LLM-judge run classifier (existing eval_runs rows default to
         # the deterministic deploy gate).
         connection.execute(text(

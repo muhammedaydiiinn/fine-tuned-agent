@@ -148,6 +148,11 @@ class CorrectionMemory(Base):
     priority: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     source_correction_id: Mapped[int | None] = mapped_column(ForeignKey("corrections.id"))
+    # Safety rails (WP-7): hotfixes expire instead of living forever, and a
+    # runaway rule that fires across many turns trips a circuit breaker.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trigger_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

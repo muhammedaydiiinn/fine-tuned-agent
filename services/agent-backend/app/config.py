@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     api_key: str = ""
     eval_internal_token: str = ""
 
+    # Correction-memory safety rails (WP-7)
+    correction_memory_ttl_days: int = 7
+    correction_memory_trip_count: int = 15
+
     # LLM-as-judge (rubric scoring by the production base model itself)
     judge_enabled: bool = True
     judge_model_name: str = ""  # empty -> production_served_model_name

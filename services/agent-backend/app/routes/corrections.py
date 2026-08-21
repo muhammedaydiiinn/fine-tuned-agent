@@ -1,5 +1,6 @@
 """Correction endpoints — save, apply to correction_memory, create training candidate."""
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
@@ -96,11 +97,16 @@ def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_
                 )
                 .first()
             )
+            expires_at = datetime.now(timezone.utc) + timedelta(
+                days=settings.correction_memory_ttl_days
+            )
             if existing:
                 existing.correct_response = req.corrected_agent_response
                 existing.correct_next_action = req.corrected_next_action
                 existing.source_correction_id = correction.id
                 existing.context_json = context_json
+                existing.expires_at = expires_at
+                existing.trigger_count = 0
                 logger.info("correction_memory updated: trigger=%s", trigger_key)
             else:
                 mem = CorrectionMemory(
@@ -111,6 +117,7 @@ def create_correction(req: CreateCorrectionRequest, db: DBSession = Depends(get_
                     source_correction_id=correction.id,
                     active=True,
                     priority=10,
+                    expires_at=expires_at,
                 )
                 db.add(mem)
                 logger.info("correction_memory staged: trigger=%s", trigger_key)
@@ -182,3 +189,63 @@ def _build_training_candidate(req: CreateCorrectionRequest, db: DBSession):
         metadata_json=built["metadata"],
         approved=True,
     )
+
+
+# ── Correction-memory management (WP-7: visibility + kill switch) ─────────────
+
+def _memory_row(entry: CorrectionMemory) -> dict:
+    return {
+        "id": entry.id,
+        "trigger_key": entry.trigger_key,
+        "context_json": entry.context_json,
+        "correct_response": entry.correct_response,
+        "correct_next_action": entry.correct_next_action,
+        "priority": entry.priority,
+        "active": entry.active,
+        "expires_at": entry.expires_at,
+        "trigger_count": entry.trigger_count,
+        "last_triggered_at": entry.last_triggered_at,
+        "source_correction_id": entry.source_correction_id,
+        "created_at": entry.created_at,
+    }
+
+
+@router.get("/correction-memory")
+def list_correction_memory(
+    include_inactive: bool = True,
+    db: DBSession = Depends(get_db),
+):
+    query = db.query(CorrectionMemory)
+    if not include_inactive:
+        query = query.filter(CorrectionMemory.active == True)  # noqa: E712
+    entries = query.order_by(CorrectionMemory.active.desc(), CorrectionMemory.id.desc()).all()
+    return [_memory_row(entry) for entry in entries]
+
+
+@router.post("/correction-memory/{entry_id}/deactivate")
+def deactivate_correction_memory(entry_id: int, db: DBSession = Depends(get_db)):
+    entry = db.query(CorrectionMemory).filter(CorrectionMemory.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Correction memory entry not found")
+    entry.active = False
+    db.commit()
+    logger.info("correction_memory deactivated via API: id=%d trigger=%s", entry.id, entry.trigger_key)
+    return _memory_row(entry)
+
+
+@router.post("/correction-memory/{entry_id}/activate")
+def activate_correction_memory(entry_id: int, db: DBSession = Depends(get_db)):
+    entry = db.query(CorrectionMemory).filter(CorrectionMemory.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Correction memory entry not found")
+    entry.active = True
+    entry.trigger_count = 0
+    entry.expires_at = datetime.now(timezone.utc) + timedelta(
+        days=settings.correction_memory_ttl_days
+    )
+    context = dict(entry.context_json or {})
+    context.pop("deactivated_reason", None)
+    entry.context_json = context
+    db.commit()
+    logger.info("correction_memory re-activated via API: id=%d trigger=%s", entry.id, entry.trigger_key)
+    return _memory_row(entry)

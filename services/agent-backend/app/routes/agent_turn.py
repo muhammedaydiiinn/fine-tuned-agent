@@ -132,11 +132,17 @@ def agent_turn(
 
     # 9. Correction memory override. Policy-intent matching is evaluated after
     # repair so intent-keyed hotfixes work for natural-language customer input.
-    policy_hints = correction_memory.get_policy_hints(db, repaired_policy)
+    policy_hints = correction_memory.get_policy_hints(
+        db, repaired_policy, customer_text=req.customer_text
+    )
     after_correction = correction_memory.apply_override(
         repaired_policy,
         policy_hints or correction_hints,
     )
+    correction_entry_id = after_correction.pop("_correction_entry_id", None)
+    if correction_entry_id is not None:
+        # Count the firing; a runaway hotfix trips the breaker and deactivates.
+        correction_memory.record_trigger(db, correction_entry_id)
 
     # 10. Apply guardrails (PDF templates + hard limits)
     safe_policy = guardrails.apply_with_context(
