@@ -242,7 +242,7 @@ services:
     command: >
       --model /model
       --served-model-name ${PRODUCTION_SERVED_MODEL_NAME:-fine-tuned-agent-production}
-      --max-model-len 4096
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-4096}
       --max-num-seqs ${VLLM_MAX_NUM_SEQS:-32}
       --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.60}
       --enable-prefix-caching
@@ -280,7 +280,7 @@ services:
     command: >
       --model /model
       --served-model-name ${CANDIDATE_MODEL_NAME:-fine-tuned-agent-candidate}
-      --max-model-len 4096
+      --max-model-len ${VLLM_CANDIDATE_MAX_MODEL_LEN:-${VLLM_MAX_MODEL_LEN:-4096}}
       --max-num-seqs ${VLLM_MAX_NUM_SEQS:-32}
       --gpu-memory-utilization ${VLLM_CANDIDATE_GPU_UTIL:-0.30}
       --port 8000

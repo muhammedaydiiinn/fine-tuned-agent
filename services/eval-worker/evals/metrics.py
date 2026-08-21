@@ -188,6 +188,23 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
     # things on consecutive turns (esp. on customer backchannels "ja/mhm") instead
     # of advancing? loop_repetition_rate only catches identical next_action; this
     # catches near-duplicate wording (the session-397 "durağan/tekrar" problem).
+    # Context recall (WP-3): in the context_recall flow the customer says
+    # "iPhone" mid-call; the final store question must be answered from that
+    # history — Apple (or a store answer that does NOT fall back to listing
+    # Google too). Empty=1.0 keeps runs without the scenario unaffected.
+    recall_checks: list[bool] = []
+    for result in results:
+        if result.get("scenario_id") != "context_recall" or result.get("kind") != "multi_turn":
+            continue
+        flow = result.get("turns") or []
+        if not flow:
+            recall_checks.append(False)
+            continue
+        final = _normalise_text(flow[-1].get("agent_response") or "").lower()
+        recall_checks.append(
+            "apple" in final or ("app store" in final and "google" not in final)
+        )
+
     rep_pairs = 0
     rep_dupes = 0
     for result in results:
@@ -235,6 +252,7 @@ def compute(results: list[dict[str, Any]]) -> dict[str, float]:
         "price_answer_correctness": _rate(price_checks),
         "security_objection_correctness": _rate(security_checks),
         "greeting_correctness": _rate(greeting_checks, empty=1.0),
+        "context_recall": _rate(recall_checks, empty=1.0),
         "loop_repetition_rate": round(repeated_windows / loop_windows, 4) if loop_windows else 0.0,
         "response_repetition_rate": response_repetition_rate,
         "latency_avg": round(mean(latencies), 2) if latencies else 0.0,
@@ -253,7 +271,8 @@ def quality_score(metrics: dict[str, float]) -> float:
         "price_answer_correctness",
         "security_objection_correctness",
         "greeting_correctness",
+        "context_recall",
     )
-    values = [float(metrics.get(key, 0.0)) for key in positive]
+    values = [float(metrics.get(key, 1.0)) for key in positive]
     values.append(1.0 - min(1.0, float(metrics.get("loop_repetition_rate", 1.0))))
     return round(mean(values), 4)

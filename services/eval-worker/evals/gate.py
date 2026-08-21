@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-POLICY_VERSION = "m8-gate-v1"
+POLICY_VERSION = "m8-gate-v2"
 
 
 def evaluate(metrics: dict[str, float], thresholds: dict[str, float]) -> dict[str, Any]:

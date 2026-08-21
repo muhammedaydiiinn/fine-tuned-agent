@@ -77,7 +77,7 @@ def agent_turn(
         db.query(Turn)
         .filter(Turn.session_id == session.id)
         .order_by(Turn.turn_index.desc())
-        .limit(5)
+        .limit(8)
         .all()[::-1]
     )
     messages = prompt_builder.build(

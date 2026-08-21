@@ -53,6 +53,36 @@ def build(
     return messages
 
 
+# Conversation history injected per turn (WP-3). Char-budgeted so a very long
+# call cannot blow the context window; oldest turns drop first.
+_HISTORY_CHAR_BUDGET = 2800
+
+
+def _build_history(recent_turns: list) -> list[dict]:
+    """(kunde, agent) pairs of the recent turns, newest-last, budget-trimmed."""
+    items: list[dict] = []
+    used = 0
+    for turn in reversed(recent_turns or []):
+        customer = (getattr(turn, "customer_text", None) or "").strip()
+        if getattr(turn, "was_interrupted", False):
+            agent = (getattr(turn, "spoken_response", None) or "").strip()
+        else:
+            agent = (getattr(turn, "agent_response", None) or "").strip()
+        if not customer and not agent:
+            continue
+        cost = len(customer) + len(agent)
+        if used + cost > _HISTORY_CHAR_BUDGET:
+            break
+        entry: dict = {}
+        if customer:
+            entry["kunde"] = customer
+        if agent:
+            entry["agent"] = agent
+        items.append(entry)
+        used += cost
+    return list(reversed(items))
+
+
 def _last_agent_message(recent_turns: list) -> str:
     if not recent_turns:
         return ""
@@ -185,7 +215,7 @@ def _build_known_customer_data(state: dict[str, Any], customer_text: str = "") -
 def build_user_payload(customer_text: str, state: dict[str, Any], recent_turns: list) -> dict:
     from app.core import content_store
 
-    return {
+    payload = {
         "task": _build_task(state),
         "customer": {"risk": "low"},
         "known_customer_data": _build_known_customer_data(state, customer_text),
@@ -197,3 +227,7 @@ def build_user_payload(customer_text: str, state: dict[str, Any], recent_turns: 
         "last_agent_message": _last_agent_message(recent_turns),
         "customer_message": customer_text,
     }
+    history = _build_history(recent_turns)
+    if history:
+        payload["conversation_history"] = history
+    return payload

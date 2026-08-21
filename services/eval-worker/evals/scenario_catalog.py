@@ -58,6 +58,15 @@ def get_scenario_catalog(trial_period: str = "14 Tage kostenlos") -> dict[str, l
             "Okay, ich öffne den Link.",
             "Ja, die App ist offen.",
         ],
+        # Bağlam hatırlama (WP-3) — müşteri 2. turda iPhone kullandığını söyler;
+        # son turda "hangi App Store" sorusuna ajan geçmişten iPhone'u hatırlayıp
+        # Apple'a yönlendirmeli, iki mağazayı birden sayarsa bağlamı kullanmamıştır.
+        "context_recall": [
+            "Ja, das bin ich.",
+            "Ich habe ein iPhone — funktioniert das damit?",
+            "Ja, gerne.",
+            "In welchem App Store finde ich die App dafür nochmal?",
+        ],
         # Sert red — beklenen çıktı: respect_decline_and_end_call
         "decline": [
             "Ja, das bin ich.",

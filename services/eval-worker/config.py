@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     eval_price_correctness_min: float = 1.0
     eval_security_correctness_min: float = 1.0
     eval_greeting_correctness_min: float = 1.0
+    eval_context_recall_min: float = 1.0
     eval_loop_repetition_max: float = 0.0
     # Max fraction of consecutive agent replies that may be near-duplicates across
     # multi-turn flows (catches "durağan/tekrar" conversations — session 397).
@@ -55,6 +56,7 @@ class Settings(BaseSettings):
             "price_answer_correctness": self.eval_price_correctness_min,
             "security_objection_correctness": self.eval_security_correctness_min,
             "greeting_correctness": self.eval_greeting_correctness_min,
+            "context_recall": self.eval_context_recall_min,
             "loop_repetition_rate_max": self.eval_loop_repetition_max,
             "response_repetition_rate_max": self.eval_response_repetition_max,
         }

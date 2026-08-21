@@ -11,6 +11,33 @@ from app.core.policy_prompt import build_system_content
 logger = logging.getLogger(__name__)
 
 
+def _prior_turns(turn) -> list:
+    """The session turns before this one (newest 8), oldest-first.
+
+    Uses the ORM object's own session; returns [] for detached/test objects so
+    unit tests and ad-hoc builders keep working without a DB.
+    """
+    try:
+        from sqlalchemy.orm import object_session
+
+        from app.models import Turn
+
+        db = object_session(turn)
+        if db is None or turn.session_id is None:
+            return []
+        rows = (
+            db.query(Turn)
+            .filter(Turn.session_id == turn.session_id, Turn.turn_index < turn.turn_index)
+            .order_by(Turn.turn_index.desc())
+            .limit(8)
+            .all()
+        )
+        return rows[::-1]
+    except Exception:  # noqa: BLE001 — history is an enrichment, never a blocker
+        logger.exception("candidate_builder: prior-turn lookup failed")
+        return []
+
+
 def build_candidate_from_turn(
     turn,
     corrected_response: str,
@@ -22,6 +49,10 @@ def build_candidate_from_turn(
 
     The return value can be assigned directly to TrainingCandidate.messages_json.
     The caller is responsible for wrapping the result in a TrainingCandidate instance.
+
+    Training examples must look exactly like inference prompts (WP-3), so the
+    same conversation history the model saw live is rebuilt from the turn's
+    session — the turns before this one, newest 8.
     """
     assistant_policy = {
         "intent": turn.intent or "unknown",
@@ -37,7 +68,8 @@ def build_candidate_from_turn(
     }
 
     state = turn.state_before_json or {}
-    user_payload = prompt_builder.build_user_payload(turn.customer_text, state, [])
+    recent_turns = _prior_turns(turn)
+    user_payload = prompt_builder.build_user_payload(turn.customer_text, state, recent_turns)
     messages = [
         {
             "role": "system",
