@@ -15,14 +15,44 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _active_model_name(db: DBSession) -> str | None:
-    deployment = (
+def _active_deployment(db: DBSession) -> Deployment | None:
+    return (
         db.query(Deployment)
         .filter(Deployment.environment == "production", Deployment.status == "active")
         .order_by(Deployment.deployed_at.desc(), Deployment.id.desc())
         .first()
     )
+
+
+def _active_model_name(db: DBSession) -> str | None:
+    deployment = _active_deployment(db)
     return deployment.model_version.version_name if deployment else None
+
+
+def production_verification(deployment: Deployment | None) -> tuple[bool | None, str | None]:
+    """(verified, warning) for the serving model — the anti-bypass signal.
+
+    Unverified when the active deployment came from the bootstrap path without
+    a passing gate, or when a later gate run failed for the serving model.
+    """
+    if deployment is None:
+        return None, None
+    model = deployment.model_version
+    metadata = dict(deployment.metadata_json or {})
+    model_meta = dict(model.metadata_json or {})
+    if model.eval_status == "failed":
+        alert = model_meta.get("gate_alert") or {}
+        return False, (
+            "Yayındaki model son eval kapısından KALDI"
+            + (f" (run {alert.get('eval_run_id')})" if alert.get("eval_run_id") else "")
+            + " — rollback veya yeni model önerilir."
+        )
+    if metadata.get("action") == "bootstrap" and model.eval_status != "passed":
+        return False, (
+            "Yayındaki model eval kapısından geçmeden (bootstrap) yüklendi — "
+            "doğrulamak için eval çalıştırın."
+        )
+    return True, None
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -59,6 +89,8 @@ def health_check(db: DBSession = Depends(get_db)):
         }
         active_model = _active_model_name(db) or snap["active_model"]
 
+    verified, warning = production_verification(_active_deployment(db))
+
     if settings.vllm_mode == "mock" or snap["status"] == "ready":
         vllm_status = "ok"
     elif snap["status"] in ("idle", "promoting", "loading"):
@@ -78,6 +110,8 @@ def health_check(db: DBSession = Depends(get_db)):
         vllm_mode=settings.vllm_mode,
         vllm=vllm,
         active_model=active_model,
+        production_verified=verified,
+        production_warning=warning,
     )
 
 

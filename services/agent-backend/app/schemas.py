@@ -389,4 +389,8 @@ class HealthResponse(BaseModel):
     vllm_mode: str
     vllm: dict[str, Any] | None = None
     active_model: str | None = None
+    # False when the serving model never passed the deploy gate (bootstrap
+    # bypass) or its latest gate run failed after deployment.
+    production_verified: bool | None = None
+    production_warning: str | None = None
     version: str = "1.0.0"

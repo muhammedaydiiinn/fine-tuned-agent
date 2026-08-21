@@ -380,15 +380,32 @@ def handle_eval(
             except Exception:
                 logger.exception("scenario judge pass failed — run=%d (non-fatal)", eval_run_id)
         passed = bool(deployment_gate["passed"])
+        is_active = str(model_version.deployment_status).startswith("active_")
         model_version.eval_status = "passed" if passed else "failed"
         metadata = dict(model_version.metadata_json or {})
         metadata["lifecycle_status"] = (
-            "deployed"
-            if str(model_version.deployment_status).startswith("active_")
-            else ("evaluated" if passed else "candidate")
+            "deployed" if is_active else ("evaluated" if passed else "candidate")
         )
         metadata["latest_eval_run_id"] = eval_run_id
         metadata["eval_policy_version"] = gate.POLICY_VERSION
+        # Post-deploy guard: a gate failure on the SERVING model is an incident,
+        # not a routine candidate rejection. Stamp an alert (health/panel read
+        # it) and shout in the logs; a later pass clears it.
+        if is_active and not passed:
+            metadata["gate_alert"] = {
+                "eval_run_id": eval_run_id,
+                "quality_score": report["quality_score"],
+                "at": datetime.now(timezone.utc).isoformat(),
+            }
+            logger.error(
+                "PRODUCTION GATE FAILURE — serving model %s failed run %d "
+                "(quality %.4f). Roll back or promote a passing model.",
+                model_version.version_name,
+                eval_run_id,
+                report["quality_score"],
+            )
+        elif is_active and passed:
+            metadata.pop("gate_alert", None)
         model_version.metadata_json = metadata
         db.add(model_version)
         _update_run(

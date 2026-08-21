@@ -183,14 +183,18 @@ def _bootstrap_active_model() -> None:
             .first()
         )
         if not model:
+            # Bootstrap keeps a fresh install serving, but must never invent a
+            # passing eval: v15 went live through exactly that hole. The model
+            # starts unverified; the panel/health surface it until a real gate
+            # run passes.
             model = ModelVersion(
                 version_name=settings.model_active_version,
                 base_model=settings.model_active_version,
                 merged_path=settings.model_merged_path,
-                eval_status="passed",
+                eval_status="pending",
                 deployment_status="active_production",
                 metadata_json={
-                    "lifecycle_status": "deployed",
+                    "lifecycle_status": "bootstrap_unverified",
                     "bootstrap": True,
                     "artifact_manifest": artifact,
                     "serving": {
@@ -220,7 +224,12 @@ def _bootstrap_active_model() -> None:
             environment="production",
             status="active",
             deployed_at=datetime.now(timezone.utc),
-            metadata_json={"action": "bootstrap"},
+            metadata_json={
+                "action": "bootstrap",
+                # No deploy gate ran for this artifact; health/panel warn until
+                # a scenario_gate eval passes for this model.
+                "verified": model.eval_status == "passed",
+            },
         )
         db.add(deployment)
         db.commit()
