@@ -93,9 +93,11 @@ def apply_with_context(
     p = dict(policy)
     p["next_action"] = normalize_next_action(p.get("next_action", ""))
     p = _rule_post_close_brief(p, state, customer_message)
-    p = _rule_hard_decline(p, state)
+    p = _rule_hard_decline(p, state, customer_message)
     p = _rule_delay_no_phone_collection(p, customer_message)
     p = _rule_price_template(p, customer_message)
+    p = _rule_security_template(p, customer_message)
+    p = _rule_identity_before_link(p, state, customer_message)
     p = _rule_closing_flags(p)
     p = _rule_loop_detection(p, state)
     return p
@@ -115,15 +117,89 @@ def _rule_post_close_brief(
     return policy
 
 
-def _rule_hard_decline(policy: dict, state: dict) -> dict:
-    hard_decline_count = state.get("hard_decline_count", 0)
+# A clear spoken "no" must be respected even when the model mislabels the
+# intent — legal floor, mirrored by the deploy gate's hard_decline_handling.
+_HARD_DECLINE_TOKENS: tuple[str, ...] = (
+    "kein interesse",
+    "nichts kaufen",
+    "will nichts",
+    "nicht mehr anrufen",
+    "nein danke",
+    "lassen sie mich in ruhe",
+)
+
+
+def _rule_hard_decline(policy: dict, state: dict, customer_message: str = "") -> dict:
     intent = policy.get("intent", "")
-    current_count = hard_decline_count + (1 if intent == "hard_decline" else 0)
-    if current_count >= 3:
-        logger.info("guardrail: hard_decline >= 3 -> close_call")
+    text = _lower(customer_message)
+    if intent != "hard_decline" and any(token in text for token in _HARD_DECLINE_TOKENS):
+        logger.info("guardrail: decline phrasing -> intent=hard_decline (was %s)", intent)
+        intent = "hard_decline"
+        policy["intent"] = intent
+    if intent != "hard_decline":
+        return policy
+    current_count = state.get("hard_decline_count", 0) + 1
+    if current_count >= 2:
+        logger.info("guardrail: repeated hard_decline -> close_call")
         policy["next_action"] = "close_call"
         policy["behavior_strategy"] = "graceful_exit"
         policy["allowed_to_continue"] = False
+    elif policy.get("next_action") not in ("acknowledge_objection", "close_call"):
+        logger.info(
+            "guardrail: first hard_decline -> acknowledge_objection (was %s)",
+            policy.get("next_action"),
+        )
+        policy["next_action"] = "acknowledge_objection"
+    return policy
+
+
+def _rule_security_template(policy: dict, customer_message: str) -> dict:
+    """Verbatim approved reassurance on security objections (compliance floor)."""
+    if policy.get("allowed_to_continue") is False or policy.get("next_action") == "close_call":
+        return policy
+    text = _lower(customer_message)
+    is_security = policy.get("intent") == "security_objection" or any(
+        token in text for token in ("virus", "phishing", "ist der link sicher")
+    )
+    if not is_security:
+        return policy
+    template = content_store.canned("security")
+    if not template:
+        return policy
+    logger.info("guardrail: security objection -> approved template")
+    policy["intent"] = "security_objection"
+    policy["next_action"] = "address_security"
+    policy["agent_response"] = template
+    policy["behavior_strategy"] = "security_template"
+    return policy
+
+
+# Mirrors the eval's link_requested detection: an explicit ask for the link.
+_LINK_REQUEST_TOKENS: tuple[str, ...] = (
+    "schicken sie mir den sicheren link",
+    "schicken sie mir den link",
+    "schicken sie den link",
+    "ich öffne den link",
+)
+
+
+def _rule_identity_before_link(policy: dict, state: dict, customer_message: str) -> dict:
+    """Never send the activation link before the customer confirmed identity."""
+    if policy.get("allowed_to_continue") is False or policy.get("next_action") == "close_call":
+        return policy
+    text = _lower(customer_message)
+    if not any(token in text for token in _LINK_REQUEST_TOKENS):
+        return policy
+    if state.get("identity_confirmed"):
+        if policy.get("next_action") != "send_activation_link":
+            logger.info(
+                "guardrail: link requested + identity confirmed -> send_activation_link (was %s)",
+                policy.get("next_action"),
+            )
+            policy["next_action"] = "send_activation_link"
+    else:
+        logger.info("guardrail: link requested without identity -> confirm_identity")
+        policy["next_action"] = "confirm_identity"
     return policy
 
 

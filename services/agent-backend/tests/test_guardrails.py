@@ -9,7 +9,21 @@ from app.core.product_facts import CLOSING_BRIEF_TEMPLATE, PRICE_TEMPLATE
 
 
 class HardDeclineGuardrailTests(TestCase):
-    def test_second_decline_is_not_forced_closed(self):
+    def test_first_decline_acknowledges_and_continues(self):
+        policy = apply(
+            {
+                "intent": "hard_decline",
+                "next_action": "handle_objection",
+                "allowed_to_continue": True,
+                "agent_response": "Verstanden.",
+            },
+            {"hard_decline_count": 0},
+        )
+        self.assertEqual(policy["next_action"], "acknowledge_objection")
+        self.assertTrue(policy["allowed_to_continue"])
+
+    def test_second_decline_forces_close(self):
+        # Deploy-gate contract: a repeated clear NO ends the call.
         policy = apply(
             {
                 "intent": "hard_decline",
@@ -19,8 +33,22 @@ class HardDeclineGuardrailTests(TestCase):
             },
             {"hard_decline_count": 1},
         )
-        self.assertNotEqual(policy["next_action"], "close_call")
-        self.assertTrue(policy["allowed_to_continue"])
+        self.assertEqual(policy["next_action"], "close_call")
+        self.assertFalse(policy["allowed_to_continue"])
+
+    def test_decline_phrasing_overrides_wrong_intent(self):
+        policy = apply_with_context(
+            {
+                "intent": "price_question",
+                "next_action": "explain_price",
+                "allowed_to_continue": True,
+                "agent_response": "Der Schutz ist 14 Tage kostenlos.",
+            },
+            {"hard_decline_count": 0},
+            customer_message="Ich will nichts kaufen.",
+        )
+        self.assertEqual(policy["intent"], "hard_decline")
+        self.assertEqual(policy["next_action"], "acknowledge_objection")
 
     def test_third_decline_forces_close(self):
         policy = apply(
@@ -50,9 +78,11 @@ class PdfGuardrailTests(TestCase):
         self.assertEqual(policy["agent_response"], PRICE_TEMPLATE)
         self.assertEqual(policy["next_action"], "explain_price")
 
-    def test_security_objection_keeps_model_answer(self):
-        # Legal-floor refactor: the verbatim security template is no longer
-        # forced — the model answers a security objection in its own words.
+    def test_security_objection_uses_approved_template(self):
+        # Deploy-gate contract: security reassurance is the approved template,
+        # verbatim (compliance floor; panel-editable via canned_answers).
+        from app.core import content_store
+
         policy = apply(
             {
                 "intent": "security_objection",
@@ -62,10 +92,34 @@ class PdfGuardrailTests(TestCase):
             },
             {},
         )
-        self.assertEqual(
-            policy["agent_response"],
-            "Keine Sorge, der Link führt nur zum offiziellen App Store.",
+        self.assertEqual(policy["agent_response"], content_store.canned("security"))
+        self.assertEqual(policy["next_action"], "address_security")
+
+    def test_link_without_identity_forces_confirm_identity(self):
+        policy = apply_with_context(
+            {
+                "intent": "activation_link_request",
+                "next_action": "send_activation_link",
+                "allowed_to_continue": True,
+                "agent_response": "Ich schicke Ihnen den Link.",
+            },
+            {"identity_confirmed": False},
+            customer_message="Okay, schicken Sie mir den sicheren Link.",
         )
+        self.assertEqual(policy["next_action"], "confirm_identity")
+
+    def test_link_with_identity_sends_activation_link(self):
+        policy = apply_with_context(
+            {
+                "intent": "activation_link_request",
+                "next_action": "redirect_to_app",
+                "allowed_to_continue": True,
+                "agent_response": "Ich schicke Ihnen den Link.",
+            },
+            {"identity_confirmed": True},
+            customer_message="Okay, schicken Sie mir den sicheren Link.",
+        )
+        self.assertEqual(policy["next_action"], "send_activation_link")
 
     def test_delay_blocks_phone_collection(self):
         policy = apply_with_context(
