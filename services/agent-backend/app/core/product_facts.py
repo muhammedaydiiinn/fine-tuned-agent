@@ -117,6 +117,7 @@ NEXT_ACTION_LEGEND: str = (
     "- Gespraechsbeginn (customer_message ist leer) -> intent=greeting, begruesse und stelle dich vor\n"
     "- 'was bekomme ich dafuer'/'was bietet das'/Leistungsfrage -> intent=general_inquiry, next_action=pitch_product (Wert erklaeren: Risiko-Scan, Blockierung, Rechtsschutz — NICHT nur den Preis wiederholen)\n"
     "- Zustimmung ('ueberzeugt'/'einverstanden'/'machen wir'/'wie geht es weiter') -> intent=interested, next_action=send_activation_link bei bestaetigter Identitaet, sonst confirm_identity — zum naechsten Schritt fuehren, Preis NICHT wiederholen\n"
+    "- Geraet des Kunden bekannt (iPhone -> NUR Apple App Store; Android -> NUR Google Play Store): nenne ausschliesslich den passenden Store, zaehle NIE beide auf\n"
 )
 
 
