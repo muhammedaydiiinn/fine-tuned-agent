@@ -147,6 +147,45 @@ def agent_turn(
         # 8. Repair
         repaired_policy = json_repair.repair(raw_policy)
 
+        # 8b. Repetition breaker: an answer that parrots the previous agent
+        # reply to a DIFFERENT customer message reads as a robot ("price loop"
+        # after the customer already agreed). One retry with an explicit nudge
+        # to rephrase and advance; the model stays in charge of the wording.
+        previous_reply = (
+            (recent_turns[-1].agent_response or "") if recent_turns else ""
+        )
+        previous_customer = (
+            (recent_turns[-1].customer_text or "") if recent_turns else ""
+        )
+        if (
+            prompt_builder.near_duplicate(repaired_policy.get("agent_response", ""), previous_reply)
+            and not prompt_builder.near_duplicate(req.customer_text, previous_customer)
+        ):
+            logger.info(
+                "repetition breaker: near-duplicate reply, regenerating — session=%s",
+                req.session_id,
+            )
+            retry_messages = messages + [{
+                "role": "system",
+                "content": (
+                    "Deine letzte Antwort war fast identisch mit deiner vorherigen. "
+                    "Formuliere jetzt ANDERS, beantworte die tatsaechliche Kundenaussage "
+                    "und fuehre das Gespraech einen Schritt weiter."
+                ),
+            }]
+            try:
+                retry_output = vllm_client.chat(
+                    retry_messages, runtime_target, response_format=response_format
+                )
+                retry_policy = json_repair.repair(json_repair.extract_json(retry_output))
+                if not prompt_builder.near_duplicate(
+                    retry_policy.get("agent_response", ""), previous_reply
+                ):
+                    raw_policy, repaired_policy = retry_policy, retry_policy
+            except Exception:  # noqa: BLE001 — keep the original reply on retry failure
+                logger.exception("repetition breaker retry failed — session=%s", req.session_id)
+            llm_ms = (time.perf_counter() - llm_start) * 1000
+
     # 9. Correction memory override. Policy-intent matching is evaluated after
     # repair so intent-keyed hotfixes work for natural-language customer input.
     policy_hints = correction_memory.get_policy_hints(

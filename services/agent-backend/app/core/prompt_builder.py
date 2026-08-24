@@ -149,6 +149,14 @@ def _select_objections(customer_text: str, limit: int = 4) -> list[dict]:
     return [item for _, item in scored[:limit]]
 
 
+def near_duplicate(a: str, b: str, threshold: float = 0.8) -> bool:
+    """True when two utterances say practically the same thing (token jaccard)."""
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return False
+    return len(ta & tb) / len(ta | tb) >= threshold
+
+
 def opening_line(state: dict[str, Any]) -> str:
     """Deterministic call opening — also spoken directly on turn 0 (no LLM)."""
     agent_name = (state.get("agent_name") or "Anna Weber").strip()

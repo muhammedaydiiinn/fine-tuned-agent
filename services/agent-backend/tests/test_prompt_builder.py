@@ -90,3 +90,18 @@ class ObjectionLibrarySelectionTests(TestCase):
 
         payload = build_user_payload("Schönes Wetter heute, oder?", {}, [])
         self.assertNotIn("objection_library", payload["known_customer_data"])
+
+
+class NearDuplicateTests(TestCase):
+    def test_same_price_sentence_is_duplicate(self):
+        a = "Die ersten 14 Tage kostenlos sind kostenlos, danach 29,99 Euro monatlich. Darf ich Ihnen zeigen, wie das geht?"
+        b = "Die ersten 14 Tage kostenlos sind kostenlos, danach 29,99 Euro monatlich. Darf ich Ihnen zeigen, wie Sie starten?"
+        self.assertTrue(prompt_builder.near_duplicate(a, b))
+
+    def test_different_replies_are_not_duplicates(self):
+        a = "Die ersten 14 Tage sind kostenlos, danach 29,99 Euro monatlich."
+        b = "Sehr gut, ich sende Ihnen den Link per SMS. Öffnen Sie bitte den App Store."
+        self.assertFalse(prompt_builder.near_duplicate(a, b))
+
+    def test_empty_never_duplicate(self):
+        self.assertFalse(prompt_builder.near_duplicate("", "irgendwas"))

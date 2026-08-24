@@ -115,6 +115,8 @@ NEXT_ACTION_LEGEND: str = (
     "- 'schicken Sie den Link'/'App installieren'/bereit -> intent=activation_link_request, next_action=send_activation_link\n"
     "- Link angefragt, aber Identitaet NOCH NICHT bestaetigt (state.identity_confirmed fehlt/false) -> intent=activation_link_request, next_action=confirm_identity (NIE send_activation_link vor bestaetigter Identitaet)\n"
     "- Gespraechsbeginn (customer_message ist leer) -> intent=greeting, begruesse und stelle dich vor\n"
+    "- 'was bekomme ich dafuer'/'was bietet das'/Leistungsfrage -> intent=general_inquiry, next_action=pitch_product (Wert erklaeren: Risiko-Scan, Blockierung, Rechtsschutz — NICHT nur den Preis wiederholen)\n"
+    "- Zustimmung ('ueberzeugt'/'einverstanden'/'machen wir'/'wie geht es weiter') -> intent=interested, next_action=send_activation_link bei bestaetigter Identitaet, sonst confirm_identity — zum naechsten Schritt fuehren, Preis NICHT wiederholen\n"
 )
 
 
