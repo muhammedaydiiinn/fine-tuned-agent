@@ -107,6 +107,7 @@ class VoicePipeline:
         self._speech_started_at: float | None = None
         self._interruption_latency_ms: float | None = None
         self._last_partial_text: str = ""
+        self._empty_streak: int = 0
         self._event_tasks: set[asyncio.Task] = set()
         self._supervisor_lock = asyncio.Lock()
 
@@ -398,10 +399,39 @@ class VoicePipeline:
                 state="listening",
             )
             return
+        logger.info(
+            "utterance decoded — session=%s pcm=%.2fs stt=%.0fms text=%r",
+            self.session_id,
+            len(pcm) / 2 / INPUT_SAMPLE_RATE,
+            transcript.stt_ms,
+            (transcript.text or "")[:80],
+        )
         try:
             if not transcript.text:
+                self._empty_streak += 1
                 await self._emit(room, "empty_transcript", state="listening")
+                # Dead-air guard (session 702): the caller keeps talking but
+                # decoding keeps failing — after two misses say so out loud
+                # instead of listening in silence forever.
+                if self._empty_streak >= 2 and not self._agent_speaking:
+                    self._empty_streak = 0
+                    await self._emit(
+                        room,
+                        "clarification_prompt",
+                        state="speaking",
+                    )
+                    await self._speak(
+                        room,
+                        (
+                            "Entschuldigung, ich habe Sie akustisch nicht verstanden — "
+                            "könnten Sie das bitte noch einmal wiederholen?"
+                        ),
+                        {"tone": "warm", "pace": "normal", "confidence": "high"},
+                        "clarify",
+                        response_generation_id=generation,
+                    )
                 return
+            self._empty_streak = 0
             if self.deduplicator.is_duplicate(transcript.text):
                 await self._emit(
                     room,

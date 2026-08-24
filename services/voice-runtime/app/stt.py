@@ -55,6 +55,22 @@ class FasterWhisperSTT:
 
             try:
                 text = await asyncio.to_thread(self._transcribe_sync, model, audio)
+                if not text and audio.size <= 6 * 16000:
+                    # Short/quiet utterances ("Ja.") often decode empty at the
+                    # fast beam size — session 702 lost every turn this way.
+                    # One padded, wider-beam retry recovers most of them and
+                    # only runs when the fast pass produced nothing.
+                    pad = np.zeros(8000, dtype=np.float32)  # 0.5 s each side
+                    padded = np.concatenate([pad, audio, pad])
+                    text = await asyncio.to_thread(
+                        self._transcribe_sync, model, padded, max(5, self.settings.whisper_beam_size)
+                    )
+                    if text:
+                        logger.info(
+                            "STT retry recovered a short utterance — %.2fs -> %r",
+                            audio.size / 16000,
+                            text[:80],
+                        )
             except Exception:
                 logger.exception("Whisper transcription failed — pcm_bytes=%d", len(pcm))
                 raise STTError("Whisper transcription failed")
@@ -108,11 +124,11 @@ class FasterWhisperSTT:
                 )
         return self._model
 
-    def _transcribe_sync(self, model, audio: np.ndarray) -> str:
+    def _transcribe_sync(self, model, audio: np.ndarray, beam_size: int | None = None) -> str:
         segments, _ = model.transcribe(
             audio,
             language=self.settings.whisper_language,
-            beam_size=self.settings.whisper_beam_size,
+            beam_size=beam_size or self.settings.whisper_beam_size,
             condition_on_previous_text=False,
             vad_filter=False,
             word_timestamps=False,
