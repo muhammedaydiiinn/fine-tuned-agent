@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 configure_access_logging()
 
-app = FastAPI(title="CallShield Supervisor Panel", version="1.0.0")
+app = FastAPI(title="Fine-Tuned Agent Supervisor Panel", version="1.0.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(auth.router, tags=["auth"])

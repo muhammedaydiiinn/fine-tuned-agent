@@ -1,6 +1,6 @@
 # GPU Sunucu Kurulum Rehberi
 
-CallShield Agent Platform'u özel bir GPU sunucusuna adım adım kurulum talimatları.
+Fine-Tuned Agent Agent Platform'u özel bir GPU sunucusuna adım adım kurulum talimatları.
 Milestone kapsamı ve kabul kriterleri için `docs/MILESTONES.md` dosyasına bakın.
 
 ## Ön Koşullar
@@ -97,7 +97,7 @@ bash infra/scripts/download_models.sh ./models
 ```
 
 Aşağıdakiler indirilir:
-- LLM (merged CallShield modeli) → `models/merged/fine-tuned-agent-v14/`
+- LLM (merged Fine-Tuned Agent modeli) → `models/merged/fine-tuned-agent-v14/`
 - Whisper STT → `models/whisper/whisper-large-v3-turbo-german/`
 
 Seçici indirme için `--llm-only` veya `--whisper-only` kullanın.

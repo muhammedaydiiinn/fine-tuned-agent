@@ -26,7 +26,7 @@ POLL_INTERVAL = 5
 
 # Sales-script markers used to decide which stereo channel carries the agent.
 AGENT_MARKERS = (
-    "fine_tuned_agent",
+    "callshield",
     "gold paket",
     "anna weber",
     "14 tage",

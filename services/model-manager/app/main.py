@@ -10,7 +10,7 @@ from app.docker_control import restart_vllm_server
 from app.publisher import inspect_artifact, publish_directory, resolve_under
 
 
-app = FastAPI(title="CallShield Model Manager", version="1.0.0")
+app = FastAPI(title="Fine-Tuned Agent Model Manager", version="1.0.0")
 
 
 class PromoteRequest(BaseModel):

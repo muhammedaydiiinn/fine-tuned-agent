@@ -1,5 +1,5 @@
 #!/bin/bash
-# CallShield platform modellerini indir
+# Fine-Tuned Agent platform modellerini indir
 #   - LLM     : Google Drive → models/merged/fine-tuned-agent-v14/
 #   - Whisper : HuggingFace + CT2 convert → models/whisper/whisper-large-v3-turbo-german-ct2/
 #
@@ -44,7 +44,7 @@ success() { echo -e "${GREEN}✓  $*${NC}"; }
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║   CallShield Model İndirici                   ║"
+echo "║   Fine-Tuned Agent Model İndirici                   ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 echo "Hedef: $MODELS_DIR"

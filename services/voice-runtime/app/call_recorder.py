@@ -19,11 +19,25 @@ from __future__ import annotations
 import audioop
 import io
 import threading
+import time
 import wave
 
 
 class CallRecorder:
-    def __init__(self, out_rate: int = 16000) -> None:
+    """See module docstring. One addition (2026-08-24): WebRTC pauses the mic
+    stream during silence (DTX), which froze the customer wall-clock cursor —
+    later audio then piled onto earlier positions, garbling long recordings.
+    Both cursors now resync FORWARD to the real wall clock whenever they lag
+    it by more than ``resync_gap_s`` (never backward, so the agent's ~1s TTS
+    lookahead is unaffected). The clock is injectable for tests; data-driven
+    unit tests run in microseconds and never trigger the resync."""
+
+    def __init__(
+        self,
+        out_rate: int = 16000,
+        clock=time.monotonic,
+        resync_gap_s: float = 0.5,
+    ) -> None:
         self._rate = out_rate
         self._buf = bytearray()
         self._lock = threading.Lock()
@@ -31,6 +45,19 @@ class CallRecorder:
         self._agent_pos = 0
         self._customer_resample_state = None
         self._agent_resample_state = None
+        self._clock = clock
+        self._resync_gap_bytes = int(resync_gap_s * out_rate) * 2
+        self._started_at: float | None = None
+
+    def _resync(self, pos: int) -> int:
+        """Snap a cursor that fell behind the wall clock forward to it."""
+        now = self._clock()
+        if self._started_at is None:
+            self._started_at = now
+        wall_bytes = int((now - self._started_at) * self._rate) * 2
+        if wall_bytes - pos > self._resync_gap_bytes:
+            return wall_bytes
+        return pos
 
     def _mix_at(self, pcm: bytes, pos: int) -> int:
         """Sum ``pcm`` into the timeline at byte offset ``pos``.
@@ -55,7 +82,7 @@ class CallRecorder:
                 )
                 if not pcm:
                     return
-            self._customer_pos = self._mix_at(pcm, self._customer_pos)
+            self._customer_pos = self._mix_at(pcm, self._resync(self._customer_pos))
 
     def add_agent(self, pcm: bytes, src_rate: int) -> None:
         """Mix agent TTS PCM (16-bit mono) at the position it played out.
@@ -77,7 +104,7 @@ class CallRecorder:
                     return
             if self._agent_pos < self._customer_pos:
                 self._agent_pos = self._customer_pos
-            self._agent_pos = self._mix_at(pcm, self._agent_pos)
+            self._agent_pos = self._mix_at(pcm, self._resync(self._agent_pos))
 
     def duration_seconds(self) -> float:
         with self._lock:
@@ -105,3 +132,4 @@ class CallRecorder:
             self._agent_pos = 0
             self._customer_resample_state = None
             self._agent_resample_state = None
+            self._started_at = None

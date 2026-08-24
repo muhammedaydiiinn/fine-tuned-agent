@@ -1,4 +1,4 @@
-// CallShield özel ses çaları.
+// Fine-Tuned Agent özel ses çaları.
 //
 // Kullanım:
 //   <div class="ab-player" data-audio-src="/recordings/1/audio" data-duration="12.4"></div>

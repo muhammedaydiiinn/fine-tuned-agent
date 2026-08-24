@@ -102,3 +102,33 @@ def test_reset_clears_buffer():
     # Cursors must reset too: new audio starts at t=0 again.
     rec.add_customer(_silence(1000))
     assert abs(rec.duration_seconds() - 1000 / 16000) < 1e-6
+
+
+def test_dtx_pause_resyncs_to_wall_clock():
+    """WebRTC DTX: the mic stream pauses during silence. Without wall-clock
+    resync the frozen customer cursor made later audio pile onto earlier
+    positions (garbled long recordings). With an injected clock, a 10s gap in
+    mic frames must land the next audio ~10s later on the timeline."""
+    fake = {"t": 100.0}
+    rec = CallRecorder(out_rate=16000, clock=lambda: fake["t"])
+    rec.add_customer(_tone(16000, value=700))          # t=100: 1s speech
+    fake["t"] = 111.0                                  # 10s DTX pause
+    rec.add_customer(_tone(16000, value=700))          # resumes at wall ~11s
+    dur = rec.duration_seconds()
+    assert 11.5 < dur < 12.5, dur
+    samples = _samples(rec)
+    assert (samples[:16000] == 700).all()              # first second intact
+    assert (samples[3 * 16000:10 * 16000] == 0).all()  # gap is silence
+    assert (samples[-16000:] == 700).all()             # resumed speech at end
+
+
+def test_agent_lookahead_not_pushed_forward():
+    """The agent cursor legitimately runs AHEAD of the wall clock (TTS packets
+    stream ~1s before playout) — resync must never fire for a leading cursor."""
+    fake = {"t": 50.0}
+    rec = CallRecorder(out_rate=16000, clock=lambda: fake["t"])
+    rec.add_agent(_tone(32000), src_rate=16000)  # 2s of audio at wall t=0
+    # Wall clock has only advanced 0.1s; cursor is 1.9s ahead — stays put.
+    fake["t"] = 50.1
+    rec.add_agent(_tone(1600), src_rate=16000)
+    assert abs(rec.duration_seconds() - 2.1) < 0.01

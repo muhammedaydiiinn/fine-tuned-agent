@@ -67,20 +67,20 @@ def _kickoff_production_serving() -> None:
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    logger.info("CallShield Agent Backend starting — mode=%s", settings.vllm_mode)
+    logger.info("Fine-Tuned Agent Backend starting — mode=%s", settings.vllm_mode)
     create_tables()
     logger.info("Database tables ready.")
     _kickoff_production_serving()
     from app.core.autotrain import start_autotrain_loop
     start_autotrain_loop()
     yield
-    logger.info("CallShield Agent Backend shutting down.")
+    logger.info("Fine-Tuned Agent Backend shutting down.")
 
 
 app = FastAPI(
-    title="CallShield Agent Backend",
+    title="Fine-Tuned Agent Backend",
     version="1.0.0",
-    description="CallShield Gold Paket sales agent platform",
+    description="Voice sales agent platform",
     lifespan=lifespan,
 )
 

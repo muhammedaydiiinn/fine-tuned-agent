@@ -1,4 +1,4 @@
-# CallShield Platform — Teknik Referans Dökümantasyonu
+# Fine-Tuned Agent Platform — Teknik Referans Dökümantasyonu
 
 > Bu dosya sistemdeki her bileşeni, her .env değişkenini, her senaryoyu ve değişiklik yaptığında ne olacağını açıklar.
 

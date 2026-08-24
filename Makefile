@@ -1,4 +1,4 @@
-# CallShield platform — dev/ops shortcuts.
+# Fine-Tuned Agent platform — dev/ops shortcuts.
 # LOCAL (GPU-free): GPU services (vllm, model-manager, voice/transcribe workers)
 # stay behind the `gpu` profile and never start. GPU host uses the `gpu-*` targets.
 #

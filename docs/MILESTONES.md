@@ -1,4 +1,4 @@
-# CallShield Platform — Canonical Milestone Plan
+# Fine-Tuned Agent Platform — Canonical Milestone Plan
 
 Bu dosya projenin tek referans milestone planıdır. Nihai ürün bir chat sistemi
 değil; düşük gecikmeli, kesilebilir, canlı düzeltilebilir ve kontrollü biçimde
