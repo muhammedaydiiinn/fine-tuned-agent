@@ -122,7 +122,7 @@ async def run_call(lines: list[str]) -> None:
     print(f"oda: {room_name}")
 
     print("müşteri replikleri sentezleniyor (Fish TTS)…")
-    real_texts = [l.lstrip("!") for l in lines if l.lstrip("!") != "@blip"]
+    real_texts = [l.lstrip("!^") for l in lines if l.lstrip("!^") != "@blip"]
     clips = await synth_lines(settings, real_texts)
 
     room = rtc.Room()
@@ -149,15 +149,41 @@ async def run_call(lines: list[str]) -> None:
     track = rtc.LocalAudioTrack.create_audio_track("mic", source)
     await room.local_participant.publish_track(track)
 
-    async def speak(pcm48: bytes) -> None:
-        frame_bytes = MIC_RATE // 100 * 2  # 10 ms
-        for i in range(0, len(pcm48) - frame_bytes, frame_bytes):
-            chunk = pcm48[i:i + frame_bytes]
+    frame_bytes = MIC_RATE // 100 * 2  # 10 ms
+    speech_queue: asyncio.Queue[bytes] = asyncio.Queue()
+
+    async def mic_pump() -> None:
+        """Real callers stream mic frames continuously (silence included) —
+        the call recorder's wall clock depends on it. Pump silence between
+        scripted lines and splice queued speech in, 10 ms at a time."""
+        silence = b"\x00" * frame_bytes
+        current: bytes | None = None
+        offset = 0
+        while True:
+            if current is None and not speech_queue.empty():
+                current = speech_queue.get_nowait()
+                offset = 0
+            if current is not None:
+                chunk = current[offset:offset + frame_bytes]
+                offset += frame_bytes
+                if offset >= len(current):
+                    current = None
+                if len(chunk) < frame_bytes:
+                    chunk = chunk + b"\x00" * (frame_bytes - len(chunk))
+            else:
+                chunk = silence
             frame = rtc.AudioFrame(
                 data=chunk, sample_rate=MIC_RATE,
                 num_channels=1, samples_per_channel=len(chunk) // 2,
             )
             await source.capture_frame(frame)
+
+    mic_task = asyncio.create_task(mic_pump())
+
+    async def speak(pcm48: bytes) -> None:
+        await speech_queue.put(pcm48)
+        # Wait until the clip has fully played out of the mic pump.
+        await asyncio.sleep(len(pcm48) / 2 / MIC_RATE + 0.2)
 
     def blip() -> bytes:
         # 0.5 s noise burst: white noise loses ~2/3 of its energy in the
@@ -177,9 +203,19 @@ async def run_call(lines: list[str]) -> None:
             await asyncio.sleep(0.05)
         return False
 
-    # Opening: the agent greets on connect.
-    greeting_ms = await ear.wait_reply_done()
-    print(f"[açılış] ajan konuştu: {greeting_ms:.0f} ms ses")
+    # Opening: the agent greets on connect — unless the script says the
+    # customer speaks FIRST ('^' prefix on the first line), which exercises
+    # the customer-spoke-first / opening-skipped race.
+    if lines and lines[0].startswith("^"):
+        first = lines.pop(0).lstrip("^")
+        await asyncio.sleep(0.4)
+        print(f"[müşteri, AJANDAN ÖNCE] {first!r}")
+        await speak(clips[first])
+        reply_ms = await ear.wait_reply_done()
+        print(f"[ajan]    {reply_ms:.0f} ms ses — {'OK' if reply_ms > 300 else 'CEVAP YOK'}")
+    else:
+        greeting_ms = await ear.wait_reply_done()
+        print(f"[açılış] ajan konuştu: {greeting_ms:.0f} ms ses")
 
     for index, line in enumerate(lines):
         text = line.lstrip("!")
@@ -196,6 +232,17 @@ async def run_call(lines: list[str]) -> None:
             status = "OK" if reply_ms > 300 else "CEVAP YOK"
             print(f"[ajan]    {reply_ms:.0f} ms ses — {status}")
 
+    # Give a still-processing final turn a SHORT window to answer, then hang
+    # up promptly — lingering only pads the call recording with silence.
+    baseline = ear.total_voiced_ms
+    for _ in range(40):
+        if ear.total_voiced_ms - baseline > 300:
+            extra = await ear.wait_reply_done()
+            print(f"[ajan, geç cevap] {extra:.0f} ms ses")
+            break
+        await asyncio.sleep(0.1)
+
+    mic_task.cancel()
     await room.disconnect()
     for task in capture_tasks:
         task.cancel()
